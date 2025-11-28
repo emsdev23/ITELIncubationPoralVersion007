@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import Swal from "sweetalert2";
 import { FaTrash, FaEdit, FaPlus, FaSpinner } from "react-icons/fa";
 import { Download } from "lucide-react";
+import { FaFilter, FaTimes } from "react-icons/fa"; // Added this import
 import "./UserTable.css";
 import { IPAdress } from "../Datafetching/IPAdrees";
 import * as XLSX from "xlsx";
@@ -22,6 +23,11 @@ import {
   Chip,
   CircularProgress,
   Backdrop,
+  Tooltip, // Added this import
+  Popover, // Added this import
+  Card, // Added this import
+  CardContent, // Added this import
+  CardActions, // Added this import
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import SearchIcon from "@mui/icons-material/Search";
@@ -80,6 +86,21 @@ export default function UserTable() {
     pageSize: 5,
   });
 
+  // Column-specific filter states
+  const [columnFilters, setColumnFilters] = useState({
+    usersname: "",
+    usersemail: "",
+    usersrolesrecid: "",
+    userscreatedtime: "",
+    usersmodifiedtime: "",
+    userscreatedby: "",
+    usersmodifiedby: "",
+  });
+
+  // Filter popover states
+  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
+  const [filterColumn, setFilterColumn] = useState(null);
+
   // Loading states for operations
   const [isAdding, setIsAdding] = useState(false);
   const [isUpdating, setIsUpdating] = useState(null);
@@ -98,7 +119,7 @@ export default function UserTable() {
   // Check if incubatee dropdown should be enabled
   const isIncubateeEnabled = selectedIncubation !== null;
 
-  // Function to map role ID to the correct role name
+  // Function to map role ID to correct role name
   const getRoleName = (roleId) => {
     const roleMap = {
       1: "Incubator admin",
@@ -131,24 +152,88 @@ export default function UserTable() {
           minute: "2-digit",
           hour12: false, // Use 24-hour format
         })
-        .replace(",", ""); // Remove the comma between date and time
+        .replace(",", ""); // Remove comma between date and time
     } catch (error) {
       console.error("Error formatting date:", error);
       return dateStr; // Return original if error
     }
   };
 
-  // Function to filter users based on search query
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredUsers(users);
-    } else {
-      const filtered = users.filter((user) =>
+  // Filter users based on search query and column filters
+  const filteredData = useMemo(() => {
+    let result = users;
+
+    // Apply search query filter
+    if (searchQuery.trim() !== "") {
+      result = result.filter((user) =>
         user.usersname.toLowerCase().includes(searchQuery.toLowerCase())
       );
-      setFilteredUsers(filtered);
     }
-  }, [searchQuery, users]);
+
+    // Apply column filters
+    result = result.filter((user) => {
+      // Name filter
+      const matchesName =
+        !columnFilters.usersname ||
+        (user.usersname || "")
+          .toLowerCase()
+          .includes(columnFilters.usersname.toLowerCase());
+
+      // Email filter
+      const matchesEmail =
+        !columnFilters.usersemail ||
+        (user.usersemail || "")
+          .toLowerCase()
+          .includes(columnFilters.usersemail.toLowerCase());
+
+      // Role filter
+      const matchesRole =
+        !columnFilters.usersrolesrecid ||
+        getRoleName(user.usersrolesrecid)
+          .toLowerCase()
+          .includes(columnFilters.usersrolesrecid.toLowerCase());
+
+      // Created time filter
+      const matchesCreatedTime =
+        !columnFilters.userscreatedtime ||
+        formatDate(user.userscreatedtime)
+          .toLowerCase()
+          .includes(columnFilters.userscreatedtime.toLowerCase());
+
+      // Modified time filter
+      const matchesModifiedTime =
+        !columnFilters.usersmodifiedtime ||
+        formatDate(user.usersmodifiedtime)
+          .toLowerCase()
+          .includes(columnFilters.usersmodifiedtime.toLowerCase());
+
+      // Created by filter
+      const matchesCreatedBy =
+        !columnFilters.userscreatedby ||
+        (user.userscreatedby || "")
+          .toLowerCase()
+          .includes(columnFilters.userscreatedby.toLowerCase());
+
+      // Modified by filter
+      const matchesModifiedBy =
+        !columnFilters.usersmodifiedby ||
+        (user.usersmodifiedby || "")
+          .toLowerCase()
+          .includes(columnFilters.usersmodifiedby.toLowerCase());
+
+      return (
+        matchesName &&
+        matchesEmail &&
+        matchesRole &&
+        matchesCreatedTime &&
+        matchesModifiedTime &&
+        matchesCreatedBy &&
+        matchesModifiedBy
+      );
+    });
+
+    return result;
+  }, [users, searchQuery, columnFilters]);
 
   // Function to clear search
   const clearSearch = () => {
@@ -162,8 +247,8 @@ export default function UserTable() {
 
   // Export to CSV function
   const exportToCSV = () => {
-    // Create a copy of the data for export
-    const exportData = filteredUsers.map((user, index) => ({
+    // Create a copy of data for export
+    const exportData = filteredData.map((user, index) => ({
       "S.No": index + 1,
       Name: user.usersname || "",
       Email: user.usersemail || "",
@@ -215,8 +300,8 @@ export default function UserTable() {
     }
 
     try {
-      // Create a copy of the data for export
-      const exportData = filteredUsers.map((user, index) => ({
+      // Create a copy of data for export
+      const exportData = filteredData.map((user, index) => ({
         "S.No": index + 1,
         Name: user.usersname || "",
         Email: user.usersemail || "",
@@ -243,173 +328,319 @@ export default function UserTable() {
     }
   };
 
-  // Define columns for DataGrid
-  const columns = [
-    {
-      field: "sno",
-      headerName: "S.No",
-      width: 70,
-      sortable: false,
-      valueGetter: (params) => {
-        if (!params || !params.api) return 0;
-        return params.api.getRowIndexRelativeToVisibleRows(params.row.id) + 1;
+  // Define columns for DataGrid with filter icons
+  const columns = useMemo(
+    () => [
+      {
+        field: "sno",
+        headerName: "S.No",
+        width: 70,
+        sortable: false,
+        valueGetter: (params) => {
+          if (!params || !params.api) return 0;
+          return params.api.getRowIndexRelativeToVisibleRows(params.row.id) + 1;
+        },
       },
-    },
-    {
-      field: "usersname",
-      headerName: "Name",
-      width: 150,
-      sortable: true,
-    },
-    {
-      field: "usersemail",
-      headerName: "Email",
-      width: 200,
-      sortable: true,
-    },
-    {
-      field: "usersrolesrecid",
-      headerName: "Role Name",
-      width: 180,
-      sortable: true,
-      valueGetter: (params) => {
-        if (!params || !params.row) return "Unknown Role";
-        return getRoleName(params.row.usersrolesrecid);
-      },
-      renderCell: (params) => {
-        if (!params || !params.row)
-          return <Chip label="Unknown Role" size="small" />;
-        return (
-          <Chip
-            label={getRoleName(params.row.usersrolesrecid)}
-            size="small"
-            variant="outlined"
-          />
-        );
-      },
-    },
-    {
-      field: "userscreatedtime",
-      headerName: "Created Time",
-      width: 180,
-      sortable: true,
-      valueGetter: (params) => {
-        // Keep this for sorting purposes
-        if (!params || !params.row) return null;
-        return params.row.userscreatedtime
-          ? new Date(params.row.userscreatedtime)
-          : null;
-      },
-      renderCell: (params) => {
-        // Use this for display
-        if (!params || !params.row) return "-";
-        return formatDate(params.row.userscreatedtime);
-      },
-      sortComparator: (v1, v2) => {
-        // Custom sort comparator for dates
-        const date1 = v1 || new Date(0);
-        const date2 = v2 || new Date(0);
-        return date1.getTime() - date2.getTime();
-      },
-    },
-    {
-      field: "usersmodifiedtime",
-      headerName: "Modified Time",
-      width: 180,
-      sortable: true,
-      valueGetter: (params) => {
-        // Keep this for sorting purposes
-        if (!params || !params.row) return null;
-        return params.row.usersmodifiedtime
-          ? new Date(params.row.usersmodifiedtime)
-          : null;
-      },
-      renderCell: (params) => {
-        // Use this for display
-        if (!params || !params.row) return "-";
-        return formatDate(params.row.usersmodifiedtime);
-      },
-      sortComparator: (v1, v2) => {
-        // Custom sort comparator for dates
-        const date1 = v1 || new Date(0);
-        const date2 = v2 || new Date(0);
-        return date1.getTime() - date2.getTime();
-      },
-    },
-    {
-      field: "userscreatedby",
-      headerName: "Created By",
-      width: 120,
-      sortable: true,
-    },
-    {
-      field: "usersmodifiedby",
-      headerName: "Modified By",
-      width: 120,
-      sortable: true,
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      width: 150,
-      sortable: false,
-      renderCell: (params) => {
-        if (!params || !params.row) return null;
-
-        const shouldDisableDelete =
-          params.row.usersrolesrecid === 4 || params.row.usersrolesrecid === 1;
-
-        return (
-          <Box>
-            <ActionButton
-              color="edit"
-              onClick={() => handleEdit(params.row)}
-              disabled={
-                isUpdating === params.row.usersrecid ||
-                isDeleting === params.row.usersrecid
-              }
-              title="Edit"
-            >
-              {isUpdating === params.row.usersrecid ? (
-                <FaSpinner className="spinner" size={18} />
-              ) : (
-                <EditIcon fontSize="small" />
-              )}
-            </ActionButton>
-            <ActionButton
-              color="delete"
-              onClick={() => handleDelete(params.row)}
-              disabled={
-                isDeleting === params.row.usersrecid ||
-                isUpdating === params.row.usersrecid ||
-                shouldDisableDelete
-              }
-              className={shouldDisableDelete ? "disabled" : ""}
-              title={
-                shouldDisableDelete
-                  ? "Cannot delete users with role ID 1 or 4"
-                  : "Delete"
-              }
-            >
-              {isDeleting === params.row.usersrecid ? (
-                <FaSpinner className="spinner" size={18} />
-              ) : (
-                <DeleteIcon fontSize="small" />
-              )}
-            </ActionButton>
+      {
+        field: "usersname",
+        headerName: "Name",
+        width: 150,
+        sortable: true,
+        renderHeader: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography>Name</Typography>
+            <Tooltip title="Filter">
+              <IconButton
+                size="small"
+                onClick={(e) => handleFilterClick(e, "usersname")}
+                color={columnFilters.usersname ? "primary" : "default"}
+              >
+                <FaFilter size={14} />
+              </IconButton>
+            </Tooltip>
           </Box>
-        );
+        ),
       },
-    },
-  ];
+      {
+        field: "usersemail",
+        headerName: "Email",
+        width: 200,
+        sortable: true,
+        renderHeader: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography>Email</Typography>
+            <Tooltip title="Filter">
+              <IconButton
+                size="small"
+                onClick={(e) => handleFilterClick(e, "usersemail")}
+                color={columnFilters.usersemail ? "primary" : "default"}
+              >
+                <FaFilter size={14} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "usersrolesrecid",
+        headerName: "Role Name",
+        width: 180,
+        sortable: true,
+        renderHeader: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography>Role Name</Typography>
+            <Tooltip title="Filter">
+              <IconButton
+                size="small"
+                onClick={(e) => handleFilterClick(e, "usersrolesrecid")}
+                color={columnFilters.usersrolesrecid ? "primary" : "default"}
+              >
+                <FaFilter size={14} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        ),
+        valueGetter: (params) => {
+          if (!params || !params.row) return "Unknown Role";
+          return getRoleName(params.row.usersrolesrecid);
+        },
+        renderCell: (params) => {
+          if (!params || !params.row)
+            return <Chip label="Unknown Role" size="small" />;
+          return (
+            <Chip
+              label={getRoleName(params.row.usersrolesrecid)}
+              size="small"
+              variant="outlined"
+            />
+          );
+        },
+      },
+      {
+        field: "userscreatedtime",
+        headerName: "Created Time",
+        width: 180,
+        sortable: true,
+        renderHeader: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography>Created Time</Typography>
+            <Tooltip title="Filter">
+              <IconButton
+                size="small"
+                onClick={(e) => handleFilterClick(e, "userscreatedtime")}
+                color={columnFilters.userscreatedtime ? "primary" : "default"}
+              >
+                <FaFilter size={14} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        ),
+        valueGetter: (params) => {
+          // Keep this for sorting purposes
+          if (!params || !params.row) return null;
+          return params.row.userscreatedtime
+            ? new Date(params.row.userscreatedtime)
+            : null;
+        },
+        renderCell: (params) => {
+          // Use this for display
+          if (!params || !params.row) return "-";
+          return formatDate(params.row.userscreatedtime);
+        },
+        sortComparator: (v1, v2) => {
+          // Custom sort comparator for dates
+          const date1 = v1 || new Date(0);
+          const date2 = v2 || new Date(0);
+          return date1.getTime() - date2.getTime();
+        },
+      },
+      {
+        field: "usersmodifiedtime",
+        headerName: "Modified Time",
+        width: 180,
+        sortable: true,
+        renderHeader: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography>Modified Time</Typography>
+            <Tooltip title="Filter">
+              <IconButton
+                size="small"
+                onClick={(e) => handleFilterClick(e, "usersmodifiedtime")}
+                color={columnFilters.usersmodifiedtime ? "primary" : "default"}
+              >
+                <FaFilter size={14} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        ),
+        valueGetter: (params) => {
+          // Keep this for sorting purposes
+          if (!params || !params.row) return null;
+          return params.row.usersmodifiedtime
+            ? new Date(params.row.usersmodifiedtime)
+            : null;
+        },
+        renderCell: (params) => {
+          // Use this for display
+          if (!params || !params.row) return "-";
+          return formatDate(params.row.usersmodifiedtime);
+        },
+        sortComparator: (v1, v2) => {
+          // Custom sort comparator for dates
+          const date1 = v1 || new Date(0);
+          const date2 = v2 || new Date(0);
+          return date1.getTime() - date2.getTime();
+        },
+      },
+      {
+        field: "userscreatedby",
+        headerName: "Created By",
+        width: 120,
+        sortable: true,
+        renderHeader: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography>Created By</Typography>
+            <Tooltip title="Filter">
+              <IconButton
+                size="small"
+                onClick={(e) => handleFilterClick(e, "userscreatedby")}
+                color={columnFilters.userscreatedby ? "primary" : "default"}
+              >
+                <FaFilter size={14} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "usersmodifiedby",
+        headerName: "Modified By",
+        width: 120,
+        sortable: true,
+        renderHeader: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography>Modified By</Typography>
+            <Tooltip title="Filter">
+              <IconButton
+                size="small"
+                onClick={(e) => handleFilterClick(e, "usersmodifiedby")}
+                color={columnFilters.usersmodifiedby ? "primary" : "default"}
+              >
+                <FaFilter size={14} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "actions",
+        headerName: "Actions",
+        width: 150,
+        sortable: false,
+        renderCell: (params) => {
+          if (!params || !params.row) return null;
+
+          const shouldDisableDelete =
+            params.row.usersrolesrecid === 4 ||
+            params.row.usersrolesrecid === 1;
+
+          return (
+            <Box>
+              <ActionButton
+                color="edit"
+                onClick={() => handleEdit(params.row)}
+                disabled={
+                  isUpdating === params.row.usersrecid ||
+                  isDeleting === params.row.usersrecid
+                }
+                title="Edit"
+              >
+                {isUpdating === params.row.usersrecid ? (
+                  <FaSpinner className="spinner" size={18} />
+                ) : (
+                  <EditIcon fontSize="small" />
+                )}
+              </ActionButton>
+              <ActionButton
+                color="delete"
+                onClick={() => handleDelete(params.row)}
+                disabled={
+                  isDeleting === params.row.usersrecid ||
+                  isUpdating === params.row.usersrecid ||
+                  shouldDisableDelete
+                }
+                className={shouldDisableDelete ? "disabled" : ""}
+                title={
+                  shouldDisableDelete
+                    ? "Cannot delete users with role ID 1 or 4"
+                    : "Delete"
+                }
+              >
+                {isDeleting === params.row.usersrecid ? (
+                  <FaSpinner className="spinner" size={18} />
+                ) : (
+                  <DeleteIcon fontSize="small" />
+                )}
+              </ActionButton>
+            </Box>
+          );
+        },
+      },
+    ],
+    [isUpdating, isDeleting, columnFilters, getRoleName]
+  );
 
   // Add unique ID to each row if not present
   const rowsWithId = useMemo(() => {
-    return filteredUsers.map((user, index) => ({
+    return filteredData.map((user, index) => ({
       ...user,
       id: user.usersrecid || `user-${index}`,
     }));
-  }, [filteredUsers]);
+  }, [filteredData]);
+
+  // Filter popover handlers
+  const handleFilterClick = (event, column) => {
+    setFilterAnchorEl(event.currentTarget);
+    setFilterColumn(column);
+  };
+
+  const handleFilterClose = () => {
+    setFilterAnchorEl(null);
+    setFilterColumn(null);
+  };
+
+  const handleFilterChange = (column, value) => {
+    setColumnFilters((prev) => ({
+      ...prev,
+      [column]: value,
+    }));
+    setPaginationModel({ ...paginationModel, page: 0 }); // Reset to first page when filtering
+  };
+
+  const clearFilter = () => {
+    setColumnFilters((prev) => ({
+      ...prev,
+      [filterColumn]: "",
+    }));
+  };
+
+  const clearAllFilters = () => {
+    setColumnFilters({
+      usersname: "",
+      usersemail: "",
+      usersrolesrecid: "",
+      userscreatedtime: "",
+      usersmodifiedtime: "",
+      userscreatedby: "",
+      usersmodifiedby: "",
+    });
+    setPaginationModel({ ...paginationModel, page: 0 });
+  };
+
+  // Check if any column has an active filter
+  const hasActiveFilters = Object.values(columnFilters).some(
+    (value) => value !== ""
+  );
 
   // Fetch all users
   const fetchUsers = () => {
@@ -492,7 +723,7 @@ export default function UserTable() {
 
   // Fetch incubatees for dropdown
   const fetchIncubatees = (incubationId = null) => {
-    // Use the provided incubationId or the selectedIncubation
+    // Use the provided incubationId or selectedIncubation
     const targetIncubationId =
       incubationId ||
       (selectedIncubation ? selectedIncubation.incubationsrecid : incUserid);
@@ -631,7 +862,7 @@ export default function UserTable() {
                 `${user.usersname} has been deleted successfully.`,
                 "success"
               );
-              fetchUsers(); // Refresh the user list
+              fetchUsers(); // Refresh user list
             } else {
               throw new Error(data.message || "Failed to delete user");
             }
@@ -661,7 +892,7 @@ export default function UserTable() {
     ) {
       Swal.fire({
         title: "Loading...",
-        text: "Please wait while we load the required data",
+        text: "Please wait while we load required data",
         icon: "info",
         allowOutsideClick: false,
         allowEscapeKey: false,
@@ -887,7 +1118,7 @@ export default function UserTable() {
             : INCUBATEE_ROLE_IDS.includes(selectedRole);
 
           if (shouldEnableIncubatee) {
-            // Update incubatee options based on selected incubation
+            // Update incubatee options based on the selected incubation
             if (canSelectIncubation && incubationSelect) {
               updateIncubateeOptions(incubationSelect.value);
             } else {
@@ -1257,7 +1488,7 @@ export default function UserTable() {
             : INCUBATEE_ROLE_IDS.includes(selectedRole);
 
           if (shouldEnableIncubatee) {
-            // Update incubatee options based on selected incubation
+            // Update incubatee options based on the selected incubation
             if (canSelectIncubation && incubationSelect) {
               updateIncubateeOptions(incubationSelect.value);
             } else {
@@ -1438,10 +1669,23 @@ export default function UserTable() {
         Showing {paginationModel.page * paginationModel.pageSize + 1} to{" "}
         {Math.min(
           (paginationModel.page + 1) * paginationModel.pageSize,
-          filteredUsers.length
+          filteredData.length
         )}{" "}
-        of {filteredUsers.length} entries
+        of {filteredData.length} entries
       </Box>
+
+      {/* Clear Filters Button */}
+      {hasActiveFilters && (
+        <Box sx={{ mb: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<FaTimes />}
+            onClick={clearAllFilters}
+          >
+            Clear All Filters
+          </Button>
+        </Box>
+      )}
 
       {/* Material UI DataGrid */}
       <StyledPaper>
@@ -1455,16 +1699,69 @@ export default function UserTable() {
           sx={{ border: 0 }}
           loading={loading}
           autoHeight
+          disableColumnMenu
         />
       </StyledPaper>
 
-      {filteredUsers.length === 0 && !loading && (
+      {filteredData.length === 0 && !loading && (
         <Box sx={{ textAlign: "center", py: 3, color: "text.secondary" }}>
           {searchQuery
             ? "No users found matching your search"
             : "No users found"}
         </Box>
       )}
+
+      {/* Filter Popover */}
+      <Popover
+        open={Boolean(filterAnchorEl)}
+        anchorEl={filterAnchorEl}
+        onClose={handleFilterClose}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "left",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "left",
+        }}
+      >
+        <Card sx={{ minWidth: 280, maxWidth: 400 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Filter by {filterColumn === "usersname" && "Name"}
+              {filterColumn === "usersemail" && "Email"}
+              {filterColumn === "usersrolesrecid" && "Role"}
+              {filterColumn === "userscreatedtime" && "Created Time"}
+              {filterColumn === "usersmodifiedtime" && "Modified Time"}
+              {filterColumn === "userscreatedby" && "Created By"}
+              {filterColumn === "usersmodifiedby" && "Modified By"}
+            </Typography>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder={`Enter ${filterColumn === "usersname" && "name"}${
+                filterColumn === "usersemail" && "email"
+              }${filterColumn === "usersrolesrecid" && "role"}${
+                filterColumn === "userscreatedtime" && "created time"
+              }${filterColumn === "usersmodifiedtime" && "modified time"}${
+                filterColumn === "userscreatedby" && "created by"
+              }${filterColumn === "usersmodifiedby" && "modified by"}...`}
+              value={columnFilters[filterColumn] || ""}
+              onChange={(e) => handleFilterChange(filterColumn, e.target.value)}
+              variant="outlined"
+              margin="normal"
+            />
+          </CardContent>
+          <CardActions sx={{ justifyContent: "flex-end" }}>
+            <Button size="small" onClick={clearFilter}>
+              Clear
+            </Button>
+            <Button size="small" onClick={handleFilterClose}>
+              Close
+            </Button>
+          </CardActions>
+        </Card>
+      </Popover>
 
       {/* Loading overlay for operations */}
       <StyledBackdrop

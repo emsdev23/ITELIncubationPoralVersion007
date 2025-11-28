@@ -1,4 +1,3 @@
-// src/components/ChatHistory.jsx
 import React, { useState, useEffect } from "react";
 import styles from "../Navbar.module.css";
 import {
@@ -18,8 +17,6 @@ import api from "../Datafetching/api";
 import * as XLSX from "xlsx";
 
 // Material UI imports
-import { DataGrid } from "@mui/x-data-grid";
-import Paper from "@mui/material/Paper";
 import {
   Button,
   Box,
@@ -35,24 +32,16 @@ import {
   Card,
   CardContent,
   CardHeader,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Menu,
   Tooltip,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
-// Styled components for custom styling
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  width: "100%",
-  marginBottom: theme.spacing(2),
-  height: "calc(100vh - 300px)", // Fixed height for scrollable table
-}));
+// Import the ReusableDataGrid component
+import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
 
+// Styled components for custom styling
 const MessageCard = styled(Card)(({ theme, $isSent }) => ({
   marginBottom: theme.spacing(1),
   backgroundColor: $isSent
@@ -98,30 +87,9 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
   const [chatDetails, setChatDetails] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadingDetails, setLoadingDetails] = useState({});
-  const [searchTerm, setSearchTerm] = useState("");
   const [selectedChatId, setSelectedChatId] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [downloadingFiles, setDownloadingFiles] = useState(new Set());
-  const [paginationModel, setPaginationModel] = useState({
-    page: 0,
-    pageSize: 10,
-  });
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [columnAlignment, setColumnAlignment] = useState({
-    chatlistsubject: "left",
-    chatdetailsfromusername: "left",
-    chatdetailstousername: "left",
-    chatdetailsmessage: "left",
-    chatdetailscreatedtime: "center",
-    chatlistchatstate: "center",
-    chatdetailsattachmentpath: "left",
-  });
-  const [sortModel, setSortModel] = useState([
-    {
-      field: "chatdetailscreatedtime",
-      sort: "desc",
-    },
-  ]);
   const navigate = useNavigate();
 
   // Check if XLSX is available
@@ -146,22 +114,6 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
 
     fetchHistory();
   }, [currentUser.id]);
-
-  // Filter messages based on search term
-  const filteredMessages = chatHistory.filter((message) => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      (message.chatlistsubject &&
-        message.chatlistsubject.toLowerCase().includes(searchLower)) ||
-      (message.chatdetailsfromusername &&
-        message.chatdetailsfromusername.toLowerCase().includes(searchLower)) ||
-      (message.chatdetailstousername &&
-        message.chatdetailstousername.toLowerCase().includes(searchLower)) ||
-      (message.chatdetailsmessage &&
-        message.chatdetailsmessage.toLowerCase().includes(searchLower)) ||
-      message.chatdetailslistid.toString().includes(searchLower)
-    );
-  });
 
   // Helper function to generate a filename with datetime
   const generateFilenameWithDateTime = (originalFileName) => {
@@ -391,141 +343,18 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
       );
   };
 
-  // Add unique ID to each row if not present
-  const rowsWithId = React.useMemo(() => {
-    return filteredMessages.map((item) => ({
-      ...item,
-      id: item.chatdetailsrecid || Math.random().toString(36).substr(2, 9),
-    }));
-  }, [filteredMessages]);
-
-  // Export to CSV function
-  const exportToCSV = () => {
-    // Create a copy of the data for export
-    const exportData = filteredMessages.map((item) => ({
-      "Chat Subject":
-        item.chatlistsubject || `Chat ID: ${item.chatdetailslistid}`,
-      From: item.chatdetailsfromusername || "",
-      To: item.chatdetailstousername || "",
-      Message: item.chatdetailsmessage || "",
-      "Date & Time": formatDate(item.chatdetailscreatedtime),
-      Status: item.chatlistchatstate || "",
-      Attachment: item.chatdetailsfilename || "None",
-    }));
-
-    // Convert to CSV
-    const headers = Object.keys(exportData[0] || {});
-    const csvContent = [
-      headers.join(","),
-      ...exportData.map((row) =>
-        headers
-          .map((header) => {
-            // Handle values that might contain commas
-            const value = row[header];
-            return typeof value === "string" && value.includes(",")
-              ? `"${value}"`
-              : value;
-          })
-          .join(",")
-      ),
-    ].join("\n");
-
-    // Create a blob and download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `chat_history_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Export to Excel function
-  const exportToExcel = () => {
-    if (!isXLSXAvailable) {
-      console.error("XLSX library not available");
-      alert("Excel export is not available. Please install the xlsx package.");
-      return;
-    }
-
-    try {
-      // Create a copy of the data for export
-      const exportData = filteredMessages.map((item) => ({
-        "Chat Subject":
-          item.chatlistsubject || `Chat ID: ${item.chatdetailslistid}`,
-        From: item.chatdetailsfromusername || "",
-        To: item.chatdetailstousername || "",
-        Message: item.chatdetailsmessage || "",
-        "Date & Time": formatDate(item.chatdetailscreatedtime),
-        Status: item.chatlistchatstate || "",
-        Attachment: item.chatdetailsfilename || "None",
-      }));
-
-      // Create a workbook
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // Add the worksheet to the workbook
-      XLSX.utils.book_append_sheet(wb, ws, "Chat History");
-
-      // Generate the Excel file and download
-      XLSX.writeFile(
-        wb,
-        `chat_history_${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      alert("Error exporting to Excel. Falling back to CSV export.");
-      exportToCSV();
-    }
-  };
-
-  // Handle column alignment change
-  const handleAlignmentChange = (column, alignment) => {
-    setColumnAlignment((prev) => ({
-      ...prev,
-      [column]: alignment,
-    }));
-    setAnchorEl(null);
-  };
-
-  // Get alignment styles
-  const getAlignmentStyles = (column) => {
-    const alignment = columnAlignment[column] || "left";
-    const verticalAlign = "middle"; // Default vertical alignment
-
-    return {
-      display: "flex",
-      alignItems: verticalAlign,
-      justifyContent:
-        alignment === "left"
-          ? "flex-start"
-          : alignment === "right"
-          ? "flex-end"
-          : "center",
-      textAlign: alignment,
-      px: 1,
-    };
-  };
-
-  // Define columns for DataGrid with sorting enabled
+  // Define columns for ReusableDataGrid
   const columns = [
     {
       field: "chatlistsubject",
       headerName: "Chat Subject",
       width: 200,
       sortable: true,
+      filterable: true,
       renderCell: (params) => (
-        <Box sx={getAlignmentStyles("chatlistsubject")}>
-          <Typography variant="body2">
-            {params.value || `Chat ID: ${params.row.chatdetailslistid}`}
-          </Typography>
-        </Box>
+        <Typography variant="body2">
+          {params.value || `Chat ID: ${params.row.chatdetailslistid}`}
+        </Typography>
       ),
     },
     {
@@ -533,10 +362,9 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
       headerName: "From",
       width: 150,
       sortable: true,
+      filterable: true,
       renderCell: (params) => (
-        <Box sx={getAlignmentStyles("chatdetailsfromusername")}>
-          <Typography variant="body2">{params.value}</Typography>
-        </Box>
+        <Typography variant="body2">{params.value}</Typography>
       ),
     },
     {
@@ -544,10 +372,9 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
       headerName: "To",
       width: 150,
       sortable: true,
+      filterable: true,
       renderCell: (params) => (
-        <Box sx={getAlignmentStyles("chatdetailstousername")}>
-          <Typography variant="body2">{params.value}</Typography>
-        </Box>
+        <Typography variant="body2">{params.value}</Typography>
       ),
     },
     {
@@ -555,13 +382,15 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
       headerName: "Message",
       width: 250,
       sortable: true,
+      filterable: true,
       renderCell: (params) => (
-        <Box sx={getAlignmentStyles("chatdetailsmessage")}>
-          <Typography variant="body2" noWrap>
-            {params.value.substring(0, 100)}
-            {params.value.length > 100 ? "..." : ""}
-          </Typography>
-        </Box>
+        <Typography variant="body2" noWrap>
+          {params.value
+            ? params.value.length > 100
+              ? `${params.value.substring(0, 100)}...`
+              : params.value
+            : ""}
+        </Typography>
       ),
     },
     {
@@ -569,14 +398,10 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
       headerName: "Date & Time",
       width: 180,
       sortable: true,
-      valueGetter: (params) => {
-        // Convert string to Date object for proper sorting
-        return params.value ? new Date(params.value) : null;
-      },
+      filterable: true,
+      type: "date",
       renderCell: (params) => (
-        <Box sx={getAlignmentStyles("chatdetailscreatedtime")}>
-          <Typography variant="body2">{formatDate(params.value)}</Typography>
-        </Box>
+        <Typography variant="body2">{formatDate(params.value)}</Typography>
       ),
     },
     {
@@ -584,42 +409,31 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
       headerName: "Status",
       width: 120,
       sortable: true,
-      renderCell: (params) => (
-        <Box sx={getAlignmentStyles("chatlistchatstate")}>
-          <Chip
-            label={params.value}
-            size="small"
-            color={
-              params.value === "Active"
-                ? "primary"
-                : params.value === "Closed"
-                ? "default"
-                : "secondary"
-            }
-          />
-        </Box>
-      ),
+      filterable: true,
+      type: "chip",
+      chipColors: {
+        Active: { backgroundColor: "#e3f2fd", color: "#1976d2" },
+        Closed: { backgroundColor: "#f5f5f5", color: "#616161" },
+        Pending: { backgroundColor: "#fff3e0", color: "#f57c00" },
+      },
     },
     {
       field: "chatdetailsattachmentpath",
       headerName: "Attachment",
       width: 250,
       sortable: true,
+      filterable: true,
       renderCell: (params) => {
         if (!params.value) {
           return (
-            <Box sx={getAlignmentStyles("chatdetailsattachmentpath")}>
-              <Typography variant="body2" color="text.secondary">
-                No attachment
-              </Typography>
-            </Box>
+            <Typography variant="body2" color="text.secondary">
+              No attachment
+            </Typography>
           );
         }
 
         return (
-          <AttachmentContainer
-            sx={getAlignmentStyles("chatdetailsattachmentpath")}
-          >
+          <AttachmentContainer>
             <FileText size={16} color="#666" />
             <Typography
               variant="body2"
@@ -661,6 +475,26 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
     },
   ];
 
+  // Custom export function for chat history
+  const onExportData = (data) => {
+    return data.map((item) => ({
+      "Chat Subject":
+        item.chatlistsubject || `Chat ID: ${item.chatdetailslistid}`,
+      From: item.chatdetailsfromusername || "",
+      To: item.chatdetailstousername || "",
+      Message: item.chatdetailsmessage || "",
+      "Date & Time": formatDate(item.chatdetailscreatedtime),
+      Status: item.chatlistchatstate || "",
+      Attachment: item.chatdetailsfilename || "None",
+    }));
+  };
+
+  // Export configuration
+  const exportConfig = {
+    filename: "chat_history",
+    sheetName: "Chat History",
+  };
+
   return (
     <Box
       className="chat-history-page"
@@ -689,94 +523,25 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
 
       <main className="chat-history-main" sx={{ flexGrow: 1, p: 3 }}>
         <Box className="chat-history-container" sx={{ p: 2 }}>
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              mb: 2,
-            }}
-          >
-            <Typography variant="h4">Chat History</Typography>
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Button
-                variant="outlined"
-                startIcon={<Download size={16} />}
-                onClick={exportToCSV}
-                title="Export as CSV"
-              >
-                Export CSV
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<Download size={16} />}
-                onClick={exportToExcel}
-                title="Export as Excel"
-                disabled={!isXLSXAvailable}
-              >
-                Export Excel
-              </Button>
-            </Box>
-          </Box>
-
-          <Box sx={{ mb: 2 }}>
-            <TextField
-              fullWidth
-              placeholder="Search by subject, from, to, or message content..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search size={20} />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Box>
-
-          <StyledPaper>
-            {loading ? (
-              <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
-                <CircularProgress />
-              </Box>
-            ) : filteredMessages.length === 0 ? (
-              <Box sx={{ textAlign: "center", p: 3 }}>
-                <Typography variant="body1">No chat history found</Typography>
-              </Box>
-            ) : (
-              <DataGrid
-                rows={rowsWithId}
-                columns={columns}
-                paginationModel={paginationModel}
-                onPaginationModelChange={setPaginationModel}
-                pageSizeOptions={[5, 10, 25, 50]}
-                sortModel={sortModel}
-                onSortModelChange={(newSortModel) => setSortModel(newSortModel)}
-                disableRowSelectionOnClick
-                sx={{
-                  border: 0,
-                  "& .MuiDataGrid-root": {
-                    overflow: "auto",
-                  },
-                  "& .MuiDataGrid-cell": {
-                    whiteSpace: "normal !important",
-                    wordWrap: "break-word !important",
-                  },
-                  "& .MuiDataGrid-columnHeaders": {
-                    backgroundColor: "#f5f5f5",
-                    fontWeight: "bold",
-                  },
-                  "& .MuiDataGrid-columnHeader--sortable": {
-                    cursor: "pointer",
-                    "&:hover": {
-                      backgroundColor: "#eeeeee",
-                    },
-                  },
-                }}
-              />
-            )}
-          </StyledPaper>
+          {/* Use the ReusableDataGrid component */}
+          <ReusableDataGrid
+            data={chatHistory}
+            columns={columns}
+            title="Chat History"
+            searchPlaceholder="Search by subject, from, to, or message content..."
+            searchFields={[
+              "chatlistsubject",
+              "chatdetailsfromusername",
+              "chatdetailstousername",
+              "chatdetailsmessage",
+              "chatdetailslistid",
+            ]}
+            uniqueIdField="chatdetailsrecid"
+            onExportData={onExportData}
+            exportConfig={exportConfig}
+            enableExport={true}
+            enableColumnFilters={true}
+          />
         </Box>
       </main>
 

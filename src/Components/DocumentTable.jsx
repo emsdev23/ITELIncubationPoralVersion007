@@ -1,176 +1,254 @@
-import React, { useState, useContext, useEffect, useMemo } from "react";
-import styles from "./DocumentTable.module.css";
-import { NavLink } from "react-router-dom";
+import React, {
+  useState,
+  useEffect,
+  useContext,
+  useMemo,
+  useCallback,
+} from "react";
 import { DataContext } from "../Components/Datafetching/DataProvider";
-import api from "./Datafetching/api";
 import Swal from "sweetalert2";
-import style from "../Components/StartupDashboard/StartupDashboard.module.css";
-import * as XLSX from "xlsx";
 import { IPAdress } from "./Datafetching/IPAdrees";
-import { Download } from "lucide-react";
-import { DataGrid } from "@mui/x-data-grid";
-import Paper from "@mui/material/Paper";
+import ReusableDataGrid from "../Components/Datafetching/ReusableDataGrid";
+import styles from "./DocumentTable.module.css";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
-  Button,
   Box,
   Typography,
   Modal,
   IconButton,
-  Chip,
+  Button,
   TextField,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Select,
+  Chip,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { styled } from "@mui/material/styles";
-
-// Styled components for custom styling
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  // height: 500,
-  width: "100%",
-  marginTop: theme.spacing(2),
-}));
-
-const StyledChip = styled(Chip)(({ theme, status }) => {
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "submitted":
-        return { backgroundColor: "#d1fae5", color: "#065f46" };
-      case "pending":
-        return { backgroundColor: "#fef3c7", color: "#92400e" };
-      case "overdue":
-        return { backgroundColor: "#fee2e2", color: "#991b1b" };
-      default:
-        return { backgroundColor: "#f3f4f6", color: "#374151" };
-    }
-  };
-
-  return {
-    ...getStatusColor(status),
-    fontWeight: 500,
-    borderRadius: 4,
-  };
-});
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 
 // Common date formatting function
-const formatDate = (dateString) => {
-  if (!dateString) return "-";
+const formatDate = (dateInput) => {
+  if (!dateInput) return "-";
 
   try {
-    // Handle the "Z" suffix properly
-    const formattedDate = dateString.endsWith("Z")
-      ? `${dateString.slice(0, -1)}T00:00:00Z`
-      : dateString;
+    if (dateInput instanceof Date) {
+      return dateInput.toLocaleDateString();
+    }
+
+    const formattedDate = dateInput.endsWith("Z")
+      ? `${dateInput.slice(0, -1)}T00:00:00Z`
+      : dateInput;
 
     return new Date(formattedDate).toLocaleDateString();
   } catch (error) {
     console.error("Error parsing date:", error);
-    return dateString; // Return the original string as a fallback
+    return String(dateInput);
   }
 };
 
+// Format date for API (YYYY-MM-DD)
+const formatDateForAPI = (date) => {
+  if (!date) return "";
+  return new Date(date).toISOString().split("T")[0];
+};
+
 export default function DocumentTable() {
-  // ALL HOOKS MUST BE DECLARED AT THE TOP OF THE COMPONENT
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const {
     companyDoc,
     loading,
-    fromYear,
-    toYear,
-    setFromYear,
-    setToYear,
-    userid,
     roleid,
-    setCompanyDoc,
+    fetchDocumentsByDateRange,
+    dateFilterLoading,
+    incuserid,
+    userid,
+    // Add these from the context
+    fromYear,
+    setFromYear,
+    toYear,
+    setToYear,
   } = useContext(DataContext);
 
-  const [tempFromYear, setTempFromYear] = useState(fromYear);
-  const [tempToYear, setTempToYear] = useState(toYear);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [stageFilter, setStageFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  // Preview Modal States
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Pagination state for Material UI
-  const [paginationModel, setPaginationModel] = useState({
-    page: 0,
-    pageSize: 10,
-  });
+  // Add state variables to store the initial values
+  const [initialFromDate, setInitialFromDate] = useState(null);
+  const [initialToDate, setInitialToDate] = useState(null);
 
-  // Loading state for year filter
-  const [yearLoading, setYearLoading] = useState(false);
+  // Date Filter States - update to use context values
+  const [startDate, setStartDate] = useState(
+    fromYear ? new Date(fromYear) : null
+  );
+  const [endDate, setEndDate] = useState(toYear ? new Date(toYear) : null);
+  const [datesSelected, setDatesSelected] = useState(!!(fromYear && toYear));
 
-  // Check if XLSX is available
-  const isXLSXAvailable = !!XLSX;
+  // Sync date states with context and store initial values
+  useEffect(() => {
+    setStartDate(fromYear ? new Date(fromYear) : null);
+    setEndDate(toYear ? new Date(toYear) : null);
+    setDatesSelected(!!(fromYear && toYear));
 
-  // Map stage names to filter values
-  const getStageFilterValue = (stageName) => {
-    if (!stageName) return "";
+    // Store the initial values only once when the component first loads
+    if (initialFromDate === null && fromYear) {
+      setInitialFromDate(fromYear);
+    }
+    if (initialToDate === null && toYear) {
+      setInitialToDate(toYear);
+    }
+  }, [fromYear, toYear, initialFromDate, initialToDate]);
 
-    const normalizedStage = stageName.toLowerCase().trim();
-    switch (normalizedStage) {
-      case "pre seed stage":
-        return "1";
-      case "seed stage":
-        return "2";
-      case "early stage":
-      case "early":
-        return "3";
-      case "growth stage":
-      case "growth":
-        return "4";
-      case "expansion stage":
-      case "expansion":
-        return "5";
-      default:
-        return "";
+  // Handle date change
+  const handleDateChange = useCallback(
+    (type, newValue) => {
+      if (type === "start") {
+        setStartDate(newValue);
+      } else {
+        setEndDate(newValue);
+      }
+      setDatesSelected(
+        !!(type === "start" ? newValue && endDate : startDate && newValue)
+      );
+    },
+    [startDate, endDate]
+  );
+
+  // Handle apply date filter
+  const handleApplyDateFilter = useCallback(() => {
+    if (!startDate || !endDate) {
+      Swal.fire({
+        icon: "warning",
+        title: "Incomplete Date Range",
+        text: "Please select both start and end dates.",
+      });
+      return;
+    }
+
+    const formattedStartDate = formatDateForAPI(startDate);
+    const formattedEndDate = formatDateForAPI(endDate);
+
+    setFromYear(formattedStartDate);
+    setToYear(formattedEndDate);
+
+    fetchDocumentsByDateRange(formattedStartDate, formattedEndDate);
+  }, [startDate, endDate, setFromYear, setToYear, fetchDocumentsByDateRange]);
+
+  // Handle clear dates - FIXED VERSION
+  const handleClearDates = useCallback(() => {
+    // Reset to the initial values stored from the context
+    setStartDate(initialFromDate ? new Date(initialFromDate) : null);
+    setEndDate(initialToDate ? new Date(initialToDate) : null);
+    setDatesSelected(!!(initialFromDate && initialToDate));
+
+    // Reset the context state to the initial values
+    setFromYear(initialFromDate);
+    setToYear(initialToDate);
+
+    // Fetch the data using the initial date values
+    fetchDocumentsByDateRange(initialFromDate, initialToDate);
+  }, [
+    initialFromDate,
+    initialToDate,
+    setFromYear,
+    setToYear,
+    fetchDocumentsByDateRange,
+  ]);
+
+  // Stage name to value mapping
+  const stageMapping = {
+    "pre seed stage": "1",
+    "seed stage": "2",
+    "early stage": "3",
+    early: "3",
+    "growth stage": "4",
+    growth: "4",
+    "expansion stage": "5",
+    expansion: "5",
+  };
+
+  // Status colors with proper mapping
+  const statusColors = {
+    submitted: { backgroundColor: "#d1fae5", color: "#065f46" },
+    pending: { backgroundColor: "#fef3c7", color: "#92400e" },
+    overdue: { backgroundColor: "#fee2e2", color: "#991b1b" },
+  };
+
+  // Stage colors mapping
+  const stageColors = {
+    "pre seed stage": { backgroundColor: "#e0e7ff", color: "#4338ca" },
+    "seed stage": { backgroundColor: "#dbeafe", color: "#1e40af" },
+    "early stage": { backgroundColor: "#d1fae5", color: "#065f46" },
+    early: { backgroundColor: "#d1fae5", color: "#065f46" },
+    "growth stage": { backgroundColor: "#fef3c7", color: "#92400e" },
+    growth: { backgroundColor: "#fef3c7", color: "#92400e" },
+    "expansion stage": { backgroundColor: "#ede9fe", color: "#5b21b6" },
+    expansion: { backgroundColor: "#ede9fe", color: "#5b21b6" },
+  };
+
+  // Transform data with mapped stage values for filtering
+  const documentsWithMappedData = useMemo(() => {
+    if (!companyDoc) return [];
+
+    return companyDoc.map((doc, index) => {
+      const normalizedStage = (doc.incubateesstagelevel || "")
+        .toLowerCase()
+        .trim();
+      const normalizedStatus = (doc.status || "").toLowerCase().trim();
+
+      return {
+        ...doc,
+        _uid:
+          doc.collecteddocrecid ||
+          doc.documentrecid ||
+          doc.id ||
+          `${doc.incubateesname}-${doc.documentname}-${doc.doccatname}-${index}`,
+        // Add mapped values for filtering
+        _stageValue: stageMapping[normalizedStage] || "",
+        _statusValue: normalizedStatus,
+      };
+    });
+  }, [companyDoc]);
+
+  // Helper function to download file with proper name
+  const downloadFile = async (fileUrl, documentName, originalFilepath) => {
+    try {
+      const response = await fetch(fileUrl, { mode: "cors" });
+      const blob = await response.blob();
+
+      const fileExtension = originalFilepath.split(".").pop().toLowerCase();
+
+      const now = new Date();
+      const timestamp = `${now.getFullYear()}/${String(
+        now.getMonth() + 1
+      ).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(
+        now.getHours()
+      ).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}-${String(
+        now.getSeconds()
+      ).padStart(2, "0")}`;
+
+      const newFileName = `${documentName}_${timestamp}.${fileExtension}`;
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = newFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Error downloading file:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Download Failed",
+        text: "Unable to download file. Please try again.",
+      });
     }
   };
 
-  // Filter data using useMemo for performance
-  const filteredData = useMemo(() => {
-    if (!companyDoc) return [];
-
-    return companyDoc.filter((item) => {
-      const statusNormalized = (item.status || "").toLowerCase();
-
-      const matchesSearch =
-        (item.incubateesname || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        (item.documentname || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        (item.doccatname || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
-
-      const matchesStage =
-        stageFilter === "all" ||
-        (item.incubateesstagelevel &&
-          getStageFilterValue(item.incubateesstagelevel) === stageFilter);
-
-      const matchesStatus =
-        statusFilter === "all" || statusNormalized === statusFilter;
-
-      return matchesSearch && matchesStage && matchesStatus;
-    });
-  }, [companyDoc, searchTerm, stageFilter, statusFilter]);
-
-  // Add unique ID to each row if not present
-  const rowsWithId = useMemo(() => {
-    return filteredData.map((item, index) => ({
-      ...item,
-      id: item.id || `${item.incubateesname}-${item.documentname}-${index}`,
-    }));
-  }, [filteredData]);
-
-  const handleViewDocument = async (filepath) => {
+  // Handle viewing document
+  const handleViewDocument = async (filepath, documentName) => {
     try {
       const token = sessionStorage.getItem("token");
-      const userid = sessionStorage.getItem("userid");
 
       const response = await fetch(
         `${IPAdress}/itelinc/resources/generic/getfileurl`,
@@ -179,33 +257,32 @@ export default function DocumentTable() {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
+            userid: userid || "1",
+            "X-Module": "DDI Documents",
+            "X-Action": "DDI Document preview",
           },
           body: JSON.stringify({
             userid: userid,
+            incUserid: incuserid,
             url: filepath,
           }),
         }
       );
 
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
       const data = await response.json();
 
       if (data.statusCode === 200 && data.data) {
         const fileUrl = data.data;
         const fileExtension = filepath.split(".").pop().toLowerCase();
-
-        // Previewable formats
         const previewable = ["pdf", "png", "jpeg", "jpg"];
 
         if (previewable.includes(fileExtension)) {
-          // Open preview modal
           setPreviewUrl(fileUrl);
           setIsPreviewOpen(true);
         } else {
-          // Non-previewable formats: show SweetAlert to download
           Swal.fire({
             icon: "info",
             title: "No Preview Available",
@@ -215,12 +292,7 @@ export default function DocumentTable() {
             cancelButtonText: "Cancel",
           }).then((result) => {
             if (result.isConfirmed) {
-              const link = document.createElement("a");
-              link.href = fileUrl;
-              link.download = filepath.split("/").pop(); // use original filename
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
+              downloadFile(fileUrl, documentName, filepath);
             }
           });
         }
@@ -237,233 +309,257 @@ export default function DocumentTable() {
     }
   };
 
-  // Define columns for DataGrid with proper null checks
-  const columns = useMemo(
-    () => [
-      {
-        field: "incubateesname",
-        headerName: "Company",
-        width: 180,
-        sortable: true,
+  // Define columns
+  const columns = [
+    {
+      field: "incubateesname",
+      headerName: "Company",
+      width: 180,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      field: "doccatname",
+      headerName: "Document Category",
+      width: 180,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      field: "docsubcatname",
+      headerName: "Document Subcategory",
+      width: 180,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      field: "documentname",
+      headerName: "Document Name",
+      width: 200,
+      sortable: true,
+      filterable: true,
+    },
+    {
+      field: "periodidentifier",
+      headerName: "Period Identifier",
+      width: 180,
+      sortable: true,
+      filterable: true,
+      renderCell: (params) => {
+        // If the value is null, undefined, or an empty string, return a hyphen
+        // Otherwise, return the actual value
+        return params.value || "-";
       },
-      {
-        field: "doccatname",
-        headerName: "Document Category",
-        width: 180,
-        sortable: true,
-      },
-      {
-        field: "docsubcatname",
-        headerName: "Document Subcategory",
-        width: 180,
-        sortable: true,
-      },
-      {
-        field: "documentname",
-        headerName: "Document Name",
-        width: 200,
-        sortable: true,
-      },
-      ...(Number(roleid) === 1 || Number(roleid) === 3
-        ? [
-            {
-              field: "incubateesstagelevel",
-              headerName: "Stage",
-              width: 150,
-              sortable: true,
-              renderCell: (params) => (
-                <Chip
-                  label={params.value || "Unknown"}
-                  size="small"
-                  variant="outlined"
-                />
-              ),
-            },
-          ]
-        : []),
-      {
-        field: "submission_date",
-        headerName: "Submission Date",
-        width: 150,
-        sortable: true,
-        renderCell: (params) => {
-          if (!params || !params.row) return "Not submitted";
-          return params.row.submission_date
-            ? formatDate(params.row.submission_date)
-            : "Not submitted";
-        },
-      },
-      {
-        field: "due_date",
-        headerName: "Due Date",
-        width: 150,
-        sortable: true,
-        renderCell: (params) => {
-          if (!params || !params.row) return <Box>-</Box>;
-          const statusNormalized = (params.row.status || "").toLowerCase();
-          return (
-            <Box
-              sx={{
-                color:
-                  statusNormalized === "overdue" ? "error.main" : "inherit",
-              }}
-            >
-              {formatDate(params.row.due_date)}
-            </Box>
-          );
-        },
-      },
-      {
-        field: "status",
-        headerName: "Status",
-        width: 120,
-        sortable: true,
-        renderCell: (params) => {
-          if (!params) return <Chip label="Unknown" size="small" />;
-          const statusNormalized = (params.value || "").toLowerCase();
+    },
+  ];
 
-          return (
-            <StyledChip
-              label={params.value || "Unknown"}
-              status={statusNormalized}
-              size="small"
-            />
-          );
-        },
-      },
-      {
-        field: "collecteddocobsoletestate",
-        headerName: "Doc State",
-        width: 120,
-        sortable: true,
-        renderCell: (params) => {
-          if (!params) return <span>---</span>;
-          return params.value ? (
-            <Chip
-              label={params.value}
-              size="small"
-              sx={{
-                backgroundColor: "#ff8787",
-                color: "#c92a2a",
-                fontWeight: "600",
-              }}
-            />
-          ) : (
-            <span>---</span>
-          );
-        },
-      },
-      // {
-      //   field: "actions",
-      //   headerName: "Actions",
-      //   width: 120,
-      //   sortable: false,
-      //   renderCell: (params) => {
-      //     if (!params || !params.row)
-      //       return (
-      //         <Button
-      //           variant="contained"
-      //           size="small"
-      //           disabled
-      //           sx={{
-      //             backgroundColor: "#6b7280",
-      //             color: "white",
-      //             "&.Mui-disabled": {
-      //               backgroundColor: "#6b7280",
-      //               color: "white",
-      //               opacity: 0.7,
-      //             },
-      //           }}
-      //         >
-      //           No File
-      //         </Button>
-      //       );
+  // Conditionally add Stage column based on role
+  if ([1, 3].includes(Number(roleid))) {
+    columns.push({
+      field: "incubateesstagelevel",
+      headerName: "Stage",
+      width: 150,
+      sortable: true,
+      filterable: true,
+      renderCell: (params) => {
+        const stageName = params.value || "Unknown";
+        const normalizedStage = stageName.toLowerCase().trim();
+        const stageColor = stageColors[normalizedStage] || {
+          backgroundColor: "#f3f4f6",
+          color: "#374151",
+        };
 
-      //     return params.row.filepath ? (
-      //       <Button
-      //         variant="contained"
-      //         size="small"
-      //         onClick={() => handleViewDocument(params.row.filepath)}
-      //       >
-      //         View Doc
-      //       </Button>
-      //     ) : (
-      //       <Button
-      //         variant="contained"
-      //         size="small"
-      //         disabled
-      //         sx={{
-      //           backgroundColor: "#6b7280",
-      //           color: "white",
-      //           "&.Mui-disabled": {
-      //             backgroundColor: "#6b7280",
-      //             color: "white",
-      //             opacity: 0.7,
-      //           },
-      //         }}
-      //       >
-      //         No File
-      //       </Button>
-      //     );
-      //   },
-      // },
-    ],
-    [roleid, handleViewDocument]
+        return (
+          <Chip
+            label={stageName}
+            size="small"
+            sx={{
+              backgroundColor: stageColor.backgroundColor,
+              color: stageColor.color,
+              fontWeight: 500,
+              borderRadius: 1,
+            }}
+          />
+        );
+      },
+    });
+  }
+
+  // Add remaining columns
+  columns.push(
+    {
+      field: "submission_date",
+      headerName: "Submission Date",
+      width: 150,
+      sortable: true,
+      filterable: true,
+      type: "date",
+      renderCell: (params) => {
+        if (!params?.row) return "Not submitted";
+        return params.row.submission_date
+          ? formatDate(params.row.submission_date)
+          : "Not submitted";
+      },
+    },
+    {
+      field: "due_date",
+      headerName: "Due Date",
+      width: 150,
+      sortable: true,
+      filterable: true,
+      type: "date",
+      renderCell: (params) => {
+        if (!params?.row) return <Box>-</Box>;
+        const statusNormalized = (params.row.status || "").toLowerCase();
+        return (
+          <Box
+            sx={{
+              color: statusNormalized === "overdue" ? "error.main" : "inherit",
+            }}
+          >
+            {formatDate(params.row.due_date)}
+          </Box>
+        );
+      },
+    },
+    // Remove the type: "chip" property from the status column
+    {
+      field: "status",
+      headerName: "Status",
+      width: 120,
+      sortable: true,
+      filterable: true,
+      // Remove this line: type: "chip",
+      // Remove this line: chipColors: statusColors,
+      renderCell: (params) => {
+        if (!params) return <Chip label="Unknown" size="small" />;
+        const statusValue = params.value || "Unknown";
+        const statusNormalized = statusValue.toLowerCase();
+        const customColor = statusColors[statusNormalized] || {
+          backgroundColor: "#f3f4f6",
+          color: "#374151",
+        };
+
+        return (
+          <Chip
+            label={statusValue}
+            size="small"
+            sx={{
+              backgroundColor: customColor.backgroundColor,
+              color: customColor.color,
+              fontWeight: 500,
+              borderRadius: 1,
+            }}
+          />
+        );
+      },
+    },
+    {
+      field: "collecteddocobsoletestate",
+      headerName: "Doc State",
+      width: 120,
+      sortable: true,
+      filterable: true,
+      renderCell: (params) => {
+        if (!params) return <span>---</span>;
+        return params.value ? (
+          <Chip
+            label={params.value}
+            size="small"
+            sx={{
+              backgroundColor: "#ff8787",
+              color: "#c92a2a",
+              fontWeight: "600",
+            }}
+          />
+        ) : (
+          <span>---</span>
+        );
+      },
+    },
+    // New columns for sample document
+    {
+      field: "documenttemplatedocname",
+      headerName: " Document Template",
+      width: 200,
+      sortable: true,
+      filterable: true,
+      renderCell: (params) => {
+        if (!params?.row?.documenttemplatedocname) return <span>-</span>;
+        return params.row.documenttemplatedocname;
+      },
+    },
+    {
+      field: "documentsampledoc",
+      headerName: "Sample Document",
+      width: 200,
+      sortable: true,
+      filterable: true,
+      renderCell: (params) => {
+        if (!params?.row?.documentsampledoc) return <span>-</span>;
+        return (
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<VisibilityIcon fontSize="small" />}
+            onClick={() =>
+              handleViewDocument(
+                params.row.documentsampledoc,
+                params.row.documentsampledocname || "Sample Document"
+              )
+            }
+            sx={{
+              padding: "4px 12px",
+              fontSize: "0.75rem",
+              fontWeight: 500,
+              borderRadius: 6,
+              textTransform: "none",
+              backgroundColor: "#e3f2fd",
+              color: "#1976d2",
+              borderColor: "#bbdefb",
+              "&:hover": {
+                backgroundColor: "#bbdefb",
+                color: "#1565c0",
+                borderColor: "#90caf9",
+              },
+            }}
+          >
+            View Document
+          </Button>
+        );
+      },
+    }
   );
 
-  // NOW WE CAN HAVE CONDITIONAL RETURNS AFTER ALL HOOKS
-  if (loading) return <p>Loading documents...</p>;
+  // Define dropdown filters - use mapped values
+  const dropdownFilters = [
+    {
+      field: "_stageValue", // Use mapped stage value for filtering
+      label: "Stage",
+      width: 150,
+      options: [
+        { value: "1", label: "Pre Seed" },
+        { value: "2", label: "Seed Stage" },
+        { value: "3", label: "Early Stage" },
+        { value: "4", label: "Growth Stage" },
+        { value: "5", label: "Expansion Stage" },
+      ],
+    },
+    {
+      field: "_statusValue", // Use normalized status for filtering
+      label: "Status",
+      width: 150,
+      options: [
+        { value: "pending", label: "Pending" },
+        { value: "submitted", label: "Submitted" },
+        { value: "overdue", label: "Overdue" },
+      ],
+    },
+  ];
 
-  // Fixed fetchDocumentsByYear function
-  const fetchDocumentsByYear = async () => {
-    setYearLoading(true);
-    try {
-      const response = await api.post("/generic/getcollecteddocsdash", {
-        userId: Number(roleid) === 1 ? "ALL" : userid,
-        startYear: tempFromYear,
-        endYear: tempToYear,
-      });
-
-      // Handle different response structures
-      let responseData;
-      if (response.data && Array.isArray(response.data)) {
-        responseData = response.data;
-      } else if (
-        response.data &&
-        response.data.data &&
-        Array.isArray(response.data.data)
-      ) {
-        responseData = response.data.data;
-      } else if (
-        response.data &&
-        response.data.result &&
-        Array.isArray(response.data.result)
-      ) {
-        responseData = response.data.result;
-      } else {
-        console.warn("Unexpected response structure:", response);
-        responseData = [];
-      }
-
-      setCompanyDoc(responseData);
-      setPaginationModel({ ...paginationModel, page: 0 });
-      setFromYear(tempFromYear);
-      setToYear(tempToYear);
-    } catch (err) {
-      console.error("Error fetching documents by year:", err);
-      setCompanyDoc([]);
-      alert(
-        `Error fetching documents: ${err.message || "Unknown error occurred"}`
-      );
-    } finally {
-      setYearLoading(false);
-    }
-  };
-
-  // Export to CSV function
-  const exportToCSV = () => {
-    // Create a copy of the data for export
-    const exportData = filteredData.map((item) => ({
+  // Custom export data formatter
+  const handleExportData = (data) => {
+    return data.map((item) => ({
       "Company Name": item.incubateesname || "",
       "Document Category": item.doccatname || "",
       "Document Subcategory": item.docsubcatname || "",
@@ -475,301 +571,167 @@ export default function DocumentTable() {
       "Due Date": formatDate(item.due_date),
       Status: item.status || "",
       "Document State": item.collecteddocobsoletestate || "---",
+      "Template Document Name": item.documenttemplatedocname || "",
+      "Sample Document": item.documentsampledoc || "",
     }));
-
-    // Convert to CSV
-    const headers = Object.keys(exportData[0] || {});
-    const csvContent = [
-      headers.join(","),
-      ...exportData.map((row) =>
-        headers
-          .map((header) => {
-            // Handle values that might contain commas
-            const value = row[header];
-            return typeof value === "string" && value.includes(",")
-              ? `"${value}"`
-              : value;
-          })
-          .join(",")
-      ),
-    ].join("\n");
-
-    // Create a blob and download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `documents_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
-  // Export to Excel function
-  const exportToExcel = () => {
-    if (!isXLSXAvailable) {
-      console.error("XLSX library not available");
-      alert("Excel export is not available. Please install the xlsx package.");
-      return;
-    }
-
-    try {
-      // Create a copy of the data for export
-      const exportData = filteredData.map((item) => ({
-        "Company Name": item.incubateesname || "",
-        "Document Category": item.doccatname || "",
-        "Document Subcategory": item.docsubcatname || "",
-        "Document Name": item.documentname || "",
-        Stage: item.incubateesstagelevel || "",
-        "Submission Date": item.submission_date
-          ? formatDate(item.submission_date)
-          : "Not submitted",
-        "Due Date": formatDate(item.due_date),
-        Status: item.status || "",
-        "Document State": item.collecteddocobsoletestate || "---",
-      }));
-
-      // Create a workbook
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // Add the worksheet to the workbook
-      XLSX.utils.book_append_sheet(wb, ws, "Documents");
-
-      // Generate the Excel file and download
-      XLSX.writeFile(
-        wb,
-        `documents_${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      alert("Error exporting to Excel. Falling back to CSV export.");
-      exportToCSV();
-    }
-  };
+  if (loading) return <p>Loading documents...</p>;
 
   return (
-    <div className={styles.card}>
-      <div className={styles.cardHeader}>
-        <Typography variant="h5">Incubatee Document Submission</Typography>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            variant="outlined"
-            startIcon={<Download size={16} />}
-            onClick={exportToCSV}
-            title="Export as CSV"
-          >
-            Export CSV
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Download size={16} />}
-            onClick={exportToExcel}
-            title="Export as Excel"
-            disabled={!isXLSXAvailable}
-          >
-            Export Excel
-          </Button>
-        </Box>
-      </div>
-
-      {/* Year Filters Section */}
-      <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
-        <TextField
-          label="From Year"
-          type="number"
-          variant="outlined"
-          size="small"
-          value={tempFromYear}
-          onChange={(e) => setTempFromYear(e.target.value)}
-          sx={{ minWidth: 120 }}
-        />
-        <TextField
-          label="To Year"
-          type="number"
-          variant="outlined"
-          size="small"
-          value={tempToYear}
-          onChange={(e) => setTempToYear(e.target.value)}
-          sx={{ minWidth: 120 }}
-        />
-        <Button
-          variant="contained"
-          onClick={fetchDocumentsByYear}
-          disabled={yearLoading}
-          sx={{ minWidth: 100 }}
-        >
-          {yearLoading ? "Loading..." : "Apply"}
-        </Button>
-      </Box>
-
-      {/* Filters Section */}
-      <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
-        <TextField
-          label="Search companies or documents..."
-          variant="outlined"
-          size="small"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          sx={{ minWidth: 250 }}
-        />
-
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel id="stage-filter-label">Stage</InputLabel>
-          <Select
-            labelId="stage-filter-label"
-            value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
-            label="Stage"
-          >
-            <MenuItem value="all">All Stages</MenuItem>
-            <MenuItem value="1">Pre Seed</MenuItem>
-            <MenuItem value="2">Seed Stage</MenuItem>
-            <MenuItem value="3">Early Stage</MenuItem>
-            <MenuItem value="4">Growth Stage</MenuItem>
-            <MenuItem value="5">Expansion Stage</MenuItem>
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel id="status-filter-label">Status</InputLabel>
-          <Select
-            labelId="status-filter-label"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            label="Status"
-          >
-            <MenuItem value="all">All Status</MenuItem>
-            <MenuItem value="pending">Pending</MenuItem>
-            <MenuItem value="submitted">Submitted</MenuItem>
-            <MenuItem value="overdue">Overdue</MenuItem>
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel id="items-per-page-label">Items per page</InputLabel>
-          <Select
-            labelId="items-per-page-label"
-            value={paginationModel.pageSize}
-            onChange={(e) =>
-              setPaginationModel({
-                ...paginationModel,
-                pageSize: Number(e.target.value),
-                page: 0,
-              })
-            }
-            label="Items per page"
-          >
-            <MenuItem value={5}>5 per page</MenuItem>
-            <MenuItem value={10}>10 per page</MenuItem>
-            <MenuItem value={20}>20 per page</MenuItem>
-            <MenuItem value={50}>50 per page</MenuItem>
-          </Select>
-        </FormControl>
-      </Box>
-
-      {/* Results Info */}
-      <Box sx={{ mb: 1, color: "text.secondary" }}>
-        Showing {paginationModel.page * paginationModel.pageSize + 1} to{" "}
-        {Math.min(
-          (paginationModel.page + 1) * paginationModel.pageSize,
-          filteredData.length
-        )}{" "}
-        of {filteredData.length} entries
-        {stageFilter !== "all" && (
-          <span>
-            {" "}
-            (Filtered by stage:{" "}
-            {stageFilter === "1"
-              ? "Pre Seed Stage"
-              : stageFilter === "2"
-              ? "Seed Stage"
-              : stageFilter === "3"
-              ? "Early Stage"
-              : stageFilter === "4"
-              ? "Growth Stage"
-              : stageFilter === "5"
-              ? "Expansion Stage"
-              : "All Stages"}
-            )
-          </span>
-        )}
-      </Box>
-
-      {/* Material UI DataGrid */}
-      <StyledPaper>
-        <DataGrid
-          rows={rowsWithId}
-          columns={columns}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          pageSizeOptions={[5, 10, 20, 50]}
-          checkboxSelection
-          disableRowSelectionOnClick
-          sx={{ border: 0 }}
-          loading={yearLoading}
-          getRowClassName={(params) => {
-            if (!params || !params.row) return "";
-            const statusNormalized = (params.row.status || "").toLowerCase();
-            if (statusNormalized === "overdue") return styles.overdueRow;
-            if (statusNormalized === "pending") return styles.pendingRow;
-            return "";
-          }}
-        />
-      </StyledPaper>
-
-      {/* Preview Modal */}
-      <Modal
-        open={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        aria-labelledby="document-preview-modal"
-        aria-describedby="modal for document preview"
-      >
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
+      <div className={styles.card}>
+        {/* Date Range Filter Section - Custom UI above the table */}
         <Box
           sx={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: "80%",
-            height: "80%",
-            bgcolor: "background.paper",
-            boxShadow: 24,
-            p: 4,
             display: "flex",
-            flexDirection: "column",
+            gap: 2,
+            mb: 2,
+            flexWrap: "wrap",
+            alignItems: "center",
+            p: 2,
+            backgroundColor: "#f8f9fa",
+            borderRadius: 1,
+            border: "1px solid #e0e0e0",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
-            <Typography variant="h6">Document Preview</Typography>
-            <IconButton onClick={() => setIsPreviewOpen(false)}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-          <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
-            <iframe
-              src={previewUrl}
-              title="Document Preview"
-              width="100%"
-              height="100%"
-              style={{ border: "none" }}
-            />
-          </Box>
-        </Box>
-      </Modal>
-
-      {filteredData.length === 0 && !yearLoading && (
-        <Box sx={{ textAlign: "center", py: 3, color: "text.secondary" }}>
-          No documents found matching your criteria.
-          {stageFilter !== "all" && (
-            <div>Try changing the stage filter or search term.</div>
+          {/* <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+            📅 Filter by Due Date:
+          </Typography> */}
+          <DatePicker
+            label="Start Date"
+            value={startDate}
+            onChange={(newValue) => {
+              handleDateChange("start", newValue);
+            }}
+            renderInput={(params) => (
+              <TextField {...params} size="small" sx={{ minWidth: 150 }} />
+            )}
+          />
+          <DatePicker
+            label="End Date"
+            value={endDate}
+            onChange={(newValue) => {
+              handleDateChange("end", newValue);
+            }}
+            renderInput={(params) => (
+              <TextField {...params} size="small" sx={{ minWidth: 150 }} />
+            )}
+          />
+          <Button
+            variant="contained"
+            onClick={handleApplyDateFilter}
+            disabled={!startDate || !endDate || dateFilterLoading}
+            sx={{ minWidth: 100 }}
+          >
+            {dateFilterLoading ? "Loading..." : "Apply"}
+          </Button>
+          {(startDate || endDate) && (
+            <Button
+              variant="outlined"
+              onClick={handleClearDates}
+              sx={{ minWidth: 100 }}
+            >
+              Clear Dates
+            </Button>
           )}
         </Box>
-      )}
-    </div>
+
+        <div className={styles.resultsInfo} style={{ textAlign: "center" }}>
+          Showing {documentsWithMappedData.length} of {companyDoc?.length || 0}{" "}
+          documents
+          {(startDate || endDate) && (
+            <span>
+              {" "}
+              (Filtered by date: {startDate
+                ? formatDate(startDate)
+                : "Start"} - {endDate ? formatDate(endDate) : "End"})
+            </span>
+          )}
+        </div>
+
+        {/* Reusable DataGrid */}
+        <ReusableDataGrid
+          data={documentsWithMappedData}
+          columns={columns}
+          title="Incubatee Document Submission"
+          dropdownFilters={dropdownFilters}
+          searchPlaceholder="Search companies or documents..."
+          searchFields={["incubateesname", "documentname", "doccatname"]}
+          uniqueIdField="_uid"
+          enableExport={true}
+          onExportData={handleExportData}
+          exportConfig={{
+            filename: "documents",
+            sheetName: "Documents",
+          }}
+          enableColumnFilters={true}
+        />
+
+        {/* Additional Info Display */}
+        {/* {(startDate || endDate) && (
+          <Box
+            sx={{
+              mt: 2,
+              p: 2,
+              backgroundColor: "#e3f2fd",
+              borderRadius: 1,
+              border: "1px solid #90caf9",
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              📊 Currently filtered by date range:{" "}
+              <strong>
+                {startDate ? formatDate(startDate) : "Start"} -{" "}
+                {endDate ? formatDate(endDate) : "End"}
+              </strong>
+            </Typography>
+          </Box>
+        )} */}
+
+        {/* Preview Modal */}
+        <Modal
+          open={isPreviewOpen}
+          onClose={() => setIsPreviewOpen(false)}
+          aria-labelledby="document-preview-modal"
+          aria-describedby="modal for document preview"
+        >
+          <Box
+            sx={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "80%",
+              height: "80%",
+              bgcolor: "background.paper",
+              boxShadow: 24,
+              p: 4,
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 2,
+            }}
+          >
+            <Box
+              sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}
+            >
+              <Typography variant="h6">Document Preview</Typography>
+              <IconButton onClick={() => setIsPreviewOpen(false)}>
+                <CloseIcon />
+              </IconButton>
+            </Box>
+            <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
+              <iframe
+                src={previewUrl}
+                title="Document Preview"
+                width="100%"
+                height="100%"
+                style={{ border: "none" }}
+              />
+            </Box>
+          </Box>
+        </Modal>
+      </div>
+    </LocalizationProvider>
   );
 }

@@ -1,17 +1,14 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Swal from "sweetalert2";
 import { IPAdress } from "../Datafetching/IPAdrees";
-import * as XLSX from "xlsx";
 import { Download } from "lucide-react";
+import { FaTimes } from "react-icons/fa";
 
 // Material UI imports
-import { DataGrid } from "@mui/x-data-grid";
-import Paper from "@mui/material/Paper";
 import {
   Button,
   Box,
   Typography,
-  TextField,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -21,24 +18,23 @@ import {
   Backdrop,
   Snackbar,
   Alert,
+  TextField,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
 
-// Styled components
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  // height: 500,
-  width: "100%",
-  marginBottom: theme.spacing(2),
-}));
+// Import your reusable component
+import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Adjust path as needed
 
+// Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,
   color: "#fff",
 }));
 
+// RESTORED: This is the styled component for your original circular buttons
 const ActionButton = styled(IconButton)(({ theme, color }) => ({
   margin: theme.spacing(0.5),
   backgroundColor:
@@ -53,12 +49,9 @@ const ActionButton = styled(IconButton)(({ theme, color }) => ({
 // Common date formatting function
 const formatDate = (dateStr) => {
   if (!dateStr) return "-";
-
   try {
-    // Handle date strings with question mark (e.g., "Sep 19, 2025, 12:46:43?PM")
     const normalizedDate = dateStr.replace("?", " ");
     const date = new Date(normalizedDate);
-
     return date.toLocaleString("en-US", {
       year: "numeric",
       month: "2-digit",
@@ -70,11 +63,12 @@ const formatDate = (dateStr) => {
     });
   } catch (error) {
     console.error("Error formatting date:", error);
-    return dateStr; // Return original if error
+    return dateStr;
   }
 };
 
 export default function DocCatTable() {
+  // State declarations (same as before)
   const userId = sessionStorage.getItem("userid");
   const token = sessionStorage.getItem("token");
   const incUserid = sessionStorage.getItem("incuserid");
@@ -99,20 +93,14 @@ export default function DocCatTable() {
     severity: "success",
   });
 
-  // Pagination state for Material UI
-  const [paginationModel, setPaginationModel] = useState({
-    page: 0,
-    pageSize: 10,
-  });
+  // Effects and handlers (fetchCategories, openEditModal, handleDelete, etc.)
+  // ... (keeping them the same as the previous correct version for brevity)
+  // I will include them fully in the final code block to avoid confusion.
 
-  // Check if XLSX is available
-  const isXLSXAvailable = !!XLSX;
-
-  // Fetch all categories with new API
+  // --- HANDLER FUNCTIONS ---
   const fetchCategories = () => {
     setLoading(true);
     setError(null);
-
     fetch(`${IP}/itelinc/resources/generic/getddidoccatlist`, {
       method: "POST",
       mode: "cors",
@@ -144,218 +132,6 @@ export default function DocCatTable() {
     fetchCategories();
   }, []);
 
-  // Toast notification
-  const showToast = (message, severity = "success") => {
-    setToast({ open: true, message, severity });
-  };
-
-  // Export to CSV function
-  const exportToCSV = () => {
-    // Create a copy of the data for export
-    const exportData = cats.map((cat, index) => ({
-      "S.No": index + 1,
-      "Category Name": cat.ddidoccatname || "",
-      Description: cat.ddidoccatdescription || "",
-      "Created By": isNaN(cat.ddidoccatcreatedby)
-        ? cat.ddidoccatcreatedby
-        : "Admin",
-      "Created Time": formatDate(cat.ddidoccatcreatedtime),
-      "Modified By": isNaN(cat.ddidoccatmodifiedby)
-        ? cat.ddidoccatmodifiedby
-        : "Admin",
-      "Modified Time": formatDate(cat.ddidoccatmodifiedtime),
-    }));
-
-    // Convert to CSV
-    const headers = Object.keys(exportData[0] || {});
-    const csvContent = [
-      headers.join(","),
-      ...exportData.map((row) =>
-        headers
-          .map((header) => {
-            // Handle values that might contain commas
-            const value = row[header];
-            return typeof value === "string" && value.includes(",")
-              ? `"${value}"`
-              : value;
-          })
-          .join(",")
-      ),
-    ].join("\n");
-
-    // Create a blob and download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `due_diligence_categories_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Export to Excel function
-  const exportToExcel = () => {
-    if (!isXLSXAvailable) {
-      console.error("XLSX library not available");
-      alert("Excel export is not available. Please install the xlsx package.");
-      return;
-    }
-
-    try {
-      // Create a copy of the data for export
-      const exportData = cats.map((cat, index) => ({
-        "S.No": index + 1,
-        "Category Name": cat.ddidoccatname || "",
-        Description: cat.ddidoccatdescription || "",
-        "Created By": isNaN(cat.ddidoccatcreatedby)
-          ? cat.ddidoccatcreatedby
-          : "Admin",
-        "Created Time": formatDate(cat.ddidoccatcreatedtime),
-        "Modified By": isNaN(cat.ddidoccatmodifiedby)
-          ? cat.ddidoccatmodifiedby
-          : "Admin",
-        "Modified Time": formatDate(cat.ddidoccatmodifiedtime),
-      }));
-
-      // Create a workbook
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // Add the worksheet to the workbook
-      XLSX.utils.book_append_sheet(wb, ws, "Due Diligence Categories");
-
-      // Generate the Excel file and download
-      XLSX.writeFile(
-        wb,
-        `due_diligence_categories_${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      alert("Error exporting to Excel. Falling back to CSV export.");
-      exportToCSV();
-    }
-  };
-
-  // Define columns for DataGrid
-  const columns = useMemo(
-    () => [
-      // {
-      //   field: "sno",
-      //   headerName: "S.No",
-      //   width: 70,
-      //   sortable: false,
-      //   valueGetter: (params) => {
-      //     if (!params || !params.api) return 0;
-      //     return params.api.getRowIndexRelativeToVisibleRows(params.row.id) + 1;
-      //   },
-      // },
-      {
-        field: "ddidoccatname",
-        headerName: "Category Name",
-        width: 200,
-        sortable: true,
-      },
-      {
-        field: "ddidoccatdescription",
-        headerName: "Description",
-        width: 300,
-        sortable: true,
-      },
-      {
-        field: "ddidoccatcreatedby",
-        headerName: "Created By",
-        width: 150,
-        sortable: true,
-        valueGetter: (params) => {
-          if (!params || !params.row) return "Admin";
-          return isNaN(params.row.ddidoccatcreatedby)
-            ? params.row.ddidoccatcreatedby
-            : "Admin";
-        },
-      },
-      {
-        field: "ddidoccatcreatedtime",
-        headerName: "Created Time",
-        width: 180,
-        sortable: true,
-        renderCell: (params) => {
-          if (!params || !params.row) return "-";
-          return formatDate(params.row.ddidoccatcreatedtime);
-        },
-      },
-      {
-        field: "ddidoccatmodifiedby",
-        headerName: "Modified By",
-        width: 150,
-        sortable: true,
-        valueGetter: (params) => {
-          if (!params || !params.row) return "Admin";
-          return isNaN(params.row.ddidoccatmodifiedby)
-            ? params.row.ddidoccatmodifiedby
-            : "Admin";
-        },
-      },
-      {
-        field: "ddidoccatmodifiedtime",
-        headerName: "Modified Time",
-        width: 180,
-        sortable: true,
-        renderCell: (params) => {
-          if (!params || !params.row) return "-";
-          return formatDate(params.row.ddidoccatmodifiedtime);
-        },
-      },
-      {
-        field: "actions",
-        headerName: "Actions",
-        width: 150,
-        sortable: false,
-        renderCell: (params) => {
-          if (!params || !params.row) return null;
-
-          return (
-            <Box>
-              <ActionButton
-                color="edit"
-                onClick={() => openEditModal(params.row)}
-                disabled={isSaving || isDeleting[params.row.ddidoccatrecid]}
-                title="Edit"
-              >
-                <EditIcon fontSize="small" />
-              </ActionButton>
-              <ActionButton
-                color="delete"
-                onClick={() => handleDelete(params.row.ddidoccatrecid)}
-                disabled={isSaving || isDeleting[params.row.ddidoccatrecid]}
-                title="Delete"
-              >
-                {isDeleting[params.row.ddidoccatrecid] ? (
-                  <CircularProgress size={18} color="inherit" />
-                ) : (
-                  <DeleteIcon fontSize="small" />
-                )}
-              </ActionButton>
-            </Box>
-          );
-        },
-      },
-    ],
-    [isSaving, isDeleting]
-  );
-
-  // Add unique ID to each row if not present
-  const rowsWithId = useMemo(() => {
-    return cats.map((cat, index) => ({
-      ...cat,
-      id: cat.ddidoccatrecid || `cat-${index}`,
-    }));
-  }, [cats]);
-
   const openAddModal = () => {
     setEditCat(null);
     setFormData({
@@ -382,7 +158,6 @@ export default function DocCatTable() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Delete with SweetAlert and loading popup using new API
   const handleDelete = (catId) => {
     Swal.fire({
       title: "Are you sure?",
@@ -393,10 +168,7 @@ export default function DocCatTable() {
       cancelButtonText: "Cancel",
     }).then((result) => {
       if (result.isConfirmed) {
-        // Set loading state for this specific category
         setIsDeleting((prev) => ({ ...prev, [catId]: true }));
-
-        // Show loading popup
         Swal.fire({
           title: "Deleting...",
           text: "Please wait while we delete the category",
@@ -407,11 +179,9 @@ export default function DocCatTable() {
             Swal.showLoading();
           },
         });
-
         const deleteUrl = `${IP}/itelinc/ddidoccatdelete?ddidoccatrecid=${catId}&ddidoccatmodifiedby=${
           userId || 1
         }`;
-
         fetch(deleteUrl, {
           method: "POST",
           mode: "cors",
@@ -441,20 +211,16 @@ export default function DocCatTable() {
             Swal.fire("Error", `Failed to delete: ${err.message}`, "error");
           })
           .finally(() => {
-            // Remove loading state for this category
             setIsDeleting((prev) => ({ ...prev, [catId]: false }));
           });
       }
     });
   };
 
-  // Add/Update with new API endpoints
   const handleSubmit = (e) => {
     e.preventDefault();
     setIsSaving(true);
     setError(null);
-
-    // Validate form data
     if (
       !formData.ddidoccatname.trim() ||
       !formData.ddidoccatdescription.trim()
@@ -463,28 +229,7 @@ export default function DocCatTable() {
       setIsSaving(false);
       return;
     }
-
-    // Close the modal before showing the loading popup
     setIsModalOpen(false);
-
-    // Show loading popup
-    const loadingTitle = editCat ? "Updating..." : "Saving...";
-    const loadingText = editCat
-      ? "Please wait while we update the category"
-      : "Please wait while we save the category";
-
-    // Swal.fire({
-    //   title: loadingTitle,
-    //   text: loadingText,
-    //   allowOutsideClick: false,
-    //   allowEscapeKey: false,
-    //   showConfirmButton: false,
-    //   didOpen: () => {
-    //     Swal.showLoading();
-    //   },
-    // });
-
-    // Build URL parameters for the new API
     let url;
     if (editCat) {
       url = `${IP}/itelinc/ddidoccatedit?ddidoccatrecid=${
@@ -505,13 +250,8 @@ export default function DocCatTable() {
         userId || 1
       }&ddidoccatadminstate=${formData.ddidoccatadminstate}`;
     }
-
-    console.log("API URL:", url); // Debug URL
-
-    // Determine module and action based on operation
     const module = "DDI Document Management";
     const action = editCat ? "Edit Category" : "Add Category";
-
     fetch(url, {
       method: "POST",
       mode: "cors",
@@ -524,14 +264,10 @@ export default function DocCatTable() {
       },
     })
       .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         return res.json();
       })
       .then((data) => {
-        console.log("API Response:", data);
-
         if (data.statusCode === 200) {
           if (
             data.data &&
@@ -543,10 +279,7 @@ export default function DocCatTable() {
               "Duplicate",
               "Category name already exists!",
               "warning"
-            ).then(() => {
-              // Reopen the modal if there's a duplicate error
-              setIsModalOpen(true);
-            });
+            ).then(() => setIsModalOpen(true));
           } else {
             setEditCat(null);
             setFormData({
@@ -574,14 +307,130 @@ export default function DocCatTable() {
           "Error",
           `Failed to save category: ${err.message}`,
           "error"
-        ).then(() => {
-          // Reopen the modal if there's an error
-          setIsModalOpen(true);
-        });
+        ).then(() => setIsModalOpen(true));
       })
       .finally(() => setIsSaving(false));
   };
 
+  // --- MEMOIZED VALUES ---
+  const columns = useMemo(
+    () => [
+      {
+        field: "ddidoccatname",
+        headerName: "Category Name",
+        width: 200,
+        sortable: true,
+      },
+      {
+        field: "ddidoccatdescription",
+        headerName: "Description",
+        width: 300,
+        sortable: true,
+      },
+      {
+        field: "ddidoccatcreatedby",
+        headerName: "Created By",
+        width: 150,
+        sortable: true,
+        renderCell: (params) => {
+          if (!params || !params.row) return "Admin";
+          return isNaN(params.row.ddidoccatcreatedby)
+            ? params.row.ddidoccatcreatedby
+            : "Admin";
+        },
+      },
+      {
+        field: "ddidoccatcreatedtime",
+        headerName: "Created Time",
+        width: 180,
+        sortable: true,
+        type: "date",
+      },
+      {
+        field: "ddidoccatmodifiedby",
+        headerName: "Modified By",
+        width: 150,
+        sortable: true,
+        renderCell: (params) => {
+          if (!params || !params.row) return "Admin";
+          return isNaN(params.row.ddidoccatmodifiedby)
+            ? params.row.ddidoccatmodifiedby
+            : "Admin";
+        },
+      },
+      {
+        field: "ddidoccatmodifiedtime",
+        headerName: "Modified Time",
+        width: 180,
+        sortable: true,
+        type: "date",
+      },
+      {
+        field: "actions",
+        headerName: "Actions",
+        width: 150,
+        sortable: false,
+        filterable: false, // Disable filter for this column
+        // CORRECTED: Using a custom renderCell to restore original styling
+        renderCell: (params) => {
+          if (!params || !params.row) return null;
+          return (
+            <Box>
+              <ActionButton
+                color="edit"
+                onClick={() => openEditModal(params.row)}
+                disabled={isSaving || isDeleting[params.row.ddidoccatrecid]}
+                title="Edit"
+              >
+                <EditIcon fontSize="small" />
+              </ActionButton>
+              <ActionButton
+                color="delete"
+                onClick={() => handleDelete(params.row.ddidoccatrecid)}
+                disabled={isSaving || isDeleting[params.row.ddidoccatrecid]}
+                title="Delete"
+              >
+                {isDeleting[params.row.ddidoccatrecid] ? (
+                  <CircularProgress size={18} color="inherit" />
+                ) : (
+                  <DeleteIcon fontSize="small" />
+                )}
+              </ActionButton>
+            </Box>
+          );
+        },
+      },
+    ],
+    [isSaving, isDeleting, openEditModal, handleDelete]
+  );
+
+  const exportConfig = useMemo(
+    () => ({
+      filename: "due_diligence_categories",
+      sheetName: "Due Diligence Categories",
+    }),
+    []
+  );
+  const onExportData = useMemo(
+    () => (data) => {
+      return data.map((cat, index) => ({
+        "S.No": index + 1,
+        "Category Name": cat.ddidoccatname || "",
+        Description: cat.ddidoccatdescription || "",
+        "Created By": isNaN(cat.ddidoccatcreatedby)
+          ? cat.ddidoccatcreatedby
+          : "Admin",
+        "Created Time": formatDate(cat.ddidoccatcreatedtime),
+        "Modified By": isNaN(cat.ddidoccatmodifiedby)
+          ? cat.ddidoccatmodifiedby
+          : "Admin",
+        "Modified Time": formatDate(cat.ddidoccatmodifiedtime),
+      }));
+    },
+    []
+  );
+
+  // --- RENDER ---
   return (
     <Box sx={{ p: 2 }}>
       <Box
@@ -595,35 +444,10 @@ export default function DocCatTable() {
         <Typography variant="h4">
           📂 Due Deligence Document Categories
         </Typography>
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <Button
-            variant="contained"
-            onClick={openAddModal}
-            disabled={isSaving}
-          >
-            + Add Category
-          </Button>
-          {/* Export Buttons */}
-          <Button
-            variant="outlined"
-            startIcon={<Download size={16} />}
-            onClick={exportToCSV}
-            title="Export as CSV"
-          >
-            Export CSV
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Download size={16} />}
-            onClick={exportToExcel}
-            title="Export as Excel"
-            disabled={!isXLSXAvailable}
-          >
-            Export Excel
-          </Button>
-        </Box>
+        <Button variant="contained" onClick={openAddModal} disabled={isSaving}>
+          + Add Category
+        </Button>
       </Box>
-
       {error && (
         <Box
           sx={{
@@ -637,39 +461,19 @@ export default function DocCatTable() {
           {error}
         </Box>
       )}
-
-      {/* Results Info */}
-      <Box sx={{ mb: 1, color: "text.secondary" }}>
-        Showing {paginationModel.page * paginationModel.pageSize + 1} to{" "}
-        {Math.min(
-          (paginationModel.page + 1) * paginationModel.pageSize,
-          cats.length
-        )}{" "}
-        of {cats.length} entries
-      </Box>
-
-      {/* Material UI DataGrid */}
-      <StyledPaper>
-        <DataGrid
-          rows={rowsWithId}
-          columns={columns}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          pageSizeOptions={[5, 10, 25, 50]}
-          disableRowSelectionOnClick
-          sx={{ border: 0 }}
-          loading={loading}
-          autoHeight
-        />
-      </StyledPaper>
-
-      {cats.length === 0 && !loading && (
-        <Box sx={{ textAlign: "center", py: 3, color: "text.secondary" }}>
-          No categories found
-        </Box>
-      )}
-
-      {/* Modal for Add/Edit */}
+      <ReusableDataGrid
+        data={cats}
+        columns={columns}
+        title="Document Categories"
+        enableExport={true}
+        enableColumnFilters={true}
+        searchPlaceholder="Search categories..."
+        searchFields={["ddidoccatname", "ddidoccatdescription"]}
+        uniqueIdField="ddidoccatrecid"
+        onExportData={onExportData}
+        exportConfig={exportConfig}
+        loading={loading}
+      />
       <Dialog
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -739,8 +543,6 @@ export default function DocCatTable() {
           </DialogActions>
         </form>
       </Dialog>
-
-      {/* Toast notification */}
       <Snackbar
         open={toast.open}
         autoHideDuration={6000}
@@ -755,8 +557,6 @@ export default function DocCatTable() {
           {toast.message}
         </Alert>
       </Snackbar>
-
-      {/* Loading overlay for operations */}
       <StyledBackdrop open={isSaving}>
         <Box
           sx={{

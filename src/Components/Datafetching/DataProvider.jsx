@@ -57,8 +57,10 @@ export const DataProvider = ({ children }) => {
     setincuseridstate(idString);
   };
 
-  const [fromYear, setFromYear] = useState("2025");
-  const [toYear, setToYear] = useState("2026");
+  // State for date range filtering
+  const [fromYear, setFromYear] = useState("2025-11-20");
+  const [toYear, setToYear] = useState("2025-11-24");
+  const [dateFilterLoading, setDateFilterLoading] = useState(false);
 
   // Helper function to safely extract data from API response
   const extractData = (response, fallback = []) => {
@@ -79,6 +81,39 @@ export const DataProvider = ({ children }) => {
     }
     console.warn("Unexpected response structure:", response);
     return fallback;
+  };
+
+  // Format date for API (YYYY-MM-DD)
+  const formatDateForAPI = (date) => {
+    if (!date) return "";
+    return new Date(date).toISOString().split("T")[0];
+  };
+
+  // NEW: Function to fetch documents by date range
+  const fetchDocumentsByDateRange = async (startDate, endDate) => {
+    setDateFilterLoading(true);
+    try {
+      const response = await api.post("/generic/getcollecteddocsdash", {
+        userId: Number(roleid) === 1 ? "ALL" : userid,
+        incUserId: incuserid,
+        startDate: startDate ? formatDateForAPI(startDate) : null,
+        endDate: endDate ? formatDateForAPI(endDate) : null,
+      });
+
+      const data = extractData(response, []);
+      setCompanyDoc(data);
+      setstartupcompanyDoc(data);
+      return data;
+    } catch (err) {
+      console.error("Error fetching documents by date range:", err);
+      setCompanyDoc([]);
+      setstartupcompanyDoc([]);
+      alert(
+        `Error fetching documents: ${err.message || "Unknown error occurred"}`
+      );
+    } finally {
+      setDateFilterLoading(false);
+    }
   };
 
   // NEW: Function to fetch incubation list
@@ -153,8 +188,8 @@ export const DataProvider = ({ children }) => {
         userId:
           Number(roleid) === 1 && !adminViewingStartupId ? "ALL" : targetUserId,
         incUserId: incuserid,
-        startYear: fromYear,
-        endYear: toYear,
+        startDate: fromYear,
+        endDate: toYear,
       });
       const data = extractData(response, []);
       setCompanyDoc(data);
@@ -177,8 +212,8 @@ export const DataProvider = ({ children }) => {
         "/generic/getcollecteddocsdash",
         {
           userId: userId,
-          startYear: fromYear,
-          endYear: toYear,
+          startDate: fromYear,
+          endDate: toYear,
           incUserId: incuserid,
         }
       );
@@ -305,7 +340,7 @@ export const DataProvider = ({ children }) => {
 
         let apiCalls = [];
 
-        // CONDITIONALLY ADD stats APIs based on the whitelist.
+        // CONDITIONALLY ADD stats APIs based on whitelist.
         // If the current user's role is NOT in the list, this block is skipped.
         if (rolesAllowedForStats.includes(Number(roleid))) {
           // This block will ONLY run for roleid 1.
@@ -350,8 +385,8 @@ export const DataProvider = ({ children }) => {
               api.post("/generic/getcollecteddocsdash", {
                 userId: userIdForListApis,
                 incUserId: userIncId,
-                startYear: fromYear,
-                endYear: toYear,
+                startDate: fromYear,
+                endDate: toYear,
               }),
           },
           {
@@ -449,7 +484,8 @@ export const DataProvider = ({ children }) => {
   return (
     <DataContext.Provider
       value={{
-        /* ... all your context values ... */ stats,
+        /* ... all your context values ... */
+        stats,
         byField,
         byStage,
         companyDoc,
@@ -490,6 +526,8 @@ export const DataProvider = ({ children }) => {
         fetchIncubationDetails,
         handleIncubationSelect,
         resetIncubationSelection,
+        fetchDocumentsByDateRange, // NEW: Add this to the context
+        dateFilterLoading, // NEW: Add this to the context
       }}
     >
       {children}

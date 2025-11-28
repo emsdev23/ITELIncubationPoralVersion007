@@ -127,7 +127,7 @@ const LoginForm = () => {
       const result = response.data;
       console.log("Login Response:", result);
 
-      const { token, userid, roleid, incuserid } = result.data;
+      const { token, userid, roleid, incuserid, increcid } = result.data;
 
       // Save session data
       localStorage.clear();
@@ -138,6 +138,7 @@ const LoginForm = () => {
       sessionStorage.setItem("token", token);
       sessionStorage.setItem("roleid", roleid);
       sessionStorage.setItem("email", formData.username);
+      sessionStorage.setItem("incubateeId", increcid);
 
       // For admin (roleid "0"), set incuserid to "ALL", otherwise use the actual incuserid
       const incuseridValue = roleid === "0" ? "ALL" : incuserid;

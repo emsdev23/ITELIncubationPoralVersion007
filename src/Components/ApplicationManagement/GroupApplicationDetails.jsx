@@ -1,34 +1,14 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Download } from "lucide-react";
 import * as XLSX from "xlsx";
-
-// Material UI imports
-import { DataGrid } from "@mui/x-data-grid";
-import Paper from "@mui/material/Paper";
-import {
-  Button,
-  Box,
-  Typography,
-  TextField,
-  IconButton,
-  CircularProgress,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Chip,
-} from "@mui/material";
-import { styled } from "@mui/material/styles";
-import SearchIcon from "@mui/icons-material/Search";
-import ClearIcon from "@mui/icons-material/Clear";
+import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Import the reusable component
 import { IPAdress } from "../Datafetching/IPAdrees";
 
-// Styled components for custom styling
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  width: "100%",
-  marginBottom: theme.spacing(2),
-}));
+// Material UI imports
+import { Box, Typography, CircularProgress, Chip } from "@mui/material";
+import { styled } from "@mui/material/styles";
 
+// Styled components for custom styling
 const StyledChip = styled(Chip)(({ theme, status }) => {
   const getStatusColor = (status) => {
     return status === 1
@@ -53,16 +33,8 @@ export default function GroupApplicationDetails({
   const API_BASE_URL = IPAdress;
 
   const [apps, setApps] = useState([]);
-  const [filteredApps, setFilteredApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  // Pagination state for Material UI
-  const [paginationModel, setPaginationModel] = useState({
-    page: 0,
-    pageSize: 10,
-  });
 
   // Check if XLSX is available
   const isXLSXAvailable = !!XLSX;
@@ -94,7 +66,6 @@ export default function GroupApplicationDetails({
       .then((data) => {
         if (data.statusCode === 200) {
           setApps(data.data || []);
-          setFilteredApps(data.data || []);
         } else {
           throw new Error(
             data.message || "Failed to fetch application details"
@@ -108,112 +79,7 @@ export default function GroupApplicationDetails({
       .finally(() => setLoading(false));
   }, [groupId, token, userId, incUserid]);
 
-  // Filter logic
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredApps(apps);
-    } else {
-      const filtered = apps.filter(
-        (app) =>
-          app.guiappsappname
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase()) ||
-          app.guiappspath.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredApps(filtered);
-    }
-  }, [searchQuery, apps]);
-
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setPaginationModel((prev) => ({ ...prev, page: 0 }));
-  }, [searchQuery]);
-
-  const clearSearch = () => setSearchQuery("");
-
-  // Export to CSV function
-  const exportToCSV = () => {
-    // Create a copy of the data for export
-    const exportData = filteredApps.map((item) => ({
-      "App Name": item.guiappsappname || "",
-      Path: item.guiappspath || "",
-      Group: item.grpappsgroupname || "",
-      State: item.guiappsadminstate === 1 ? "Enabled" : "Disabled",
-      "Created Time": item.guiappscreatedtime?.replace("T", " ") || "",
-      "Modified Time": item.guiappsmodifiedtime?.replace("T", " ") || "",
-    }));
-
-    // Convert to CSV
-    const headers = Object.keys(exportData[0] || {});
-    const csvContent = [
-      headers.join(","),
-      ...exportData.map((row) =>
-        headers
-          .map((header) => {
-            // Handle values that might contain commas
-            const value = row[header];
-            return typeof value === "string" && value.includes(",")
-              ? `"${value}"`
-              : value;
-          })
-          .join(",")
-      ),
-    ].join("\n");
-
-    // Create a blob and download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `group_${groupName}_apps_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Export to Excel function
-  const exportToExcel = () => {
-    if (!isXLSXAvailable) {
-      console.error("XLSX library not available");
-      alert("Excel export is not available. Please install the xlsx package.");
-      return;
-    }
-
-    try {
-      // Create a copy of the data for export
-      const exportData = filteredApps.map((item) => ({
-        "App Name": item.guiappsappname || "",
-        Path: item.guiappspath || "",
-        Group: item.grpappsgroupname || "",
-        State: item.guiappsadminstate === 1 ? "Enabled" : "Disabled",
-        "Created Time": item.guiappscreatedtime?.replace("T", " ") || "",
-        "Modified Time": item.guiappsmodifiedtime?.replace("T", " ") || "",
-      }));
-
-      // Create a workbook
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // Add the worksheet to the workbook
-      XLSX.utils.book_append_sheet(wb, ws, "Applications");
-
-      // Generate the Excel file and download
-      XLSX.writeFile(
-        wb,
-        `group_${groupName}_apps_${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      alert("Error exporting to Excel. Falling back to CSV export.");
-      exportToCSV();
-    }
-  };
-
-  // Define columns for DataGrid
+  // Define columns for ReusableDataGrid
   const columns = [
     {
       field: "id",
@@ -221,11 +87,25 @@ export default function GroupApplicationDetails({
       width: 80,
       sortable: false,
       renderCell: (params) => {
-        return (
-          params.api.getRowIndexRelativeToVisibleRows(params.row.id) +
-          1 +
-          paginationModel.page * paginationModel.pageSize
+        // Ensure we have valid params and row
+        if (!params || !params.api || !params.row) return "1";
+
+        const rowIndex = params.api.getRowIndexRelativeToVisibleRows(
+          params.row.id
         );
+        const pageSize = params.api.state.pagination.pageSize;
+        const currentPage = params.api.state.pagination.page;
+
+        // Ensure we have valid numbers
+        const validRowIndex = isNaN(rowIndex) ? 0 : rowIndex;
+        const validPageSize = isNaN(pageSize) ? 10 : pageSize;
+        const validCurrentPage = isNaN(currentPage) ? 0 : currentPage;
+
+        return (
+          validRowIndex +
+          1 +
+          validCurrentPage * validPageSize
+        ).toString();
       },
     },
     {
@@ -247,9 +127,9 @@ export default function GroupApplicationDetails({
             textOverflow: "ellipsis",
             maxWidth: "100%",
           }}
-          title={params.value}
+          title={params.value || ""}
         >
-          {params.value}
+          {params.value || ""}
         </Box>
       ),
     },
@@ -294,13 +174,23 @@ export default function GroupApplicationDetails({
     },
   ];
 
-  // Add unique ID to each row if not present
-  const rowsWithId = useMemo(() => {
-    return filteredApps.map((item) => ({
-      ...item,
-      id: item.guiappsrecid || Math.random().toString(36).substr(2, 9), // Fallback ID
+  // Custom export function to format data properly
+  const onExportData = (data) => {
+    return data.map((item) => ({
+      "App Name": item.guiappsappname || "",
+      Path: item.guiappspath || "",
+      Group: item.grpappsgroupname || "",
+      State: item.guiappsadminstate === 1 ? "Enabled" : "Disabled",
+      "Created Time": item.guiappscreatedtime?.replace("T", " ") || "",
+      "Modified Time": item.guiappsmodifiedtime?.replace("T", " ") || "",
     }));
-  }, [filteredApps]);
+  };
+
+  // Export configuration
+  const exportConfig = {
+    filename: `group_${groupName}_apps`,
+    sheetName: "Applications",
+  };
 
   return (
     <Box sx={{ width: "100%", mt: 3 }}>
@@ -313,25 +203,6 @@ export default function GroupApplicationDetails({
         }}
       >
         <Typography variant="h5">📱 Applications for: {groupName}</Typography>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            variant="outlined"
-            startIcon={<Download size={16} />}
-            onClick={exportToCSV}
-            title="Export as CSV"
-          >
-            Export CSV
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Download size={16} />}
-            onClick={exportToExcel}
-            title="Export as Excel"
-            disabled={!isXLSXAvailable}
-          >
-            Export Excel
-          </Button>
-        </Box>
       </Box>
 
       {error && (
@@ -348,91 +219,20 @@ export default function GroupApplicationDetails({
         </Box>
       )}
 
-      {/* Search Section */}
-      <Box sx={{ display: "flex", gap: 2, mb: 2, alignItems: "center" }}>
-        <TextField
-          label="Search by name or path..."
-          variant="outlined"
-          size="small"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          sx={{ minWidth: 300 }}
-          InputProps={{
-            startAdornment: (
-              <SearchIcon
-                fontSize="small"
-                sx={{ mr: 1, color: "text.secondary" }}
-              />
-            ),
-            endAdornment: searchQuery && (
-              <IconButton size="small" onClick={clearSearch}>
-                <ClearIcon fontSize="small" />
-              </IconButton>
-            ),
-          }}
-        />
-
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel id="items-per-page-label">Items per page</InputLabel>
-          <Select
-            labelId="items-per-page-label"
-            value={paginationModel.pageSize}
-            onChange={(e) =>
-              setPaginationModel({
-                ...paginationModel,
-                pageSize: Number(e.target.value),
-                page: 0,
-              })
-            }
-            label="Items per page"
-          >
-            <MenuItem value={5}>5 per page</MenuItem>
-            <MenuItem value={10}>10 per page</MenuItem>
-            <MenuItem value={25}>25 per page</MenuItem>
-            <MenuItem value={50}>50 per page</MenuItem>
-          </Select>
-        </FormControl>
-      </Box>
-
-      {/* Results Info */}
-      <Box sx={{ mb: 1, color: "text.secondary" }}>
-        Showing {paginationModel.page * paginationModel.pageSize + 1} to{" "}
-        {Math.min(
-          (paginationModel.page + 1) * paginationModel.pageSize,
-          filteredApps.length
-        )}{" "}
-        of {filteredApps.length} entries
-      </Box>
-
-      {/* Material UI DataGrid */}
-      <StyledPaper>
-        {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <DataGrid
-            rows={rowsWithId}
-            columns={columns}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            pageSizeOptions={[5, 10, 25, 50]}
-            disableRowSelectionOnClick
-            sx={{ border: 0 }}
-            autoHeight
-            rowCount={filteredApps.length}
-            paginationMode="client"
-          />
-        )}
-      </StyledPaper>
-
-      {filteredApps.length === 0 && !loading && (
-        <Box sx={{ textAlign: "center", py: 3, color: "text.secondary" }}>
-          {searchQuery
-            ? "No applications found matching your search"
-            : "No applications found for this group"}
-        </Box>
-      )}
+      {/* Use the ReusableDataGrid component */}
+      <ReusableDataGrid
+        data={apps}
+        columns={columns}
+        title=""
+        enableExport={true}
+        enableColumnFilters={true}
+        searchPlaceholder="Search by name or path..."
+        searchFields={["guiappsappname", "guiappspath"]}
+        uniqueIdField="guiappsrecid"
+        onExportData={onExportData}
+        exportConfig={exportConfig}
+        className="group-applications-grid"
+      />
     </Box>
   );
 }

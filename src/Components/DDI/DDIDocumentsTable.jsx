@@ -9,9 +9,10 @@ import { Download, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DataContext } from "../Datafetching/DataProvider";
 
+// Import the ReusableDataGrid component
+import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
+
 // Material UI imports
-import { DataGrid } from "@mui/x-data-grid";
-import Paper from "@mui/material/Paper";
 import {
   Button,
   Box,
@@ -29,11 +30,6 @@ import {
 import { styled } from "@mui/material/styles";
 
 // Styled components for custom styling
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  width: "100%",
-  marginBottom: theme.spacing(2),
-}));
-
 const StyledChip = styled(Chip)(({ theme, stage }) => {
   const getStageColor = (stage) => {
     switch (stage) {
@@ -109,16 +105,7 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
   const [hasFetchedData, setHasFetchedData] = useState(false);
 
   // Filters & Pagination
-  const [searchTerm, setSearchTerm] = useState("");
-  const [stageFilter, setStageFilter] = useState("all");
-  const [companyFilter, setCompanyFilter] = useState("all");
   const [togglingDoc, setTogglingDoc] = useState(null);
-
-  // Pagination state for Material UI
-  const [paginationModel, setPaginationModel] = useState({
-    page: 0,
-    pageSize: 10,
-  });
 
   // Check if XLSX is available
   const isXLSXAvailable = !!XLSX;
@@ -187,41 +174,36 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
     );
   }, [documents]);
 
-  // Filter data using useMemo for performance
-  const filteredData = useMemo(() => {
-    return documents.filter((doc) => {
-      const matchesSearch =
-        (doc.incubateesname || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        (doc.ddidocumentsname || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        (doc.uploadedbyname || "")
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
+  // Define dropdown filters for ReusableDataGrid
+  const dropdownFilters = [
+    {
+      field: "ddidocumentsstartupstagesrecid",
+      label: "Stage",
+      width: 150,
+      options: [
+        { value: "all", label: "All Stages" },
+        { value: "1", label: "Pre Seed" },
+        { value: "2", label: "Seed Stage" },
+        { value: "3", label: "Early Stage" },
+        { value: "4", label: "Growth Stage" },
+        { value: "5", label: "Expansion Stage" },
+      ],
+    },
+    {
+      field: "incubateesname",
+      label: "Company",
+      width: 200,
+      options: [
+        { value: "all", label: "All Companies" },
+        ...uniqueCompanies.map((company) => ({
+          value: company.incubateesname,
+          label: company.incubateesname,
+        })),
+      ],
+    },
+  ];
 
-      const matchesStage =
-        stageFilter === "all" ||
-        (doc.ddidocumentsstartupstagesrecid &&
-          doc.ddidocumentsstartupstagesrecid === Number(stageFilter));
-
-      const matchesCompany =
-        companyFilter === "all" || doc.incubateesname === companyFilter;
-
-      return matchesSearch && matchesStage && matchesCompany;
-    });
-  }, [documents, searchTerm, stageFilter, companyFilter]);
-
-  // Add unique ID to each row if not present
-  const rowsWithId = useMemo(() => {
-    return filteredData.map((item) => ({
-      ...item,
-      id: item.ddidocumentsrecid || Math.random().toString(36).substr(2, 9),
-    }));
-  }, [filteredData]);
-
-  // Define columns for DataGrid
+  // Define columns for ReusableDataGrid
   const columns = [
     {
       field: "ddidocumentsname",
@@ -244,20 +226,17 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
       sortable: true,
     },
     {
-      field: "startupstagesname",
+      field: "startupstagesname", // Use the stage name field for both display and search
       headerName: "Stage",
       width: 150,
       sortable: true,
-      renderCell: (params) => {
-        if (!params || !params.row)
-          return <StyledChip label="—" size="small" />;
-        return (
-          <StyledChip
-            label={params.row.startupstagesname || "—"}
-            size="small"
-            stage={params.row.ddidocumentsstartupstagesrecid}
-          />
-        );
+      type: "chip",
+      chipColors: {
+        "Pre Seed": { backgroundColor: "#e0e7ff", color: "#4338ca" },
+        "Seed Stage": { backgroundColor: "#dbeafe", color: "#1e40af" },
+        "Early Stage": { backgroundColor: "#d1fae5", color: "#065f46" },
+        "Growth Stage": { backgroundColor: "#fef3c7", color: "#92400e" },
+        "Expansion Stage": { backgroundColor: "#ede9fe", color: "#5b21b6" },
       },
     },
     {
@@ -271,10 +250,7 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
       headerName: "Upload Date",
       width: 150,
       sortable: true,
-      renderCell: (params) => {
-        if (!params || !params.row) return "-";
-        return formatDate(params.row.ddidocumentscreatedtime);
-      },
+      type: "date",
     },
     ...(shouldShowVisibilityColumn
       ? [
@@ -305,23 +281,19 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
             headerName: "Actions",
             width: 150,
             sortable: false,
-            renderCell: (params) => {
-              if (!params || !params.row) return null;
-              return (
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={() =>
-                    handleViewDocument(
-                      params.row.ddidocumentsfilepath,
-                      params.row.ddidocumentsname
-                    )
-                  }
-                >
-                  View Document
-                </Button>
-              );
-            },
+            type: "actions",
+            actions: [
+              {
+                label: "View Document",
+                onClick: (row) =>
+                  handleViewDocument(
+                    row.ddidocumentsfilepath,
+                    row.ddidocumentsname
+                  ),
+                color: "primary",
+                size: "small",
+              },
+            ],
           },
         ]
       : []),
@@ -428,9 +400,9 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
     }
   };
 
-  // Export to CSV function
-  const exportToCSV = () => {
-    const exportData = filteredData.map((item) => ({
+  // Custom export function for DDI documents
+  const onExportData = (data) => {
+    return data.map((item) => ({
       "Document Name": item.ddidocumentsname || "",
       Company: item.incubateesname || "",
       Stage: item.startupstagesname || "",
@@ -438,66 +410,12 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
       "Upload Date": formatDate(item.ddidocumentscreatedtime),
       Visibility: item.ddidocumentsvisibility === 1 ? "Enabled" : "Disabled",
     }));
-
-    const headers = Object.keys(exportData[0] || {});
-    const csvContent = [
-      headers.join(","),
-      ...exportData.map((row) =>
-        headers
-          .map((header) => {
-            const value = row[header];
-            return typeof value === "string" && value.includes(",")
-              ? `"${value}"`
-              : value;
-          })
-          .join(",")
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `ddi_documents_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
-  // Export to Excel function
-  const exportToExcel = () => {
-    if (!isXLSXAvailable) {
-      console.error("XLSX library not available");
-      alert("Excel export is not available. Please install the xlsx package.");
-      return;
-    }
-
-    try {
-      const exportData = filteredData.map((item) => ({
-        "Document Name": item.ddidocumentsname || "",
-        Company: item.incubateesname || "",
-        Stage: item.startupstagesname || "",
-        "Uploaded By": item.uploadedbyname || "",
-        "Upload Date": formatDate(item.ddidocumentscreatedtime),
-        Visibility: item.ddidocumentsvisibility === 1 ? "Enabled" : "Disabled",
-      }));
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      XLSX.utils.book_append_sheet(wb, ws, "DDI Documents");
-      XLSX.writeFile(
-        wb,
-        `ddi_documents_${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      alert("Error exporting to Excel. Falling back to CSV export.");
-      exportToCSV();
-    }
+  // Export configuration
+  const exportConfig = {
+    filename: "ddi_documents",
+    sheetName: "DDI Documents",
   };
 
   // Loading & Error states
@@ -529,127 +447,31 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
     <div className={styles.card}>
       <div className={styles.cardHeader}>
         <Typography variant="h5">Due Diligence Document Submission</Typography>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Button
-            variant="outlined"
-            startIcon={<Download size={16} />}
-            onClick={exportToCSV}
-            title="Export as CSV"
-          >
-            Export CSV
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Download size={16} />}
-            onClick={exportToExcel}
-            title="Export as Excel"
-            disabled={!isXLSXAvailable}
-          >
-            Export Excel
-          </Button>
-        </Box>
       </div>
 
-      {/* Filters Section */}
-      <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
-        <TextField
-          label="Search documents, companies, or uploaders..."
-          variant="outlined"
-          size="small"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          sx={{ minWidth: 300 }}
-        />
-
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel id="stage-filter-label">Stage</InputLabel>
-          <Select
-            labelId="stage-filter-label"
-            value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
-            label="Stage"
-          >
-            <MenuItem value="all">All Stages</MenuItem>
-            <MenuItem value="1">Pre Seed</MenuItem>
-            <MenuItem value="2">Seed Stage</MenuItem>
-            <MenuItem value="3">Early Stage</MenuItem>
-            <MenuItem value="4">Growth Stage</MenuItem>
-            <MenuItem value="5">Expansion Stage</MenuItem>
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" sx={{ minWidth: 200 }}>
-          <InputLabel id="company-filter-label">Company</InputLabel>
-          <Select
-            labelId="company-filter-label"
-            value={companyFilter}
-            onChange={(e) => setCompanyFilter(e.target.value)}
-            label="Company"
-          >
-            <MenuItem value="all">All Companies</MenuItem>
-            {uniqueCompanies.map((company, index) => (
-              <MenuItem key={index} value={company.incubateesname}>
-                {company.incubateesname}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel id="items-per-page-label">Items per page</InputLabel>
-          <Select
-            labelId="items-per-page-label"
-            value={paginationModel.pageSize}
-            onChange={(e) =>
-              setPaginationModel({
-                ...paginationModel,
-                pageSize: Number(e.target.value),
-                page: 0,
-              })
-            }
-            label="Items per page"
-          >
-            <MenuItem value={5}>5 per page</MenuItem>
-            <MenuItem value={10}>10 per page</MenuItem>
-            <MenuItem value={25}>25 per page</MenuItem>
-            <MenuItem value={50}>50 per page</MenuItem>
-          </Select>
-        </FormControl>
-      </Box>
-
-      {/* Results Info */}
-      <Box sx={{ mb: 1, color: "text.secondary" }}>
-        Showing {paginationModel.page * paginationModel.pageSize + 1} to{" "}
-        {Math.min(
-          (paginationModel.page + 1) * paginationModel.pageSize,
-          filteredData.length
-        )}{" "}
-        of {filteredData.length} documents
-      </Box>
-
-      {/* Material UI DataGrid */}
-      <StyledPaper>
-        <DataGrid
-          rows={rowsWithId}
-          columns={columns}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          pageSizeOptions={[5, 10, 25, 50]}
-          disableRowSelectionOnClick
-          sx={{ border: 0 }}
-          autoHeight
-        />
-      </StyledPaper>
+      {/* Use the ReusableDataGrid component */}
+      <ReusableDataGrid
+        data={documents}
+        columns={columns}
+        title=""
+        searchPlaceholder="Search documents, companies, or uploaders..."
+        searchFields={[
+          "incubateesname",
+          "ddidocumentsname",
+          "uploadedbyname",
+          "startupstagesname",
+        ]}
+        uniqueIdField="ddidocumentsrecid"
+        onExportData={onExportData}
+        exportConfig={exportConfig}
+        enableExport={true}
+        enableColumnFilters={true}
+        dropdownFilters={dropdownFilters}
+      />
 
       {hasFetchedData && documents.length === 0 && (
         <Box sx={{ textAlign: "center", py: 3, color: "text.secondary" }}>
           No documents uploaded
-        </Box>
-      )}
-
-      {hasFetchedData && documents.length > 0 && filteredData.length === 0 && (
-        <Box sx={{ textAlign: "center", py: 3, color: "text.secondary" }}>
-          No documents found matching your criteria.
         </Box>
       )}
 

@@ -1,26 +1,22 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import Swal from "sweetalert2";
 import { IPAdress } from "../Datafetching/IPAdrees";
-import * as XLSX from "xlsx";
 import { Download } from "lucide-react";
+import { FaTimes } from "react-icons/fa";
 
 // Material UI imports
-import { DataGrid } from "@mui/x-data-grid";
-import Paper from "@mui/material/Paper";
 import {
   Button,
   Box,
   Typography,
-  TextField,
-  Modal,
-  IconButton,
-  Chip,
-  CircularProgress,
-  Backdrop,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  IconButton,
+  CircularProgress,
+  Backdrop,
+  TextField,
   FormControl,
   InputLabel,
   Select,
@@ -31,13 +27,10 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
 
-// Styled components
-const StyledPaper = styled(Paper)(({ theme }) => ({
-  height: 500,
-  width: "100%",
-  marginBottom: theme.spacing(2),
-}));
+// Import your reusable component
+import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Adjust path as needed
 
+// Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,
   color: "#fff",
@@ -57,28 +50,22 @@ const ActionButton = styled(IconButton)(({ theme, color }) => ({
 // Common date formatting function
 const formatDate = (dateStr) => {
   if (!dateStr) return "-";
-
   try {
-    // Handle the timestamp format from the API
     if (Array.isArray(dateStr)) {
       dateStr = dateStr.map((num) => num.toString().padStart(2, "0")).join("");
     } else {
       dateStr = String(dateStr).replace(/,/g, "");
     }
-
     if (dateStr.length < 14) dateStr = dateStr.padEnd(14, "0");
-
     const year = dateStr.substring(0, 4);
     const month = dateStr.substring(4, 6);
     const day = dateStr.substring(6, 8);
     const hour = dateStr.substring(8, 10);
     const minute = dateStr.substring(10, 12);
     const second = dateStr.substring(12, 14);
-
     const formattedDate = new Date(
       `${year}-${month}-${day}T${hour}:${minute}:${second}`
     );
-
     return formattedDate.toLocaleString("en-US", {
       year: "numeric",
       month: "2-digit",
@@ -89,18 +76,19 @@ const formatDate = (dateStr) => {
     });
   } catch (error) {
     console.error("Error formatting date:", error);
-    return dateStr; // Return original if error
+    return dateStr;
   }
 };
 
 export default function DocSubCatTable() {
+  // --- 1. STATE DECLARATIONS ---
   const userId = sessionStorage.getItem("userid");
   const token = sessionStorage.getItem("token");
   const incUserid = sessionStorage.getItem("incuserid");
   const IP = IPAdress;
 
   const [subcats, setSubcats] = useState([]);
-  const [cats, setCats] = useState([]); // categories for dropdown
+  const [cats, setCats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -114,22 +102,13 @@ export default function DocSubCatTable() {
   const [isDeleting, setIsDeleting] = useState({});
   const [isSaving, setIsSaving] = useState(false);
 
-  // Pagination state for Material UI
-  const [paginationModel, setPaginationModel] = useState({
-    page: 0,
-    pageSize: 10,
-  });
-
-  // Check if XLSX is available
-  const isXLSXAvailable = !!XLSX;
-
-  // Fetch all subcategories
-  const fetchSubCategories = () => {
+  // --- 2. HANDLER FUNCTIONS (Must be defined before useMemo) ---
+  const fetchSubCategories = useCallback(() => {
+    setLoading(true);
+    setError(null);
     const url = `${IP}/itelinc/getDocsubcatAll?incuserid=${encodeURIComponent(
       incUserid
     )}`;
-    setLoading(true);
-    setError(null);
     fetch(url, {
       method: "GET",
       mode: "cors",
@@ -140,7 +119,11 @@ export default function DocSubCatTable() {
         "X-Action": "Fetch  Document SubCategories",
       },
     })
-      .then((res) => res.json())
+      .then((res) =>
+        res.ok
+          ? res.json()
+          : Promise.reject(`HTTP error! status: ${res.status}`)
+      )
       .then((data) => {
         setSubcats(data.data || []);
         setLoading(false);
@@ -150,10 +133,9 @@ export default function DocSubCatTable() {
         setError("Failed to load subcategories. Please try again.");
         setLoading(false);
       });
-  };
+  }, [IP, incUserid, userId]);
 
-  // Fetch categories for dropdown
-  const fetchCategories = () => {
+  const fetchCategories = useCallback(() => {
     const url = `${IP}/itelinc/getDoccatAll?incuserid=${encodeURIComponent(
       incUserid
     )}`;
@@ -165,79 +147,309 @@ export default function DocSubCatTable() {
       .then((res) => res.json())
       .then((data) => setCats(data.data || []))
       .catch((err) => console.error("Error fetching categories:", err));
-  };
+  }, [IP, incUserid]);
 
-  // Refresh both subcategories and categories
-  const refreshData = () => {
+  const refreshData = useCallback(() => {
     fetchSubCategories();
     fetchCategories();
-  };
+  }, [fetchSubCategories, fetchCategories]);
 
-  useEffect(() => {
-    refreshData(); // Use refreshData instead of separate calls
-  }, []);
+  const openAddModal = useCallback(() => {
+    setEditSubCat(null);
+    setFormData({
+      docsubcatname: "",
+      docsubcatdescription: "",
+      docsubcatscatrecid: "",
+    });
+    fetchCategories();
+    setIsModalOpen(true);
+    setError(null);
+  }, [fetchCategories]);
 
-  // Export to CSV function
-  const exportToCSV = () => {
-    // Create a copy of the data for export
-    const exportData = subcats.map((subcat, index) => ({
-      "S.No": index + 1,
-      Category: subcat.doccatname || "N/A",
-      "Subcategory Name": subcat.docsubcatname || "",
-      Description: subcat.docsubcatdescription || "",
-      "Created By": isNaN(subcat.docsubcatcreatedby)
-        ? subcat.docsubcatcreatedby
-        : "Admin",
-      "Created Time": formatDate(subcat.docsubcatcreatedtime),
-      "Modified By": isNaN(subcat.docsubcatmodifiedby)
-        ? subcat.docsubcatmodifiedby
-        : "Admin",
-      "Modified Time": formatDate(subcat.docsubcatmodifiedtime),
-    }));
+  const openEditModal = useCallback(
+    (subcat) => {
+      setEditSubCat(subcat);
+      setFormData({
+        docsubcatname: subcat.docsubcatname || "",
+        docsubcatdescription: subcat.docsubcatdescription || "",
+        docsubcatscatrecid: subcat.docsubcatscatrecid || "",
+      });
+      fetchCategories();
+      setIsModalOpen(true);
+      setError(null);
+    },
+    [fetchCategories]
+  );
 
-    // Convert to CSV
-    const headers = Object.keys(exportData[0] || {});
-    const csvContent = [
-      headers.join(","),
-      ...exportData.map((row) =>
-        headers
-          .map((header) => {
-            // Handle values that might contain commas
-            const value = row[header];
-            return typeof value === "string" && value.includes(",")
-              ? `"${value}"`
-              : value;
+  const handleChange = useCallback((e) => {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }, []); // Use functional update
+
+  const handleDelete = useCallback(
+    (subcatId) => {
+      Swal.fire({
+        title: "Are you sure?",
+        text: "This subcategory will be deleted permanently.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Yes, delete it!",
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setIsDeleting((prev) => ({ ...prev, [subcatId]: true }));
+          Swal.fire({
+            title: "Deleting...",
+            text: "Please wait while we delete subcategory",
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading(),
+          });
+          const deleteUrl = `${IP}/itelinc/deleteDocsubcat?docsubcatrecid=${subcatId}&docsubcatmodifiedby=${userId}`;
+          fetch(deleteUrl, {
+            method: "POST",
+            mode: "cors",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+              userid: userId || "1",
+              "X-Module": "Document Management",
+              "X-Action": "Delete Document SubCategory",
+            },
           })
-          .join(",")
-      ),
-    ].join("\n");
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.statusCode === 200) {
+                Swal.fire(
+                  "Deleted!",
+                  "Subcategory deleted successfully!",
+                  "success"
+                );
+                refreshData();
+              } else {
+                throw new Error(data.message || "Failed to delete subcategory");
+              }
+            })
+            .catch((err) => {
+              console.error("Error deleting subcategory:", err);
+              Swal.fire("Error", `Failed to delete: ${err.message}`, "error");
+            })
+            .finally(() => {
+              setIsDeleting((prev) => ({ ...prev, [subcatId]: false }));
+            });
+        }
+      });
+    },
+    [IP, userId, token, refreshData]
+  );
 
-    // Create a blob and download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `document_subcategories_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const handleSubmit = useCallback(
+    (e) => {
+      e.preventDefault();
+      setIsSaving(true);
+      setError(null);
+      if (
+        !formData.docsubcatname.trim() ||
+        !formData.docsubcatdescription.trim() ||
+        !formData.docsubcatscatrecid
+      ) {
+        setError("All fields are required");
+        setIsSaving(false);
+        return;
+      }
+      setIsModalOpen(false);
+      const params = new URLSearchParams();
+      if (editSubCat) {
+        params.append("docsubcatrecid", editSubCat.docsubcatrecid);
+      }
+      params.append("docsubcatname", formData.docsubcatname.trim());
+      params.append(
+        "docsubcatdescription",
+        formData.docsubcatdescription.trim()
+      );
+      params.append("docsubcatscatrecid", formData.docsubcatscatrecid);
+      if (editSubCat) {
+        params.append("docsubcatmodifiedby", userId || "1");
+      } else {
+        params.append("docsubcatcreatedby", userId || "1");
+        params.append("docsubcatmodifiedby", userId || "1");
+      }
+      const baseUrl = editSubCat
+        ? `${IP}/itelinc/updateDocsubcat`
+        : `${IP}/itelinc/addDocsubcat`;
+      const url = `${baseUrl}?${params.toString()}`;
+      const action = editSubCat
+        ? "Edit Document SubCategory"
+        : "Add Document SubCategory";
+      fetch(url, {
+        method: "POST",
+        mode: "cors",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+          userid: userId || "1",
+          "X-Module": "Document Management",
+          "X-Action": action,
+        },
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          if (data.statusCode === 200) {
+            if (
+              data.data &&
+              typeof data.data === "string" &&
+              data.data.includes("Duplicate entry")
+            ) {
+              setError("Subcategory name already exists for this category");
+              Swal.fire(
+                "Duplicate",
+                "Subcategory name already exists for this category!",
+                "warning"
+              ).then(() => setIsModalOpen(true));
+            } else {
+              setEditSubCat(null);
+              setFormData({
+                docsubcatname: "",
+                docsubcatdescription: "",
+                docsubcatscatrecid: "",
+              });
+              refreshData();
+              Swal.fire(
+                "Success",
+                data.message || "Subcategory saved successfully!",
+                "success"
+              );
+            }
+          } else {
+            throw new Error(
+              data.message || `Operation failed with status: ${data.statusCode}`
+            );
+          }
+        })
+        .catch((err) => {
+          console.error("Error saving subcategory:", err);
+          setError(`Failed to save: ${err.message}`);
+          Swal.fire(
+            "Error",
+            `Failed to save subcategory: ${err.message}`,
+            "error"
+          ).then(() => setIsModalOpen(true));
+        })
+        .finally(() => setIsSaving(false));
+    },
+    [formData, editSubCat, IP, userId, token, refreshData]
+  );
 
-  // Export to Excel function
-  const exportToExcel = () => {
-    if (!isXLSXAvailable) {
-      console.error("XLSX library not available");
-      alert("Excel export is not available. Please install the xlsx package.");
-      return;
-    }
+  // --- 3. MEMOIZED VALUES (Must be defined after handler functions) ---
+  const columns = useMemo(
+    () => [
+      {
+        field: "doccatname",
+        headerName: "Category",
+        width: 180,
+        sortable: true,
+        renderCell: (params) =>
+          params?.row ? params.row.doccatname || "N/A" : "N/A",
+      },
+      {
+        field: "docsubcatname",
+        headerName: "Subcategory Name",
+        width: 200,
+        sortable: true,
+      },
+      {
+        field: "docsubcatdescription",
+        headerName: "Description",
+        width: 250,
+        sortable: true,
+      },
+      {
+        field: "docsubcatcreatedby",
+        headerName: "Created By",
+        width: 150,
+        sortable: true,
+        renderCell: (params) =>
+          params?.row
+            ? isNaN(params.row.docsubcatcreatedby)
+              ? params.row.docsubcatcreatedby
+              : "Admin"
+            : "Admin",
+      },
+      {
+        field: "docsubcatcreatedtime",
+        headerName: "Created Time",
+        width: 180,
+        sortable: true,
+        type: "date",
+      },
+      {
+        field: "docsubcatmodifiedby",
+        headerName: "Modified By",
+        width: 150,
+        sortable: true,
+        renderCell: (params) =>
+          params?.row
+            ? isNaN(params.row.docsubcatmodifiedby)
+              ? params.row.docsubcatmodifiedby
+              : "Admin"
+            : "Admin",
+      },
+      {
+        field: "docsubcatmodifiedtime",
+        headerName: "Modified Time",
+        width: 180,
+        sortable: true,
+        type: "date",
+      },
+      {
+        field: "actions",
+        headerName: "Actions",
+        width: 150,
+        sortable: false,
+        filterable: false,
+        renderCell: (params) => {
+          if (!params?.row) return null;
+          return (
+            <Box>
+              <ActionButton
+                color="edit"
+                onClick={() => openEditModal(params.row)}
+                disabled={isSaving || isDeleting[params.row.docsubcatrecid]}
+                title="Edit"
+              >
+                <EditIcon fontSize="small" />
+              </ActionButton>
+              <ActionButton
+                color="delete"
+                onClick={() => handleDelete(params.row.docsubcatrecid)}
+                disabled={isSaving || isDeleting[params.row.docsubcatrecid]}
+                title="Delete"
+              >
+                {isDeleting[params.row.docsubcatrecid] ? (
+                  <CircularProgress size={18} color="inherit" />
+                ) : (
+                  <DeleteIcon fontSize="small" />
+                )}
+              </ActionButton>
+            </Box>
+          );
+        },
+      },
+    ],
+    [isSaving, isDeleting, openEditModal, handleDelete]
+  ); // Dependencies are now available
 
-    try {
-      // Create a copy of the data for export
-      const exportData = subcats.map((subcat, index) => ({
+  const exportConfig = useMemo(
+    () => ({
+      filename: "document_subcategories",
+      sheetName: "Document Subcategories",
+    }),
+    []
+  );
+  const onExportData = useMemo(
+    () => (data) =>
+      data.map((subcat, index) => ({
         "S.No": index + 1,
         Category: subcat.doccatname || "N/A",
         "Subcategory Name": subcat.docsubcatname || "",
@@ -250,380 +462,16 @@ export default function DocSubCatTable() {
           ? subcat.docsubcatmodifiedby
           : "Admin",
         "Modified Time": formatDate(subcat.docsubcatmodifiedtime),
-      }));
+      })),
+    []
+  );
 
-      // Create a workbook
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
+  // --- 4. EFFECTS ---
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
 
-      // Add the worksheet to the workbook
-      XLSX.utils.book_append_sheet(wb, ws, "Document Subcategories");
-
-      // Generate the Excel file and download
-      XLSX.writeFile(
-        wb,
-        `document_subcategories_${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      alert("Error exporting to Excel. Falling back to CSV export.");
-      exportToCSV();
-    }
-  };
-
-  // Define columns for DataGrid
-  const columns = [
-    // {
-    //   field: "docsubcatrecid",
-    //   headerName: "S.No",
-    //   width: 70,
-    //   sortable: false,
-    //   valueGetter: (params) => {
-    //     if (!params || !params.api) return 0;
-    //     return params.api.getRowIndexRelativeToVisibleRows(params.row.id) + 1;
-    //   },
-    // },
-    {
-      field: "doccatname",
-      headerName: "Category",
-      width: 180,
-      sortable: true,
-    },
-    {
-      field: "docsubcatname",
-      headerName: "Subcategory Name",
-      width: 200,
-      sortable: true,
-    },
-    {
-      field: "docsubcatdescription",
-      headerName: "Description",
-      width: 250,
-      sortable: true,
-    },
-    {
-      field: "docsubcatcreatedby",
-      headerName: "Created By",
-      width: 150,
-      sortable: true,
-      valueGetter: (params) => {
-        if (!params || !params.row) return "Admin";
-        return isNaN(params.row.docsubcatcreatedby)
-          ? params.row.docsubcatcreatedby
-          : "Admin";
-      },
-    },
-    {
-      field: "docsubcatcreatedtime",
-      headerName: "Created Time",
-      width: 180,
-      sortable: true,
-      renderCell: (params) => {
-        if (!params || !params.row) return "-";
-        return formatDate(params.row.docsubcatcreatedtime);
-      },
-    },
-    {
-      field: "docsubcatmodifiedby",
-      headerName: "Modified By",
-      width: 150,
-      sortable: true,
-      valueGetter: (params) => {
-        if (!params || !params.row) return "Admin";
-        return isNaN(params.row.docsubcatmodifiedby)
-          ? params.row.docsubcatmodifiedby
-          : "Admin";
-      },
-    },
-    {
-      field: "docsubcatmodifiedtime",
-      headerName: "Modified Time",
-      width: 180,
-      sortable: true,
-      renderCell: (params) => {
-        if (!params || !params.row) return "-";
-        return formatDate(params.row.docsubcatmodifiedtime);
-      },
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      width: 150,
-      sortable: false,
-      renderCell: (params) => {
-        if (!params || !params.row) return null;
-
-        return (
-          <Box>
-            <ActionButton
-              color="edit"
-              onClick={() => openEditModal(params.row)}
-              disabled={isSaving || isDeleting[params.row.docsubcatrecid]}
-              title="Edit"
-            >
-              <EditIcon fontSize="small" />
-            </ActionButton>
-            <ActionButton
-              color="delete"
-              onClick={() => handleDelete(params.row.docsubcatrecid)}
-              disabled={isSaving || isDeleting[params.row.docsubcatrecid]}
-              title="Delete"
-            >
-              {isDeleting[params.row.docsubcatrecid] ? (
-                <CircularProgress size={18} color="inherit" />
-              ) : (
-                <DeleteIcon fontSize="small" />
-              )}
-            </ActionButton>
-          </Box>
-        );
-      },
-    },
-  ];
-
-  // Add unique ID to each row if not present
-  const rowsWithId = useMemo(() => {
-    return subcats.map((subcat, index) => ({
-      ...subcat,
-      id: subcat.docsubcatrecid || `subcat-${index}`,
-    }));
-  }, [subcats]);
-
-  const openAddModal = () => {
-    setEditSubCat(null);
-    setFormData({
-      docsubcatname: "",
-      docsubcatdescription: "",
-      docsubcatscatrecid: "",
-    });
-    // Refresh categories before opening the modal to get the latest list
-    fetchCategories();
-    setIsModalOpen(true);
-    setError(null);
-  };
-
-  const openEditModal = (subcat) => {
-    setEditSubCat(subcat);
-    setFormData({
-      docsubcatname: subcat.docsubcatname || "",
-      docsubcatdescription: subcat.docsubcatdescription || "",
-      docsubcatscatrecid: subcat.docsubcatscatrecid || "",
-    });
-    // Refresh categories before opening the modal to get the latest list
-    fetchCategories();
-    setIsModalOpen(true);
-    setError(null);
-  };
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  // Delete with SweetAlert and loading popup
-  const handleDelete = (subcatId) => {
-    Swal.fire({
-      title: "Are you sure?",
-      text: "This subcategory will be deleted permanently.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Yes, delete it!",
-      cancelButtonText: "Cancel",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        // Set loading state for this specific subcategory
-        setIsDeleting((prev) => ({ ...prev, [subcatId]: true }));
-
-        // Show loading popup
-        Swal.fire({
-          title: "Deleting...",
-          text: "Please wait while we delete the subcategory",
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          showConfirmButton: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
-
-        const deleteUrl = `${IP}/itelinc/deleteDocsubcat?docsubcatrecid=${subcatId}&docsubcatmodifiedby=${
-          userId || "32"
-        }`;
-
-        fetch(deleteUrl, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-            userid: userId || "1",
-            "X-Module": "Document Management",
-            "X-Action": "Delete Document SubCategory",
-          },
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.statusCode === 200) {
-              Swal.fire(
-                "Deleted!",
-                "Subcategory deleted successfully!",
-                "success"
-              );
-              refreshData(); // Use refreshData instead of just fetchSubCategories
-            } else {
-              throw new Error(data.message || "Failed to delete subcategory");
-            }
-          })
-          .catch((err) => {
-            console.error("Error deleting subcategory:", err);
-            Swal.fire("Error", `Failed to delete: ${err.message}`, "error");
-          })
-          .finally(() => {
-            // Remove loading state for this subcategory
-            setIsDeleting((prev) => ({ ...prev, [subcatId]: false }));
-          });
-      }
-    });
-  };
-
-  // Add/Update with proper URL parameters and loading popup
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setIsSaving(true);
-    setError(null);
-
-    // Validate form data
-    if (
-      !formData.docsubcatname.trim() ||
-      !formData.docsubcatdescription.trim() ||
-      !formData.docsubcatscatrecid
-    ) {
-      setError("All fields are required");
-      setIsSaving(false);
-      return;
-    }
-
-    // Close the modal before showing the loading popup
-    setIsModalOpen(false);
-
-    // Show loading popup
-    const loadingTitle = editSubCat ? "Updating..." : "Saving...";
-    const loadingText = editSubCat
-      ? "Please wait while we update the subcategory"
-      : "Please wait while we save the subcategory";
-
-    // Swal.fire({
-    //   title: loadingTitle,
-    //   text: loadingText,
-    //   allowOutsideClick: false,
-    //   allowEscapeKey: false,
-    //   showConfirmButton: false,
-    //   didOpen: () => {
-    //     Swal.showLoading();
-    //   },
-    // });
-
-    // Build URL parameters safely
-    const params = new URLSearchParams();
-
-    if (editSubCat) {
-      params.append("docsubcatrecid", editSubCat.docsubcatrecid);
-    }
-    params.append("docsubcatname", formData.docsubcatname.trim());
-    params.append("docsubcatdescription", formData.docsubcatdescription.trim());
-    params.append("docsubcatscatrecid", formData.docsubcatscatrecid);
-
-    // User ID is REQUIRED for both add and update operations
-    if (editSubCat) {
-      params.append("docsubcatmodifiedby", userId || "32");
-    } else {
-      params.append("docsubcatcreatedby", userId || "32");
-      params.append("docsubcatmodifiedby", userId || "32");
-      params.append("userid", userId || "32");
-    }
-
-    const baseUrl = editSubCat
-      ? `${IP}/itelinc/updateDocsubcat`
-      : `${IP}/itelinc/addDocsubcat`;
-
-    const url = `${baseUrl}?${params.toString()}`;
-
-    console.log("API URL:", url); // Debug URL
-    const action = editSubCat
-      ? "Edit Document SubCategory"
-      : "Add Document SubCategory";
-
-    fetch(url, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-        userid: userId || "1",
-        "X-Module": "Document Management",
-        "X-Action": action,
-      },
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((data) => {
-        console.log("API Response:", data);
-
-        if (data.statusCode === 200) {
-          // Handle duplicate subcategory error
-          if (
-            data.data &&
-            typeof data.data === "string" &&
-            data.data.includes("Duplicate entry") &&
-            data.data.includes("docsubcat.unique_docsubcat_active")
-          ) {
-            setError("Subcategory name already exists for this category");
-            Swal.fire(
-              "Duplicate",
-              "Subcategory name already exists for this category!",
-              "warning"
-            ).then(() => {
-              // Reopen the modal if there's a duplicate error
-              setIsModalOpen(true);
-            });
-          } else {
-            setEditSubCat(null);
-            setFormData({
-              docsubcatname: "",
-              docsubcatdescription: "",
-              docsubcatscatrecid: "",
-            });
-            refreshData(); // Use refreshData instead of just fetchSubCategories
-            Swal.fire(
-              "Success",
-              data.message || "Subcategory saved successfully!",
-              "success"
-            );
-          }
-        } else {
-          throw new Error(
-            data.message || `Operation failed with status: ${data.statusCode}`
-          );
-        }
-      })
-      .catch((err) => {
-        console.error("Error saving subcategory:", err);
-        setError(`Failed to save: ${err.message}`);
-        Swal.fire(
-          "Error",
-          `Failed to save subcategory: ${err.message}`,
-          "error"
-        ).then(() => {
-          // Reopen the modal if there's an error
-          setIsModalOpen(true);
-        });
-      })
-      .finally(() => setIsSaving(false));
-  };
-
+  // --- 5. RENDER (JSX) ---
   return (
     <Box sx={{ p: 2 }}>
       <Box
@@ -635,35 +483,10 @@ export default function DocSubCatTable() {
         }}
       >
         <Typography variant="h4">📂 Document Subcategories</Typography>
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <Button
-            variant="contained"
-            onClick={openAddModal}
-            disabled={isSaving}
-          >
-            + Add Subcategory
-          </Button>
-          {/* Export Buttons */}
-          <Button
-            variant="outlined"
-            startIcon={<Download size={16} />}
-            onClick={exportToCSV}
-            title="Export as CSV"
-          >
-            Export CSV
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<Download size={16} />}
-            onClick={exportToExcel}
-            title="Export as Excel"
-            disabled={!isXLSXAvailable}
-          >
-            Export Excel
-          </Button>
-        </Box>
+        <Button variant="contained" onClick={openAddModal} disabled={isSaving}>
+          + Add Subcategory
+        </Button>
       </Box>
-
       {error && (
         <Box
           sx={{
@@ -677,39 +500,19 @@ export default function DocSubCatTable() {
           {error}
         </Box>
       )}
-
-      {/* Results Info */}
-      <Box sx={{ mb: 1, color: "text.secondary" }}>
-        Showing {paginationModel.page * paginationModel.pageSize + 1} to{" "}
-        {Math.min(
-          (paginationModel.page + 1) * paginationModel.pageSize,
-          subcats.length
-        )}{" "}
-        of {subcats.length} entries
-      </Box>
-
-      {/* Material UI DataGrid */}
-      <StyledPaper>
-        <DataGrid
-          rows={rowsWithId}
-          columns={columns}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          pageSizeOptions={[5, 10, 25, 50]}
-          disableRowSelectionOnClick
-          sx={{ border: 0 }}
-          loading={loading}
-          autoHeight
-        />
-      </StyledPaper>
-
-      {subcats.length === 0 && !loading && (
-        <Box sx={{ textAlign: "center", py: 3, color: "text.secondary" }}>
-          No subcategories found
-        </Box>
-      )}
-
-      {/* Modal for Add/Edit */}
+      <ReusableDataGrid
+        data={subcats}
+        columns={columns}
+        title="Document Subcategories"
+        enableExport={true}
+        enableColumnFilters={true}
+        searchPlaceholder="Search subcategories..."
+        searchFields={["doccatname", "docsubcatname", "docsubcatdescription"]}
+        uniqueIdField="docsubcatrecid"
+        onExportData={onExportData}
+        exportConfig={exportConfig}
+        loading={loading}
+      />
       <Dialog
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -743,6 +546,7 @@ export default function DocSubCatTable() {
                 onChange={handleChange}
                 required
                 disabled={isSaving}
+                label="Category *"
               >
                 <MenuItem value="">Select Category</MenuItem>
                 {cats.map((cat) => (
@@ -797,8 +601,6 @@ export default function DocSubCatTable() {
           </DialogActions>
         </form>
       </Dialog>
-
-      {/* Loading overlay for operations */}
       <StyledBackdrop open={isSaving}>
         <Box
           sx={{
