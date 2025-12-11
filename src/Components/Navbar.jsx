@@ -16,6 +16,9 @@ import {
   ArrowLeft,
   History,
   ChevronDown,
+  FolderKanban,
+  FolderRoot,
+  FileUser,
 } from "lucide-react";
 import ITELLogo from "../assets/ITEL_Logo.png";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
@@ -108,6 +111,9 @@ const Navbar = () => {
       MessageSquare: <MessageSquare size={20} />,
       FileText: <FileText size={20} />,
       History: <History size={20} />,
+      FolderKanban: <FolderKanban size={20} />,
+      FolderRoot: <FolderRoot size={20} />,
+      FileUser: <FileUser size={20} />,
       // Add more icon mappings as needed
     };
     return iconMap[iconName] || <Home size={20} />;

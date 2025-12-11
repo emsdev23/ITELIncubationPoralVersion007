@@ -1263,7 +1263,7 @@ const StartupDashboard = () => {
                 },
               }}
             >
-              View Document
+              View Sample Doc
             </Button>
           );
         },
@@ -1540,15 +1540,7 @@ const StartupDashboard = () => {
   }
 
   if (!hasData) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="text-lg text-gray-600">
-          {Number(roleid) === 1
-            ? "Please select a startup to view from the admin panel."
-            : "No startup data found."}
-        </div>
-      </div>
-    );
+    return <StartupDashboardShimmer />;
   }
 
   return (
@@ -1571,6 +1563,7 @@ const StartupDashboard = () => {
 
         {/* Startup dashboard */}
         <div className={styles.container} style={{ paddingTop: "100px" }}>
+          {/* Header */}
           {/* Header */}
           <div className={styles.headerCard}>
             <div className={styles.headerContent}>
@@ -1635,16 +1628,17 @@ const StartupDashboard = () => {
                     <div className={styles.headerBadge}>
                       Field Of Work: {incubateesfieldofworkname}
                     </div>
-                    <div
-                      className={styles.headerBadge}
-                      onClick={() => setIsContactModalOpen(true)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <Mail className="h-4 w-4" />
-                      Contact
-                    </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Contact badge positioned in top right corner */}
+              <div
+                className={styles.contactBadge}
+                onClick={() => setIsContactModalOpen(true)}
+              >
+                <Mail className="h-4 w-4" />
+                Contact
               </div>
             </div>
           </div>

@@ -547,7 +547,7 @@ export default function DocumentTable() {
               },
             }}
           >
-            View Document
+            View Sample Doc
           </Button>
         );
       },

@@ -23,6 +23,7 @@ import IncubationManagementPage from "./Components/Incubation/IncubationManageme
 import RolesManagement from "./Components/RoleManagement/RolesManagement";
 import ApplicationManagement from "./Components/ApplicationManagement/ApplicationManagement";
 import MainDashboard from "./Components/MainDashboard";
+import DocumentAccessManagement from "./Components/DocumentAccessManagement/DocumentAccessManagement";
 
 // Create a context for authentication state
 export const AuthContext = createContext();
@@ -143,6 +144,15 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <ApplicationManagement />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/startup/Dashboard/DocumentAccessManagement"
+              element={
+                <ProtectedRoute>
+                  <DocumentAccessManagement />
                 </ProtectedRoute>
               }
             />

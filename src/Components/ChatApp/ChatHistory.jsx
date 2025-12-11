@@ -500,7 +500,11 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
       className="chat-history-page"
       sx={{ height: "100vh", display: "flex", flexDirection: "column" }}
     >
-      <main className="chat-history-main" sx={{ flexGrow: 1, p: 3 }}>
+      <main
+        className="chat-history-main"
+        sx={{ flexGrow: 1, p: 3 }}
+        style={{ paddingTop: "100px" }}
+      >
         <Box className="chat-history-container" sx={{ p: 2 }}>
           {/* Use the ReusableDataGrid component */}
           <ReusableDataGrid
