@@ -8,6 +8,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import Swal from "sweetalert2";
+import api from "../Datafetching/api";
 
 const ShareDocumentModal = ({
   isOpen,
@@ -45,57 +46,45 @@ const ShareDocumentModal = ({
       const token = sessionStorage.getItem("token");
       const userId = sessionStorage.getItem("userid");
 
-      // Get the file URL for the selected document
-      const fileResponse = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getfileurl`,
+      // Get the file URL for the selected document using your encrypted api
+      const fileResponse = await api.post(
+        "/resources/generic/getfileurl",
         {
-          method: "POST",
+          userid: userId,
+          url: document.filepath,
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            userid: userId || "1",
             "X-Module": "Incubatee Documents",
             "X-Action": "Get File URL",
           },
-          body: JSON.stringify({
-            userid: userId,
-            url: document.filepath,
-          }),
         }
       );
 
-      const fileData = await fileResponse.json();
-
-      if (fileData.statusCode !== 200) {
+      if (fileResponse.data.statusCode !== 200) {
         throw new Error("Failed to get file URL");
       }
 
-      const fileUrl = fileData.data;
+      const fileUrl = fileResponse.data.data;
 
-      // Share the document
-      const shareResponse = await fetch(
-        `${IPAdress}/itelinc/resources/generic/sharedoc`,
+      // Share the document using your encrypted api
+      const shareResponse = await api.post(
+        "/resources/generic/sharedoc",
         {
-          method: "POST",
+          email: shareEmail,
+          fileUrl: fileUrl,
+          fileName: document.documentname,
+          username: incubateesname,
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            userid: userId || "1",
-            "X-Module": "Share  Document ",
-            "X-Action": "Share Document via email By Incubatee",
+            "X-Module": "Share Document",
+            "X-Action": "Share Document via Email By Incubatee",
           },
-          body: JSON.stringify({
-            email: shareEmail,
-            fileUrl: fileUrl,
-            fileName: document.documentname,
-            username: incubateesname,
-          }),
         }
       );
 
-      const shareData = await shareResponse.json();
-
-      if (shareData.statusCode === 200) {
+      if (shareResponse.data.statusCode === 200) {
         Swal.fire({
           icon: "success",
           title: "Success",
@@ -104,7 +93,9 @@ const ShareDocumentModal = ({
         onClose();
         setShareEmail("");
       } else {
-        throw new Error(shareData.message || "Failed to share document");
+        throw new Error(
+          shareResponse.data.message || "Failed to share document"
+        );
       }
     } catch (error) {
       console.error("Error sharing document:", error);
@@ -117,7 +108,6 @@ const ShareDocumentModal = ({
       setIsSharing(false);
     }
   };
-
   return (
     <Modal
       open={isOpen}

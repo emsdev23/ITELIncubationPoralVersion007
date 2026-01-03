@@ -25,6 +25,8 @@ import ApplicationManagement from "./Components/ApplicationManagement/Applicatio
 import MainDashboard from "./Components/MainDashboard";
 import DocumentAccessManagement from "./Components/DocumentAccessManagement/DocumentAccessManagement";
 
+import ResetPassword from "./Components/Login/ResetPassword";
+
 // Create a context for authentication state
 export const AuthContext = createContext();
 
@@ -156,6 +158,8 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
+
+            <Route path="/reset-password" element={<ResetPassword />} />
           </Routes>
         </div>
       </div>

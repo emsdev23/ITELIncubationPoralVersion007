@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import RoleAppList from "./RoleAppList";
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Import the reusable component
 import { IPAdress } from "../Datafetching/IPAdrees";
+import api from "../Datafetching/api";
 
 // Material UI imports
 import {
@@ -58,38 +59,39 @@ export default function RolesTable() {
   const isXLSXAvailable = !!XLSX;
 
   // Fetch all roles using the specific API endpoint
-  const fetchRoles = () => {
+  const fetchRoles = async () => {
     setLoading(true);
     setError(null);
-
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getroledetails`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "Roles Management",
-        "X-Action": "Fetching Roles Details List",
-      },
-      body: JSON.stringify({
-        userId: userId || 1,
-        userIncId: "ALL",
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.statusCode === 200) {
-          setRoles(data.data || []);
-        } else {
-          throw new Error(data.message || "Failed to fetch roles");
+    try {
+      const response = await api.post(
+        "/resources/generic/getroledetails",
+        {
+          userId: userId || 1,
+          userIncId: "ALL",
+        },
+        {
+          headers: {
+            userid: userId || "1",
+            "X-Module": "Roles Management",
+            "X-Action": "Fetching Roles Details List",
+          },
         }
-      })
-      .catch((err) => {
-        console.error("Error fetching roles:", err);
-        setError("Failed to load roles. Please try again.");
-      })
-      .finally(() => setLoading(false));
+      );
+
+      const result = response.data;
+      // setLogs(result.data);
+      // const data = response.data;
+      if (result.data) {
+        setRoles(result.data);
+      } else {
+        setError(result.message || "Failed to fetch logs");
+      }
+    } catch (err) {
+      console.error("Error fetching roles:", err);
+      setError("Failed to load roles. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Delete role - Updated to use the specific API endpoint
@@ -107,20 +109,23 @@ export default function RolesTable() {
       if (result.isConfirmed) {
         setIsDeleting(role.rolesrecid);
 
-        const deleteUrl = `${API_BASE_URL}/itelinc/deleteRole?rolesrecid=${
-          role.rolesrecid
-        }&rolesmodifiedby=${userId || "39"}`;
-
-        fetch(deleteUrl, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-        })
-          .then((res) => res.json())
-          .then((data) => {
+        // Use your api instance instead of fetch
+        api
+          .post(
+            "/deleteRole",
+            {
+              rolesrecid: role.rolesrecid,
+              rolesmodifiedby: userId || "39",
+            },
+            {
+              headers: {
+                "X-Module": "Role Management",
+                "X-Action": "Deleting Role",
+              },
+            }
+          )
+          .then((response) => {
+            const data = response.data;
             if (data.statusCode === 200) {
               Swal.fire(
                 "Deleted!",
@@ -148,26 +153,27 @@ export default function RolesTable() {
   };
 
   // Add new role
+
   const handleAddRole = () => {
     Swal.fire({
       title: "Add New Role",
       html: `
-        <div class="swal-form-container">
-          <div class="swal-form-row">
-            <input id="swal-name" class="swal2-input" placeholder="Role Name" required>
-          </div>
-          <div class="swal-form-row">
-            <select id="swal-state" class="swal2-select" required>
-              <option value="" disabled selected>Select state</option>
-              <option value="Enabled">Enabled</option>
-              <option value="Disabled">Disabled</option>
-            </select>
-          </div>
-          <div class="swal-form-row">
-            <textarea id="swal-description" class="swal2-textarea" placeholder="Description" rows="4" required></textarea>
-          </div>
+      <div class="swal-form-container">
+        <div class="swal-form-row">
+          <input id="swal-name" class="swal2-input" placeholder="Role Name" required>
         </div>
-      `,
+        <div class="swal-form-row">
+          <select id="swal-state" class="swal2-select" required>
+            <option value="" disabled selected>Select state</option>
+            <option value="Enabled">Enabled</option>
+            <option value="Disabled">Disabled</option>
+          </select>
+        </div>
+        <div class="swal-form-row">
+          <textarea id="swal-description" class="swal2-textarea" placeholder="Description" rows="4" required></textarea>
+        </div>
+      </div>
+    `,
       width: "600px",
       focusConfirm: false,
       showCancelButton: true,
@@ -195,22 +201,22 @@ export default function RolesTable() {
       didOpen: () => {
         const style = document.createElement("style");
         style.textContent = `
-          .swal-form-container {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-          }
-          .swal-form-row {
-            width: 100%;
-          }
-          .swal2-input, .swal2-select, .swal2-textarea {
-            width: 100% !important;
-            margin: 0 !important;
-          }
-          .swal2-select, .swal2-textarea {
-            padding: 0.75em !important;
-          }
-        `;
+        .swal-form-container {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .swal-form-row {
+          width: 100%;
+        }
+        .swal2-input, .swal2-select, .swal2-textarea {
+          width: 100% !important;
+          margin: 0 !important;
+        }
+        .swal2-select, .swal2-textarea {
+          padding: 0.75em !important;
+        }
+      `;
         document.head.appendChild(style);
       },
     }).then((result) => {
@@ -218,32 +224,27 @@ export default function RolesTable() {
         const formData = result.value;
         setIsAdding(true);
 
-        const params = new URLSearchParams();
-        params.append("rolesname", formData.rolesname);
-        params.append(
-          "rolesadminstate",
-          formData.rolesadminstate === "Enabled" ? "1" : "0"
-        );
-        params.append("rolesdescription", formData.rolesdescription);
-        params.append("rolescreatedby", userId || "system");
-        params.append("rolesmodifiedby", userId || "system");
-
-        const addUrl = `${API_BASE_URL}/itelinc/addRole?${params.toString()}`;
-        fetch(addUrl, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-        })
-          .then((res) => {
-            if (!res.ok) {
-              throw new Error(`HTTP error! Status: ${res.status}`);
+        // Use your api instance instead of fetch
+        api
+          .post(
+            "/addRole",
+            {
+              rolesname: formData.rolesname,
+              rolesadminstate:
+                formData.rolesadminstate === "Enabled" ? "1" : "0",
+              rolesdescription: formData.rolesdescription,
+              rolescreatedby: userId || "system",
+              rolesmodifiedby: userId || "system",
+            },
+            {
+              headers: {
+                "X-Module": "Role Management",
+                "X-Action": "Adding New Role",
+              },
             }
-            return res.json();
-          })
-          .then((data) => {
+          )
+          .then((response) => {
+            const data = response.data;
             if (data.statusCode === 200) {
               Swal.fire("✅ Success", "Role added successfully", "success");
               fetchRoles();
@@ -286,29 +287,29 @@ export default function RolesTable() {
     Swal.fire({
       title: "Edit Role",
       html: `
-        <div class="swal-form-container">
-          <div class="swal-form-row">
-            <input id="swal-name" class="swal2-input" placeholder="Role Name" value="${
-              role.rolesname || ""
-            }">
-          </div>
-          <div class="swal-form-row">
-            <select id="swal-state" class="swal2-select">
-              <option value="Enabled" ${
-                role.rolesadminstate === "Enabled" ? "selected" : ""
-              }>Enabled</option>
-              <option value="Disabled" ${
-                role.rolesadminstate === "Disabled" ? "selected" : ""
-              }>Disabled</option>
-            </select>
-          </div>
-          <div class="swal-form-row">
-            <textarea id="swal-description" class="swal2-textarea" placeholder="Description" rows="4">${
-              role.rolesdescription || ""
-            }</textarea>
-          </div>
+      <div class="swal-form-container">
+        <div class="swal-form-row">
+          <input id="swal-name" class="swal2-input" placeholder="Role Name" value="${
+            role.rolesname || ""
+          }">
         </div>
-      `,
+        <div class="swal-form-row">
+          <select id="swal-state" class="swal2-select">
+            <option value="Enabled" ${
+              role.rolesadminstate === "Enabled" ? "selected" : ""
+            }>Enabled</option>
+            <option value="Disabled" ${
+              role.rolesadminstate === "Disabled" ? "selected" : ""
+            }>Disabled</option>
+          </select>
+        </div>
+        <div class="swal-form-row">
+          <textarea id="swal-description" class="swal2-textarea" placeholder="Description" rows="4">${
+            role.rolesdescription || ""
+          }</textarea>
+        </div>
+      </div>
+    `,
       width: "600px",
       focusConfirm: false,
       showCancelButton: true,
@@ -331,22 +332,22 @@ export default function RolesTable() {
       didOpen: () => {
         const style = document.createElement("style");
         style.textContent = `
-          .swal-form-container {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-          }
-          .swal-form-row {
-            width: 100%;
-          }
-          .swal2-input, .swal2-select, .swal2-textarea {
-            width: 100% !important;
-            margin: 0 !important;
-          }
-          .swal2-select, .swal2-textarea {
-            padding: 0.75em !important;
-          }
-        `;
+        .swal-form-container {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .swal-form-row {
+          width: 100%;
+        }
+        .swal2-input, .swal2-select, .swal2-textarea {
+          width: 100% !important;
+          margin: 0 !important;
+        }
+        .swal2-select, .swal2-textarea {
+          padding: 0.75em !important;
+        }
+      `;
         document.head.appendChild(style);
       },
     }).then((result) => {
@@ -354,24 +355,27 @@ export default function RolesTable() {
         const formData = result.value;
         setIsUpdating(role.rolesrecid);
 
-        const updateUrl = `${API_BASE_URL}/itelinc/updateRole?rolesrecid=${
-          role.rolesrecid
-        }&rolesname=${encodeURIComponent(formData.rolesname)}&rolesadminstate=${
-          formData.rolesadminstate === "Enabled" ? "1" : "0"
-        }&rolesdescription=${encodeURIComponent(
-          formData.rolesdescription
-        )}&rolesmodifiedby=${userId || "0"}`;
-
-        fetch(updateUrl, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-        })
-          .then((res) => res.json())
-          .then((data) => {
+        // Use your api instance instead of fetch
+        api
+          .post(
+            "/updateRole",
+            {
+              rolesrecid: role.rolesrecid,
+              rolesname: formData.rolesname,
+              rolesadminstate:
+                formData.rolesadminstate === "Enabled" ? "1" : "0",
+              rolesdescription: formData.rolesdescription,
+              rolesmodifiedby: userId || "0",
+            },
+            {
+              headers: {
+                "X-Module": "Role Management",
+                "X-Action": "Updating Role",
+              },
+            }
+          )
+          .then((response) => {
+            const data = response.data;
             if (data.statusCode === 200) {
               Swal.fire("✅ Success", "Role updated successfully", "success");
               fetchRoles();

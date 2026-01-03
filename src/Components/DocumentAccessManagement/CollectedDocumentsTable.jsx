@@ -3,7 +3,8 @@ import Swal from "sweetalert2";
 import { Download, Trash2, Eye, Edit, Shield } from "lucide-react";
 import * as XLSX from "xlsx";
 import { IPAdress } from "../Datafetching/IPAdrees";
-import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Import the reusable component
+import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
+import api from "../Datafetching/api"; // Import the reusable component
 
 // Material UI imports
 import {
@@ -56,8 +57,8 @@ const StyledChip = styled(Chip)(({ theme, category }) => {
 // Configure SweetAlert2 to ensure it appears above modals
 Swal.mixin({
   customClass: {
-    popup: 'swal2-popup-high-zindex',
-  }
+    popup: "swal2-popup-high-zindex",
+  },
 });
 
 export default function CollectedDocumentsTable() {
@@ -69,22 +70,18 @@ export default function CollectedDocumentsTable() {
   const API_BASE_URL = IPAdress;
   const isXLSXAvailable = !!XLSX;
 
-  // State for ALL Documents Table
+  // --- ALL STATE VARIABLES (UNCHANGED) ---
   const [allDocuments, setAllDocuments] = useState([]);
   const [allDocumentsLoading, setAllDocumentsLoading] = useState(true);
   const [allDocumentsError, setAllDocumentsError] = useState(null);
-
-  // State for Documents WITH ACCESS Table
   const [documentsWithAccess, setDocumentsWithAccess] = useState([]);
-  const [documentsWithAccessLoading, setDocumentsWithAccessLoading] = useState(true);
-  const [documentsWithAccessError, setDocumentsWithAccessError] = useState(null);
-
-  // State for operations
-  const [isDeleting, setIsDeleting] = useState(null); // Stores the docaccessrecid being deleted
+  const [documentsWithAccessLoading, setDocumentsWithAccessLoading] =
+    useState(true);
+  const [documentsWithAccessError, setDocumentsWithAccessError] =
+    useState(null);
+  const [isDeleting, setIsDeleting] = useState(null);
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedRow, setSelectedRow] = useState(null);
-
-  // State for Grant Access modal
   const [grantAccessModalOpen, setGrantAccessModalOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [roles, setRoles] = useState([]);
@@ -96,8 +93,6 @@ export default function CollectedDocumentsTable() {
   const [isSubmittingAccess, setIsSubmittingAccess] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
-
-  // State for Edit Access modal
   const [editAccessModalOpen, setEditAccessModalOpen] = useState(false);
   const [selectedAccessRecord, setSelectedAccessRecord] = useState(null);
   const [editRoles, setEditRoles] = useState([]);
@@ -111,247 +106,228 @@ export default function CollectedDocumentsTable() {
   const [editRolesLoading, setEditRolesLoading] = useState(false);
   const [editUsersLoading, setEditUsersLoading] = useState(false);
 
+  // --- API CALLING FUNCTIONS (CONVERTED) ---
+
   // Fetch documents
-  const fetchDocuments = () => {
+  const fetchDocuments = async () => {
     setAllDocumentsLoading(true);
     setDocumentsWithAccessLoading(true);
     setAllDocumentsError(null);
     setDocumentsWithAccessError(null);
 
-    const collectedDocsPromise = fetch(`${API_BASE_URL}/itelinc/resources/generic/getcollecteddocuments`, {
-      method: "POST",
-      headers: { 
-        Authorization: `Bearer ${token}`, 
-        "Content-Type": "application/json", 
-        userid: userId || "8",
-        "X-Module": "Document Management",
-        "X-Action": "Fetching All Documents",
-      },
-      body: JSON.stringify({ userId: userId || "8", incUserId: incUserid || "35" }),
-    }).then(res => res.ok ? res.json() : Promise.reject(`HTTP error! Status: ${res.status}`));
-
-    const accessDetailsPromise = fetch(`${API_BASE_URL}/itelinc/resources/generic/getdocaccessdetails`, {
-      method: "POST",
-      headers: { 
-        Authorization: `Bearer ${token}`, 
-        "Content-Type": "application/json", 
-        userid: userId || "1",
-        "X-Module": "Document Management",
-        "X-Action": "Fetching Document Access Details",
-      },
-      body: JSON.stringify({ userId: userId || "1", incUserId: incUserid || "1" }),
-    }).then(res => res.ok ? res.json() : Promise.reject(`HTTP error! Status: ${res.status}`));
-
-    Promise.all([collectedDocsPromise, accessDetailsPromise])
-      .then(([collectedData, accessData]) => {
-        if (collectedData.statusCode !== 200 || accessData.statusCode !== 200) {
-          throw new Error("Failed to fetch data from one or more endpoints.");
+    try {
+      // CHANGE 1: Use api.post for encryption
+      const collectedDocsResponse = await api.post(
+        "/resources/generic/getcollecteddocuments",
+        { userId: userId || "8", incUserId: incUserid || "35" },
+        {
+          headers: {
+            userid: userId || "8",
+            "X-Module": "Document Management",
+            "X-Action": "Fetching All Documents",
+          },
         }
-        const collectedDocs = collectedData.data || [];
-        const accessDetails = accessData.data || [];
+      );
 
-        // Set state for ALL documents table
-        setAllDocuments(collectedDocs);
+      // CHANGE 2: Use api.post for encryption
+      const accessDetailsResponse = await api.post(
+        "/resources/generic/getdocaccessdetails",
+        { userId: userId || "1", incUserId: incUserid || "1" },
+        {
+          headers: {
+            userid: userId || "1",
+            "X-Module": "Document Management",
+            "X-Action": "Fetching Document Access Details",
+          },
+        }
+      );
 
-        // Merge data for the WITH ACCESS table
-        // FIX: Use collecteddocdocumentsrecid to match with docaccessdocid
-        const documentsWithAccessMerged = collectedDocs.map(doc => {
-          const accessDetail = accessDetails.find(access => access.docaccessdocid === doc.collecteddocdocumentsrecid.toString());
+      // CHANGE 3: Use await Promise.all with try/catch
+      const [collectedData, accessData] = await Promise.all([
+        collectedDocsResponse,
+        accessDetailsResponse,
+      ]);
+
+      if (
+        collectedData.data.statusCode !== 200 ||
+        accessData.data.statusCode !== 200
+      ) {
+        throw new Error("Failed to fetch data from one or more endpoints.");
+      }
+
+      const collectedDocs = collectedData.data.data || [];
+      const accessDetails = accessData.data.data || [];
+
+      // Set state for ALL documents table
+      setAllDocuments(collectedDocs);
+
+      // Merge data for WITH ACCESS table
+      const documentsWithAccessMerged = collectedDocs
+        .map((doc) => {
+          const accessDetail = accessDetails.find(
+            (access) =>
+              access.docaccessdocid ===
+              doc.collecteddocdocumentsrecid.toString()
+          );
           return { ...doc, accessDetails: accessDetail || null };
-        }).filter(doc => doc.accessDetails !== null); // Keep only those with access
+        })
+        .filter((doc) => doc.accessDetails !== null); // Keep only those with access
 
-        setDocumentsWithAccess(documentsWithAccessMerged);
-      })
-      .catch((err) => {
-        console.error("Error fetching documents:", err);
-        const errorMessage = err.message || "Failed to load documents. Please try again.";
-        setAllDocumentsError(errorMessage);
-        setDocumentsWithAccessError(errorMessage);
-      })
-      .finally(() => {
-        setAllDocumentsLoading(false);
-        setDocumentsWithAccessLoading(false);
-      });
+      setDocumentsWithAccess(documentsWithAccessMerged);
+    } catch (err) {
+      // CHANGE 4: Error handling in catch block
+      console.error("Error fetching documents:", err);
+      const errorMessage =
+        err.message || "Failed to load documents. Please try again.";
+      setAllDocumentsError(errorMessage);
+      setDocumentsWithAccessError(errorMessage);
+    } finally {
+      // CHANGE 5: Cleanup in finally block
+      setAllDocumentsLoading(false);
+      setDocumentsWithAccessLoading(false);
+    }
   };
 
   // Fetch roles
-  const fetchRoles = () => {
+  const fetchRoles = async () => {
     setRolesLoading(true);
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getroledetails`, {
-      method: "POST",
-      headers: { 
-        Authorization: `Bearer ${token}`, 
-        "Content-Type": "application/json", 
-      },
-      body: JSON.stringify({ 
-        userId: userId || "1",
-        userIncId: "ALL"
-      }),
-    })
-    .then(res => res.ok ? res.json() : Promise.reject(`HTTP error! Status: ${res.status}`))
-    .then(data => {
-      if (data.statusCode === 200) {
-        // Filter roles to only include IDs 1, 2, 4, 7
-        const filteredRoles = data.data.filter(role => 
+    try {
+      const response = await api.post(
+        "/resources/generic/getroledetails",
+        { userId: userId || "1", userIncId: "ALL" },
+        {
+          headers: {
+            "X-Module": "Role Management",
+            "X-Action": "Fetching Roles",
+          },
+        }
+      );
+      if (response.data.statusCode === 200) {
+        const filteredRoles = response.data.data.filter((role) =>
           [1, 2, 4, 7].includes(role.rolesrecid)
         );
         setRoles(filteredRoles);
       } else {
-        throw new Error(data.message || "Failed to fetch roles");
+        throw new Error(response.data.message || "Failed to fetch roles");
       }
-    })
-    .catch(err => {
+    } catch (err) {
       console.error("Error fetching roles:", err);
       Swal.fire({
         title: "Error",
         text: "Failed to fetch roles. Please try again.",
         icon: "error",
       });
-    })
-    .finally(() => {
+    } finally {
       setRolesLoading(false);
-    });
+    }
   };
 
   // Fetch users based on selected role
-  const fetchUsers = (roleId) => {
+  const fetchUsers = async (roleId) => {
     if (!roleId) return;
-    
     setUsersLoading(true);
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getusers`, {
-      method: "POST",
-      headers: { 
-        Authorization: `Bearer ${token}`, 
-        "Content-Type": "application/json", 
-      },
-      body: JSON.stringify({ 
-        userId: userId || "1",
-        userIncId: "1"
-      }),
-    })
-    .then(res => res.ok ? res.json() : Promise.reject(`HTTP error! Status: ${res.status}`))
-    .then(data => {
-      if (data.statusCode === 200) {
-        // Filter users by selected role
-        const filteredUsers = data.data.filter(user => 
-          user.usersrolesrecid === parseInt(roleId)
+    try {
+      const response = await api.post(
+        "/resources/generic/getusers",
+        { userId: userId || "1", userIncId: "1" },
+        {
+          headers: {
+            "X-Module": "User Management",
+            "X-Action": "Fetching Users",
+          },
+        }
+      );
+      if (response.data.statusCode === 200) {
+        const filteredUsers = response.data.data.filter(
+          (user) => user.usersrolesrecid === parseInt(roleId)
         );
         setUsers(filteredUsers);
       } else {
-        throw new Error(data.message || "Failed to fetch users");
+        throw new Error(response.data.message || "Failed to fetch users");
       }
-    })
-    .catch(err => {
+    } catch (err) {
       console.error("Error fetching users:", err);
       Swal.fire({
         title: "Error",
         text: "Failed to fetch users. Please try again.",
         icon: "error",
       });
-    })
-    .finally(() => {
+    } finally {
       setUsersLoading(false);
-    });
+    }
   };
 
   // Fetch roles for edit modal
-  const fetchEditRoles = () => {
+  const fetchEditRoles = async () => {
     setEditRolesLoading(true);
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getroledetails`, {
-      method: "POST",
-      headers: { 
-        Authorization: `Bearer ${token}`, 
-        "Content-Type": "application/json", 
-      },
-      body: JSON.stringify({ 
-        userId: userId || "1",
-        userIncId: "ALL"
-      }),
-    })
-    .then(res => res.ok ? res.json() : Promise.reject(`HTTP error! Status: ${res.status}`))
-    .then(data => {
-      if (data.statusCode === 200) {
-        // Filter roles to only include IDs 1, 2, 4, 7
-        const filteredRoles = data.data.filter(role => 
+    try {
+      const response = await api.post(
+        "/resources/generic/getroledetails",
+        { userId: userId || "1", userIncId: "ALL" },
+        {
+          headers: {
+            "X-Module": "Role Management",
+            "X-Action": "Fetching Edit Roles",
+          },
+        }
+      );
+      if (response.data.statusCode === 200) {
+        const filteredRoles = response.data.data.filter((role) =>
           [1, 2, 4, 7].includes(role.rolesrecid)
         );
         setEditRoles(filteredRoles);
       } else {
-        throw new Error(data.message || "Failed to fetch roles");
+        throw new Error(response.data.message || "Failed to fetch roles");
       }
-    })
-    .catch(err => {
+    } catch (err) {
       console.error("Error fetching roles:", err);
       Swal.fire({
         title: "Error",
         text: "Failed to fetch roles. Please try again.",
         icon: "error",
       });
-    })
-    .finally(() => {
+    } finally {
       setEditRolesLoading(false);
-    });
+    }
   };
 
   // Fetch users based on selected role for edit modal
-  const fetchEditUsers = (roleId) => {
+  const fetchEditUsers = async (roleId) => {
     if (!roleId) return;
-    
     setEditUsersLoading(true);
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getusers`, {
-      method: "POST",
-      headers: { 
-        Authorization: `Bearer ${token}`, 
-        "Content-Type": "application/json", 
-      },
-      body: JSON.stringify({ 
-        userId: userId || "1",
-        userIncId: "1"
-      }),
-    })
-    .then(res => res.ok ? res.json() : Promise.reject(`HTTP error! Status: ${res.status}`))
-    .then(data => {
-      if (data.statusCode === 200) {
-        // Filter users by selected role
-        const filteredUsers = data.data.filter(user => 
-          user.usersrolesrecid === parseInt(roleId)
+    try {
+      const response = await api.post(
+        "/resources/generic/getusers",
+        { userId: userId || "1", userIncId: "1" },
+        {
+          headers: {
+            "X-Module": "User Management",
+            "X-Action": "Fetching Edit Users",
+          },
+        }
+      );
+      if (response.data.statusCode === 200) {
+        const filteredUsers = response.data.data.filter(
+          (user) => user.usersrolesrecid === parseInt(roleId)
         );
         setEditUsers(filteredUsers);
       } else {
-        throw new Error(data.message || "Failed to fetch users");
+        throw new Error(response.data.message || "Failed to fetch users");
       }
-    })
-    .catch(err => {
+    } catch (err) {
       console.error("Error fetching users:", err);
       Swal.fire({
         title: "Error",
         text: "Failed to fetch users. Please try again.",
         icon: "error",
       });
-    })
-    .finally(() => {
+    } finally {
       setEditUsersLoading(false);
-    });
-  };
-
-  // Handle role selection change
-  const handleRoleChange = (event) => {
-    const roleId = event.target.value;
-    setSelectedRole(roleId);
-    setSelectedUser(""); // Reset user selection when role changes
-    fetchUsers(roleId);
-  };
-
-  // Handle role selection change for edit modal
-  const handleEditRoleChange = (event) => {
-    const roleId = event.target.value;
-    setEditSelectedRole(roleId);
-    setEditSelectedUser(""); // Reset user selection when role changes
-    fetchEditUsers(roleId);
+    }
   };
 
   // Handle grant access submission
-  const handleGrantAccess = () => {
+  const handleGrantAccess = async () => {
     if (!selectedDocument || !selectedRole || !selectedUser) {
       Swal.fire({
         title: "Error",
@@ -361,80 +337,77 @@ export default function CollectedDocumentsTable() {
       return;
     }
 
-    // Store current form values
     const currentDocument = selectedDocument;
     const currentRole = selectedRole;
     const currentUser = selectedUser;
     const currentFromDate = fromDate;
     const currentToDate = toDate;
 
-    // Close the modal first
     setGrantAccessModalOpen(false);
 
-    // Then show the confirmation
-    Swal.fire({
-      title: 'Are you sure?',
-      text: `Grant access to "${currentDocument.documentname}" for the selected user?`,
-      icon: 'warning',
+    const result = await Swal.fire({
+      title: "Are you sure?",
+      text: `Grant access to "${currentDocument.documentname}" for selected user?`,
+      icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Yes, grant access!'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setIsSubmittingAccess(true);
-        
-        const accessData = {
-          userid: userId || "1",
-          userincid: incubateeId || "19",
-          categoryid: currentDocument.collecteddoccatrecid.toString(),
-          roleid: currentRole,
-          userrecid: currentUser,
-          docaccessdocsubcatid: currentDocument.collecteddocsubcatrecid.toString(),
-          docaccessdocid: currentDocument.collecteddocdocumentsrecid.toString(),
-          fromdate: currentFromDate.toISOString().split('T')[0],
-          todate: currentToDate.toISOString().split('T')[0]
-        };
-
-        fetch(`${API_BASE_URL}/itelinc/resources/generic/setdocaccess`, {
-          method: "POST",
-          headers: { 
-            Authorization: `Bearer ${token}`, 
-            "Content-Type": "application/json", 
-          },
-          body: JSON.stringify(accessData),
-        })
-        .then(res => res.ok ? res.json() : Promise.reject(`HTTP error! Status: ${res.status}`))
-        .then(data => {
-          if (data.statusCode === 200) {
-            Swal.fire('Success!', 'Access has been granted.', 'success');
-            // Refresh the documents to update the access details
-            fetchDocuments();
-          } else {
-            throw new Error(data.message || "Failed to grant access");
-          }
-        })
-        .catch(err => {
-          console.error("Error granting access:", err);
-          Swal.fire('Error', 'Failed to grant access. Please try again.', 'error');
-        })
-        .finally(() => {
-          setIsSubmittingAccess(false);
-        });
-      } else {
-        // If user cancels, reopen the modal with the same values
-        setSelectedDocument(currentDocument);
-        setSelectedRole(currentRole);
-        setSelectedUser(currentUser);
-        setFromDate(currentFromDate);
-        setToDate(currentToDate);
-        setGrantAccessModalOpen(true);
-      }
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Yes, grant access!",
     });
+
+    if (result.isConfirmed) {
+      setIsSubmittingAccess(true);
+      try {
+        const response = await api.post(
+          "/resources/generic/setdocaccess",
+          {
+            userid: userId || "1",
+            userincid: incubateeId || "19",
+            categoryid: currentDocument.collecteddoccatrecid.toString(),
+            roleid: currentRole,
+            userrecid: currentUser,
+            docaccessdocsubcatid:
+              currentDocument.collecteddocsubcatrecid.toString(),
+            docaccessdocid:
+              currentDocument.collecteddocdocumentsrecid.toString(),
+            fromdate: currentFromDate.toISOString().split("T")[0],
+            todate: currentToDate.toISOString().split("T")[0],
+          },
+          {
+            headers: {
+              "X-Module": "Document Management",
+              "X-Action": "Granting Document Access",
+            },
+          }
+        );
+        if (response.data.statusCode === 200) {
+          Swal.fire("Success!", "Access has been granted.", "success");
+          fetchDocuments();
+        } else {
+          throw new Error(response.data.message || "Failed to grant access");
+        }
+      } catch (err) {
+        console.error("Error granting access:", err);
+        Swal.fire(
+          "Error",
+          "Failed to grant access. Please try again.",
+          "error"
+        );
+      } finally {
+        setIsSubmittingAccess(false);
+      }
+    } else {
+      setSelectedDocument(currentDocument);
+      setSelectedRole(currentRole);
+      setSelectedUser(currentUser);
+      setFromDate(currentFromDate);
+      setToDate(currentToDate);
+      setGrantAccessModalOpen(true);
+    }
   };
 
   // Handle update access submission
-  const handleUpdateAccess = () => {
+  const handleUpdateAccess = async () => {
     if (!selectedAccessRecord || !editSelectedRole || !editSelectedUser) {
       Swal.fire({
         title: "Error",
@@ -444,7 +417,6 @@ export default function CollectedDocumentsTable() {
       return;
     }
 
-    // Store current form values
     const currentAccessRecord = selectedAccessRecord;
     const currentRole = editSelectedRole;
     const currentUser = editSelectedUser;
@@ -452,116 +424,153 @@ export default function CollectedDocumentsTable() {
     const currentToDate = editToDate;
     const currentExpiryDate = editExpiryDate;
 
-    // Close the modal first
     setEditAccessModalOpen(false);
 
-    // Then show the confirmation
-    Swal.fire({
-      title: 'Are you sure?',
+    const result = await Swal.fire({
+      title: "Are you sure?",
       text: `Update access for "${currentAccessRecord.documentname}"?`,
-      icon: 'warning',
+      icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Yes, update access!'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setIsSubmittingEdit(true);
-        
-        // Build the URL with query parameters
-        const params = new URLSearchParams({
-          docaccessrecid: currentAccessRecord.accessDetails.docaccessrecid,
-          docaccessincubateesrecid: incubateeId || "35",
-          docaccessrolerecid: currentRole,
-          docaccesscatrecid: currentAccessRecord.collecteddoccatrecid,
-          docaccessexpirydate: currentExpiryDate.toISOString().split('T')[0],
-          docaccessadminstate: "1", // CHANGE: Always send adminstate as 1
-          docaccessuserrecid: currentUser,
-          docaccessdocsubcatid: currentAccessRecord.collecteddocsubcatrecid,
-          docaccessfromdate: currentFromDate.toISOString().split('T')[0],
-          docaccesstodate: currentToDate.toISOString().split('T')[0],
-          docaccessdocid: currentAccessRecord.collecteddocdocumentsrecid
-        });
-        
-        fetch(`${API_BASE_URL}/itelinc/updateDocAccess?${params.toString()}`, {
-          method: "POST",
-          headers: { 
-            Authorization: `Bearer ${token}`, 
-            "Content-Type": "application/json", 
-          },
-        })
-        .then(res => res.ok ? res.json() : Promise.reject(`HTTP error! Status: ${res.status}`))
-        .then(data => {
-          if (data.statusCode === 200) {
-            Swal.fire('Success!', 'Access has been updated.', 'success');
-            // Refresh the documents to update the access details
-            fetchDocuments();
-          } else {
-            throw new Error(data.message || "Failed to update access");
-          }
-        })
-        .catch(err => {
-          console.error("Error updating access:", err);
-          Swal.fire('Error', 'Failed to update access. Please try again.', 'error');
-        })
-        .finally(() => {
-          setIsSubmittingEdit(false);
-        });
-      } else {
-        // If user cancels, reopen the modal with the same values
-        setSelectedAccessRecord(currentAccessRecord);
-        setEditSelectedRole(currentRole);
-        setEditSelectedUser(currentUser);
-        setEditFromDate(currentFromDate);
-        setEditToDate(currentToDate);
-        setEditExpiryDate(currentExpiryDate);
-        setEditAccessModalOpen(true);
-      }
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Yes, update access!",
     });
+
+    if (result.isConfirmed) {
+      setIsSubmittingEdit(true);
+      try {
+        const response = await api.post(
+          "/updateDocAccess",
+          {
+            docaccessrecid: currentAccessRecord.accessDetails.docaccessrecid,
+            docaccessincubateesrecid: incubateeId || "35",
+            docaccessrolerecid: currentRole,
+            docaccesscatrecid: currentAccessRecord.collecteddoccatrecid,
+            docaccessexpirydate: currentExpiryDate.toISOString().split("T")[0],
+            docaccessadminstate: "1",
+            docaccessuserrecid: currentUser,
+            docaccessdocsubcatid: currentAccessRecord.collecteddocsubcatrecid,
+            docaccessfromdate: currentFromDate.toISOString().split("T")[0],
+            docaccesstodate: currentToDate.toISOString().split("T")[0],
+            docaccessdocid: currentAccessRecord.collecteddocdocumentsrecid,
+          },
+          {
+            headers: {
+              "X-Module": "Document Management",
+              "X-Action": "Updating Document Access",
+            },
+          }
+        );
+        if (response.data.statusCode === 200) {
+          Swal.fire("Success!", "Access has been updated.", "success");
+          fetchDocuments();
+        } else {
+          throw new Error(response.data.message || "Failed to update access");
+        }
+      } catch (err) {
+        console.error("Error updating access:", err);
+        Swal.fire(
+          "Error",
+          "Failed to update access. Please try again.",
+          "error"
+        );
+      } finally {
+        setIsSubmittingEdit(false);
+      }
+    } else {
+      setSelectedAccessRecord(currentAccessRecord);
+      setEditSelectedRole(currentRole);
+      setEditSelectedUser(currentUser);
+      setEditFromDate(currentFromDate);
+      setEditToDate(currentToDate);
+      setEditExpiryDate(currentExpiryDate);
+      setEditAccessModalOpen(true);
+    }
   };
 
-  // Handle opening the grant access modal
+  // Handle delete action
+  const handleDelete = async (row) => {
+    const accessRecId = row.accessDetails?.docaccessrecid;
+    if (!accessRecId) {
+      Swal.fire("Error", "Cannot find access record ID to delete.", "error");
+      return;
+    }
+    const currentRow = row;
+    const result = await Swal.fire({
+      title: "Are you sure?",
+      text: `Delete access for "${row.documentname}"?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Yes, delete it!",
+    });
+    if (result.isConfirmed) {
+      setIsDeleting(accessRecId);
+      try {
+        const response = await api.post(
+          "/deleteDocAccess",
+          {
+            docaccessrecid: accessRecId,
+            docaccessmodifiedby: userId || "1",
+          },
+          {
+            headers: {
+              "X-Module": "Document Management",
+              "X-Action": "Deleting Document Access",
+            },
+          }
+        );
+        if (response.data.statusCode === 200) {
+          Swal.fire(
+            "Deleted!",
+            `Access for "${row.documentname}" has been removed.`,
+            "success"
+          );
+          setDocumentsWithAccess((prev) =>
+            prev.filter(
+              (doc) => doc.collecteddocrecid !== row.collecteddocrecid
+            )
+          );
+        } else {
+          throw new Error(response.data.message || "Failed to delete access");
+        }
+      } catch (err) {
+        console.error("Error deleting access:", err);
+        Swal.fire(
+          "Error",
+          "Failed to delete access. Please try again.",
+          "error"
+        );
+      } finally {
+        setIsDeleting(null);
+      }
+    }
+  };
+
+  // --- EVENT HANDLER FUNCTIONS (UNCHANGED) ---
+  const handleRoleChange = (event) => {
+    const roleId = event.target.value;
+    setSelectedRole(roleId);
+    setSelectedUser("");
+    fetchUsers(roleId);
+  };
+
+  const handleEditRoleChange = (event) => {
+    const roleId = event.target.value;
+    setEditSelectedRole(roleId);
+    setEditSelectedUser("");
+    fetchEditUsers(roleId);
+  };
+
   const handleOpenGrantAccessModal = (document) => {
     setSelectedDocument(document);
     setGrantAccessModalOpen(true);
-    // Fetch roles if not already loaded
     if (roles.length === 0) {
       fetchRoles();
     }
   };
 
-  // Handle opening the edit access modal
-  const handleOpenEditAccessModal = (document) => {
-    setSelectedAccessRecord(document);
-    setEditAccessModalOpen(true);
-    
-    // Set initial values from the access record
-    setEditSelectedRole(document.accessDetails.docaccessrolerecid?.toString() || "");
-    setEditSelectedUser(document.accessDetails.docaccessuserrecid?.toString() || "");
-    
-    // Parse dates if they exist
-    if (document.accessDetails.docaccessfromdate) {
-      setEditFromDate(new Date(document.accessDetails.docaccessfromdate));
-    }
-    if (document.accessDetails.docaccesstodate) {
-      setEditToDate(new Date(document.accessDetails.docaccesstodate));
-    }
-    if (document.accessDetails.docaccessexpirydate) {
-      setEditExpiryDate(new Date(document.accessDetails.docaccessexpirydate));
-    }
-    
-    // Fetch roles if not already loaded
-    if (editRoles.length === 0) {
-      fetchEditRoles();
-    }
-    
-    // Fetch users for the current role
-    if (document.accessDetails.docaccessrolerecid) {
-      fetchEditUsers(document.accessDetails.docaccessrolerecid);
-    }
-  };
-
-  // Handle closing the grant access modal
   const handleCloseGrantAccessModal = () => {
     setGrantAccessModalOpen(false);
     setSelectedDocument(null);
@@ -571,7 +580,32 @@ export default function CollectedDocumentsTable() {
     setToDate(new Date());
   };
 
-  // Handle closing the edit access modal
+  const handleOpenEditAccessModal = (document) => {
+    setSelectedAccessRecord(document);
+    setEditAccessModalOpen(true);
+    setEditSelectedRole(
+      document.accessDetails.docaccessrolerecid?.toString() || ""
+    );
+    setEditSelectedUser(
+      document.accessDetails.docaccessuserrecid?.toString() || ""
+    );
+    if (document.accessDetails.docaccessfromdate) {
+      setEditFromDate(new Date(document.accessDetails.docaccessfromdate));
+    }
+    if (document.accessDetails.docaccesstodate) {
+      setEditToDate(new Date(document.accessDetails.docaccesstodate));
+    }
+    if (document.accessDetails.docaccessexpirydate) {
+      setEditExpiryDate(new Date(document.accessDetails.docaccessexpirydate));
+    }
+    if (editRoles.length === 0) {
+      fetchEditRoles();
+    }
+    if (document.accessDetails.docaccessrolerecid) {
+      fetchEditUsers(document.accessDetails.docaccessrolerecid);
+    }
+  };
+
   const handleCloseEditAccessModal = () => {
     setEditAccessModalOpen(false);
     setSelectedAccessRecord(null);
@@ -582,11 +616,6 @@ export default function CollectedDocumentsTable() {
     setEditExpiryDate(new Date());
   };
 
-  useEffect(() => {
-    fetchDocuments();
-  }, []);
-
-  // Action handlers
   const handleMenuOpen = (event, row) => {
     setAnchorEl(event.currentTarget);
     setSelectedRow(row);
@@ -597,91 +626,46 @@ export default function CollectedDocumentsTable() {
     setSelectedRow(null);
   };
 
-  // UPDATED: Handle delete action with API call
-  const handleDelete = (row) => {
-    const accessRecId = row.accessDetails?.docaccessrecid;
-
-    if (!accessRecId) {
-      Swal.fire("Error", "Cannot find access record ID to delete.", "error");
-      return;
-    }
-
-    // Store current row for potential rollback
-    const currentRow = row;
-
-    Swal.fire({
-      title: 'Are you sure?', 
-      text: `Delete access for "${row.documentname}"?`, 
-      icon: 'warning',
-      showCancelButton: true, 
-      confirmButtonColor: '#d33', 
-      cancelButtonColor: '#3085d6', 
-      confirmButtonText: 'Yes, delete it!'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setIsDeleting(accessRecId); // Set loading state for this specific item
-        
-        const params = new URLSearchParams({
-          docaccessrecid: accessRecId,
-          docaccessmodifiedby: userId || "1" // Use session user ID
-        });
-
-        fetch(`${API_BASE_URL}/itelinc/deleteDocAccess?${params.toString()}`, {
-          method: "POST",
-          headers: { 
-            Authorization: `Bearer ${token}`, 
-            "Content-Type": "application/json", 
-          },
-        })
-        .then(res => res.ok ? res.json() : Promise.reject(`HTTP error! Status: ${res.status}`))
-        .then(data => {
-          if (data.statusCode === 200) {
-            Swal.fire('Deleted!', `Access for "${row.documentname}" has been removed.`, 'success');
-            // Update local state to remove the deleted item
-            setDocumentsWithAccess(prev => prev.filter(doc => doc.collecteddocrecid !== row.collecteddocrecid));
-          } else {
-            throw new Error(data.message || "Failed to delete access");
-          }
-        })
-        .catch(err => {
-          console.error("Error deleting access:", err);
-          Swal.fire('Error', 'Failed to delete access. Please try again.', 'error');
-        })
-        .finally(() => {
-          setIsDeleting(null); // Clear loading state
-        });
-      }
-    });
-  };
-
   const handleView = (row) => {
     if (!row) return;
-    
-    Swal.fire({ 
-      title: row.documentname, 
+    Swal.fire({
+      title: row.documentname,
       html: `<div style="text-align:left;">
         <p><strong>Document Name:</strong> ${row.documentname}</p>
         <p><strong>Category:</strong> ${row.doccatname}</p>
         <p><strong>Sub-Category:</strong> ${row.docsubcatname}</p>
         <p><strong>Periodicity:</strong> ${row.docperiodicityname}</p>
-        <p><strong>Upload Date:</strong> ${row.collecteddocuploaddate?.replace("T", " ") || "-"}</p>
-        ${row.accessDetails ? `
+        <p><strong>Upload Date:</strong> ${
+          row.collecteddocuploaddate?.replace("T", " ") || "-"
+        }</p>
+        ${
+          row.accessDetails
+            ? `
           <p><strong>Access User:</strong> ${row.accessDetails.usersname}</p>
-          <p><strong>Access Expiry:</strong> ${row.accessDetails.docaccessexpirydate || "-"}</p>
-        ` : ''}
-      </div>`, 
-      icon: 'info',
-      width: '600px'
+          <p><strong>Access Expiry:</strong> ${
+            row.accessDetails.docaccessexpirydate || "-"
+          }</p>
+        `
+            : ""
+        }
+      </div>`,
+      icon: "info",
+      width: "600px",
     });
   };
 
-  const handleEdit = (row) => { 
-    Swal.fire({ 
-      title: 'Edit', 
-      text: `Editing "${row.documentname}"`, 
-      icon: 'info' 
-    }); 
+  const handleEdit = (row) => {
+    Swal.fire({
+      title: "Edit",
+      text: `Editing "${row.documentname}"`,
+      icon: "info",
+    });
   };
+
+  // --- USE EFFECT (UNCHANGED) ---
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
 
   // Define columns for ALL Documents table
   const allDocumentsColumns = [
@@ -718,7 +702,10 @@ export default function CollectedDocumentsTable() {
       width: 250,
       sortable: true,
       renderCell: (params) => (
-        <Typography variant="body2" sx={{ fontWeight: 500, color: "primary.main" }}>
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: 500, color: "primary.main" }}
+        >
           {params.row.documentname}
         </Typography>
       ),
@@ -729,10 +716,10 @@ export default function CollectedDocumentsTable() {
       width: 150,
       sortable: true,
       renderCell: (params) => (
-        <StyledChip 
-          label={params.row.doccatname} 
-          size="small" 
-          category={params.row.doccatname} 
+        <StyledChip
+          label={params.row.doccatname}
+          size="small"
+          category={params.row.doccatname}
         />
       ),
     },
@@ -742,9 +729,7 @@ export default function CollectedDocumentsTable() {
       width: 280,
       sortable: true,
       renderCell: (params) => (
-        <Typography variant="body2">
-          {params.row.docsubcatname}
-        </Typography>
+        <Typography variant="body2">{params.row.docsubcatname}</Typography>
       ),
     },
     {
@@ -753,11 +738,11 @@ export default function CollectedDocumentsTable() {
       width: 120,
       sortable: true,
       renderCell: (params) => (
-        <Chip 
-          label={params.row.docperiodicityname} 
-          size="small" 
-          variant="outlined" 
-          color="primary" 
+        <Chip
+          label={params.row.docperiodicityname}
+          size="small"
+          variant="outlined"
+          color="primary"
         />
       ),
     },
@@ -766,11 +751,10 @@ export default function CollectedDocumentsTable() {
       headerName: "Upload Date",
       width: 180,
       sortable: true,
-      renderCell: (params) => (
-        params.row.collecteddocuploaddate ? 
-          new Date(params.row.collecteddocuploaddate).toLocaleString() : 
-          "-"
-      ),
+      renderCell: (params) =>
+        params.row.collecteddocuploaddate
+          ? new Date(params.row.collecteddocuploaddate).toLocaleString()
+          : "-",
     },
     {
       field: "actions",
@@ -827,7 +811,10 @@ export default function CollectedDocumentsTable() {
       width: 200,
       sortable: true,
       renderCell: (params) => (
-        <Typography variant="body2" sx={{ fontWeight: 500, color: "primary.main" }}>
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: 500, color: "primary.main" }}
+        >
           {params.row.documentname}
         </Typography>
       ),
@@ -838,10 +825,10 @@ export default function CollectedDocumentsTable() {
       width: 120,
       sortable: true,
       renderCell: (params) => (
-        <StyledChip 
-          label={params.row.doccatname} 
-          size="small" 
-          category={params.row.doccatname} 
+        <StyledChip
+          label={params.row.doccatname}
+          size="small"
+          category={params.row.doccatname}
         />
       ),
     },
@@ -861,11 +848,12 @@ export default function CollectedDocumentsTable() {
       headerName: "Access Expiry",
       width: 120,
       sortable: true,
-      renderCell: (params) => (
-        params.row.accessDetails?.docaccesstodate ? 
-          new Date(params.row.accessDetails.docaccesstodate).toLocaleDateString() : 
-          "-"
-      ),
+      renderCell: (params) =>
+        params.row.accessDetails?.docaccesstodate
+          ? new Date(
+              params.row.accessDetails.docaccesstodate
+            ).toLocaleDateString()
+          : "-",
     },
     {
       field: "accessDetails.createdby",
@@ -883,11 +871,12 @@ export default function CollectedDocumentsTable() {
       headerName: "Created Time",
       width: 150,
       sortable: true,
-      renderCell: (params) => (
-        params.row.accessDetails?.docaccesscreatedtime ? 
-          new Date(params.row.accessDetails.docaccesscreatedtime).toLocaleString() : 
-          "-"
-      ),
+      renderCell: (params) =>
+        params.row.accessDetails?.docaccesscreatedtime
+          ? new Date(
+              params.row.accessDetails.docaccesscreatedtime
+            ).toLocaleString()
+          : "-",
     },
     {
       field: "actions",
@@ -926,9 +915,9 @@ export default function CollectedDocumentsTable() {
   const onExportAllDocumentsData = (data) => {
     return data.map((item) => ({
       "Document Name": item.documentname || "",
-      "Category": item.doccatname || "",
+      Category: item.doccatname || "",
       "Sub-Category": item.docsubcatname || "",
-      "Periodicity": item.docperiodicityname || "",
+      Periodicity: item.docperiodicityname || "",
       "Upload Date": item.collecteddocuploaddate?.replace("T", " ") || "",
     }));
   };
@@ -937,7 +926,7 @@ export default function CollectedDocumentsTable() {
   const onExportDocumentsWithAccessData = (data) => {
     return data.map((item) => ({
       "Document Name": item.documentname || "",
-      "Category": item.doccatname || "",
+      Category: item.doccatname || "",
       "Access User": item.accessDetails?.usersname || "",
       "Access Expiry": item.accessDetails?.docaccessexpirydate || "",
       "Upload Date": item.collecteddocuploaddate?.replace("T", " ") || "",
@@ -956,14 +945,14 @@ export default function CollectedDocumentsTable() {
   };
 
   // Add IDs to rows if they don't have them
-  const rowsWithIdForAll = allDocuments.map(item => ({
-    ...item, 
-    id: item.collecteddocrecid || Math.random().toString(36).substr(2, 9) 
+  const rowsWithIdForAll = allDocuments.map((item) => ({
+    ...item,
+    id: item.collecteddocrecid || Math.random().toString(36).substr(2, 9),
   }));
 
-  const rowsWithIdForAccess = documentsWithAccess.map(item => ({
-    ...item, 
-    id: item.collecteddocrecid || Math.random().toString(36).substr(2, 9) 
+  const rowsWithIdForAccess = documentsWithAccess.map((item) => ({
+    ...item,
+    id: item.collecteddocrecid || Math.random().toString(36).substr(2, 9),
   }));
 
   return (
@@ -974,14 +963,21 @@ export default function CollectedDocumentsTable() {
           z-index: 99999 !important;
         }
       `}</style>
-      
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
         <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
           📄 Uploaded Documents
         </Typography>
-        <Button 
-          variant="contained" 
-          onClick={fetchDocuments} 
+        <Button
+          variant="contained"
+          onClick={fetchDocuments}
           disabled={allDocumentsLoading || documentsWithAccessLoading}
           startIcon={
             allDocumentsLoading || documentsWithAccessLoading ? (
@@ -989,14 +985,22 @@ export default function CollectedDocumentsTable() {
             ) : null
           }
         >
-          {allDocumentsLoading || documentsWithAccessLoading ? "Loading..." : "Refresh Data"}
+          {allDocumentsLoading || documentsWithAccessLoading
+            ? "Loading..."
+            : "Refresh Data"}
         </Button>
       </Box>
 
       {/* --- TABLE 1: ALL UPLOADED DOCUMENTS --- */}
       <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-        </Box>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2,
+          }}
+        ></Box>
 
         {allDocumentsError && (
           <Box
@@ -1027,25 +1031,42 @@ export default function CollectedDocumentsTable() {
         />
 
         <Box sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap" }}>
-          <Chip label={`Total: ${allDocuments.length} documents`} color="primary" variant="outlined" />
-          <Chip 
-            label={`Financial: ${allDocuments.filter(d => d.doccatname === "Financial").length}`} 
-            sx={{ backgroundColor: "#e8f5e9", color: "#2e7d32" }} 
+          <Chip
+            label={`Total: ${allDocuments.length} documents`}
+            color="primary"
+            variant="outlined"
           />
-          <Chip 
-            label={`Legal: ${allDocuments.filter(d => d.doccatname === "Legal").length}`} 
-            sx={{ backgroundColor: "#e3f2fd", color: "#1565c0" }} 
+          <Chip
+            label={`Financial: ${
+              allDocuments.filter((d) => d.doccatname === "Financial").length
+            }`}
+            sx={{ backgroundColor: "#e8f5e9", color: "#2e7d32" }}
           />
-          <Chip 
-            label={`Secretarial: ${allDocuments.filter(d => d.doccatname === "Secretarial").length}`} 
-            sx={{ backgroundColor: "#fff3e0", color: "#e65100" }} 
+          <Chip
+            label={`Legal: ${
+              allDocuments.filter((d) => d.doccatname === "Legal").length
+            }`}
+            sx={{ backgroundColor: "#e3f2fd", color: "#1565c0" }}
+          />
+          <Chip
+            label={`Secretarial: ${
+              allDocuments.filter((d) => d.doccatname === "Secretarial").length
+            }`}
+            sx={{ backgroundColor: "#fff3e0", color: "#e65100" }}
           />
         </Box>
       </Box>
 
       {/* --- TABLE 2: DOCUMENTS WITH ACCESS DETAILS --- */}
       <Box>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2,
+          }}
+        >
           <Typography variant="h5" component="h2">
             🔐 Documents with Access Details
           </Typography>
@@ -1072,7 +1093,11 @@ export default function CollectedDocumentsTable() {
           enableExport={true}
           enableColumnFilters={true}
           searchPlaceholder="Search by name, category, user..."
-          searchFields={["documentname", "doccatname", "accessDetails.usersname"]}
+          searchFields={[
+            "documentname",
+            "doccatname",
+            "accessDetails.usersname",
+          ]}
           uniqueIdField="collecteddocrecid"
           onExportData={onExportDocumentsWithAccessData}
           exportConfig={documentsWithAccessExportConfig}
@@ -1080,28 +1105,47 @@ export default function CollectedDocumentsTable() {
         />
 
         <Box sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap" }}>
-          <Chip label={`Total: ${documentsWithAccess.length} documents`} color="primary" variant="outlined" />
-          <Chip 
-            label={`Financial: ${documentsWithAccess.filter(d => d.doccatname === "Financial").length}`} 
-            sx={{ backgroundColor: "#e8f5e9", color: "#2e7d32" }} 
+          <Chip
+            label={`Total: ${documentsWithAccess.length} documents`}
+            color="primary"
+            variant="outlined"
           />
-          <Chip 
-            label={`Legal: ${documentsWithAccess.filter(d => d.doccatname === "Legal").length}`} 
-            sx={{ backgroundColor: "#e3f2fd", color: "#1565c0" }} 
+          <Chip
+            label={`Financial: ${
+              documentsWithAccess.filter((d) => d.doccatname === "Financial")
+                .length
+            }`}
+            sx={{ backgroundColor: "#e8f5e9", color: "#2e7d32" }}
           />
-          <Chip 
-            label={`Secretarial: ${documentsWithAccess.filter(d => d.doccatname === "Secretarial").length}`} 
-            sx={{ backgroundColor: "#fff3e0", color: "#e65100" }} 
+          <Chip
+            label={`Legal: ${
+              documentsWithAccess.filter((d) => d.doccatname === "Legal").length
+            }`}
+            sx={{ backgroundColor: "#e3f2fd", color: "#1565c0" }}
+          />
+          <Chip
+            label={`Secretarial: ${
+              documentsWithAccess.filter((d) => d.doccatname === "Secretarial")
+                .length
+            }`}
+            sx={{ backgroundColor: "#fff3e0", color: "#e65100" }}
           />
         </Box>
       </Box>
 
       {/* Grant Access Modal */}
-      <Dialog open={grantAccessModalOpen} onClose={handleCloseGrantAccessModal} maxWidth="md" fullWidth>
+      <Dialog
+        open={grantAccessModalOpen}
+        onClose={handleCloseGrantAccessModal}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Grant Document Access</DialogTitle>
         <DialogContent>
           {selectedDocument && (
-            <Box sx={{ mb: 3, p: 2, bgcolor: "background.paper", borderRadius: 1 }}>
+            <Box
+              sx={{ mb: 3, p: 2, bgcolor: "background.paper", borderRadius: 1 }}
+            >
               <Typography variant="subtitle1" gutterBottom>
                 Document Details
               </Typography>
@@ -1116,7 +1160,7 @@ export default function CollectedDocumentsTable() {
               </Typography>
             </Box>
           )}
-          
+
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 2 }}>
             <FormControl fullWidth>
               <InputLabel id="role-select-label">Role</InputLabel>
@@ -1135,7 +1179,7 @@ export default function CollectedDocumentsTable() {
                 ))}
               </Select>
             </FormControl>
-            
+
             <FormControl fullWidth>
               <InputLabel id="user-select-label">User</InputLabel>
               <Select
@@ -1153,7 +1197,7 @@ export default function CollectedDocumentsTable() {
                 ))}
               </Select>
             </FormControl>
-            
+
             <LocalizationProvider dateAdapter={AdapterDateFns}>
               <DatePicker
                 label="From Date"
@@ -1161,7 +1205,7 @@ export default function CollectedDocumentsTable() {
                 onChange={(newValue) => setFromDate(newValue)}
                 renderInput={(params) => <TextField {...params} fullWidth />}
               />
-              
+
               <DatePicker
                 label="To Date"
                 value={toDate}
@@ -1173,11 +1217,13 @@ export default function CollectedDocumentsTable() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseGrantAccessModal}>Cancel</Button>
-          <Button 
-            onClick={handleGrantAccess} 
+          <Button
+            onClick={handleGrantAccess}
             variant="contained"
             disabled={isSubmittingAccess || !selectedRole || !selectedUser}
-            startIcon={isSubmittingAccess ? <CircularProgress size={20} /> : null}
+            startIcon={
+              isSubmittingAccess ? <CircularProgress size={20} /> : null
+            }
           >
             {isSubmittingAccess ? "Granting..." : "Grant Access"}
           </Button>
@@ -1185,11 +1231,18 @@ export default function CollectedDocumentsTable() {
       </Dialog>
 
       {/* Edit Access Modal */}
-      <Dialog open={editAccessModalOpen} onClose={handleCloseEditAccessModal} maxWidth="md" fullWidth>
+      <Dialog
+        open={editAccessModalOpen}
+        onClose={handleCloseEditAccessModal}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Edit Document Access</DialogTitle>
         <DialogContent>
           {selectedAccessRecord && (
-            <Box sx={{ mb: 3, p: 2, bgcolor: "background.paper", borderRadius: 1 }}>
+            <Box
+              sx={{ mb: 3, p: 2, bgcolor: "background.paper", borderRadius: 1 }}
+            >
               <Typography variant="subtitle1" gutterBottom>
                 Document Details
               </Typography>
@@ -1200,11 +1253,12 @@ export default function CollectedDocumentsTable() {
                 <strong>Category:</strong> {selectedAccessRecord.doccatname}
               </Typography>
               <Typography variant="body2">
-                <strong>Sub-Category:</strong> {selectedAccessRecord.docsubcatname}
+                <strong>Sub-Category:</strong>{" "}
+                {selectedAccessRecord.docsubcatname}
               </Typography>
             </Box>
           )}
-          
+
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 2 }}>
             <FormControl fullWidth>
               <InputLabel id="edit-role-select-label">Role</InputLabel>
@@ -1223,7 +1277,7 @@ export default function CollectedDocumentsTable() {
                 ))}
               </Select>
             </FormControl>
-            
+
             <FormControl fullWidth>
               <InputLabel id="edit-user-select-label">User</InputLabel>
               <Select
@@ -1241,7 +1295,7 @@ export default function CollectedDocumentsTable() {
                 ))}
               </Select>
             </FormControl>
-            
+
             <LocalizationProvider dateAdapter={AdapterDateFns}>
               <DatePicker
                 label="From Date"
@@ -1249,7 +1303,7 @@ export default function CollectedDocumentsTable() {
                 onChange={(newValue) => setEditFromDate(newValue)}
                 renderInput={(params) => <TextField {...params} fullWidth />}
               />
-              
+
               <DatePicker
                 label="To Date"
                 value={editToDate}
@@ -1261,10 +1315,12 @@ export default function CollectedDocumentsTable() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseEditAccessModal}>Cancel</Button>
-          <Button 
-            onClick={handleUpdateAccess} 
+          <Button
+            onClick={handleUpdateAccess}
             variant="contained"
-            disabled={isSubmittingEdit || !editSelectedRole || !editSelectedUser}
+            disabled={
+              isSubmittingEdit || !editSelectedRole || !editSelectedUser
+            }
             startIcon={isSubmittingEdit ? <CircularProgress size={20} /> : null}
           >
             {isSubmittingEdit ? "Updating..." : "Update Access"}

@@ -119,7 +119,7 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
         setHasFetchedData(false);
 
         const response = await api.post(
-          "/generic/getddidocs",
+          "resources/generic/getddidocs",
           { userId: usersrecid, incUserId: incuserid },
           {
             headers: {
@@ -203,6 +203,7 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
     },
   ];
 
+  const allowedRolesForActions = [7, 4];
   // Define columns for ReusableDataGrid
   const columns = [
     {
@@ -273,30 +274,26 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
           },
         ]
       : []),
-    // Only include the Actions column if roleId is 7 or 4
-    ...(Number(roleid === 7) || roleid === 4
-      ? [
-          {
-            field: "actions",
-            headerName: "Actions",
-            width: 150,
-            sortable: false,
-            type: "actions",
-            actions: [
-              {
-                label: "View Document",
-                onClick: (row) =>
-                  handleViewDocument(
-                    row.ddidocumentsfilepath,
-                    row.ddidocumentsname
-                  ),
-                color: "primary",
-                size: "small",
-              },
-            ],
-          },
-        ]
-      : []),
+
+    {
+      // --- THIS IS THE CORRECTED PART ---
+      field: "actions",
+      headerName: "Actions",
+      width: 150,
+      sortable: false,
+      type: "actions",
+      // Use the 'hidden' property to control visibility
+      hidden: !allowedRolesForActions.includes(Number(roleid)),
+      actions: [
+        {
+          label: "View Document",
+          onClick: (row) =>
+            handleViewDocument(row.ddidocumentsfilepath, row.ddidocumentsname),
+          color: "primary",
+          size: "small",
+        },
+      ],
+    },
   ];
 
   // Helper function to download file with proper name
@@ -341,29 +338,28 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
     try {
       const token = sessionStorage.getItem("token");
 
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getfileurl`,
+      const response = await api.post(
+        "/resources/generic/getfileurl",
+
         {
-          method: "POST",
+          // 2. The data object (will be encrypted by the interceptor)
+          userid: userid,
+          incUserid: incuserid,
+          url: filepath,
+        },
+        {
+          // 3. The config object for custom headers
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            userid: userid || "1",
             "X-Module": "DDI Documents",
             "X-Action": "DDI Document preview",
           },
-          body: JSON.stringify({
-            userid: userid,
-            incUserid: incuserid,
-            url: filepath,
-          }),
         }
       );
 
-      if (!response.ok)
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // if (!response.ok)
+      //   throw new Error(`HTTP error! status: ${response.status}`);
 
-      const data = await response.json();
+      const data = response.data;
 
       if (data.statusCode === 200 && data.data) {
         const fileUrl = data.data;

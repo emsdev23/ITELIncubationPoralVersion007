@@ -26,6 +26,7 @@ import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
+import api from "../Datafetching/api";
 
 // Import your reusable component
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Adjust path as needed
@@ -103,51 +104,54 @@ export default function DocSubCatTable() {
   const [isSaving, setIsSaving] = useState(false);
 
   // --- 2. HANDLER FUNCTIONS (Must be defined before useMemo) ---
-  const fetchSubCategories = useCallback(() => {
+  const fetchSubCategories = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const url = `${IP}/itelinc/getDocsubcatAll?incuserid=${encodeURIComponent(
-      incUserid
-    )}`;
-    fetch(url, {
-      method: "GET",
-      mode: "cors",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        userid: userId || "1",
-        "X-Module": "Document Management",
-        "X-Action": "Fetch  Document SubCategories",
-      },
-    })
-      .then((res) =>
-        res.ok
-          ? res.json()
-          : Promise.reject(`HTTP error! status: ${res.status}`)
-      )
-      .then((data) => {
-        setSubcats(data.data || []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error fetching subcategories:", err);
-        setError("Failed to load subcategories. Please try again.");
-        setLoading(false);
-      });
+
+    try {
+      // Use api.get for GET request with encryption
+      const response = await api.get(
+        `/getDocsubcatAll?incuserid=${encodeURIComponent(incUserid)}`,
+        {
+          headers: {
+            "X-Module": "Document Management",
+            "X-Action": "Fetch Document SubCategories",
+          },
+        }
+      );
+
+      // Response is already decrypted by interceptor
+      setSubcats(response.data.data || []);
+    } catch (err) {
+      console.error("Error fetching subcategories:", err);
+      setError("Failed to load subcategories. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }, [IP, incUserid, userId]);
 
-  const fetchCategories = useCallback(() => {
-    const url = `${IP}/itelinc/getDoccatAll?incuserid=${encodeURIComponent(
-      incUserid
-    )}`;
-    fetch(url, {
-      method: "GET",
-      mode: "cors",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    })
-      .then((res) => res.json())
-      .then((data) => setCats(data.data || []))
-      .catch((err) => console.error("Error fetching categories:", err));
-  }, [IP, incUserid]);
+  const fetchCategories = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Use api.get for GET request with encryption
+      const response = await api.get(`/getDoccatAll?incuserid=${incUserid}`, {
+        headers: {
+          "X-Module": "Document Management",
+          "X-Action": "Fetch Document Categories",
+        },
+      });
+
+      // Response is already decrypted by interceptor
+      setCats(response.data.data || []);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+      setError("Failed to load categories. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [incUserid]);
 
   const refreshData = useCallback(() => {
     fetchSubCategories();

@@ -361,7 +361,7 @@ const Navbar = () => {
         timeZone: "Asia/Kolkata",
       });
 
-      await api.post("/auth/logout", {
+      await api.post("resources/auth/logout", {
         userid: logoutUserId,
         reason: `Manual Logout at ${currentTime}`,
       });
@@ -568,14 +568,14 @@ const Navbar = () => {
           )}
 
           {/* Back to Portal button */}
-          {(Number(roleid) === 1 ||
+          {/* {(Number(roleid) === 1 ||
             Number(roleid) === 3 ||
             (Number(roleid) === 7 && adminviewData)) && (
             <button className={styles.topNavButton} onClick={handleBackToAdmin}>
               <ArrowLeft size={20} />
               <span>Back to Portal</span>
             </button>
-          )}
+          )} */}
 
           {/* Profile Dropdown for incubatees */}
           {Number(roleid) === 4 && (
@@ -715,7 +715,7 @@ const Navbar = () => {
       <AuditLogsModal
         isOpen={isLogsModalOpen}
         onClose={() => setIsLogsModalOpen(false)}
-        IPAddress={IPAdress}
+        IPAddress={api}
         token={token}
         userid={userid}
       />

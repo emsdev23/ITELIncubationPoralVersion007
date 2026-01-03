@@ -110,12 +110,15 @@ export const DataProvider = ({ children }) => {
         targetUserId = userid;
       }
 
-      const response = await api.post("/generic/getcollecteddocsdash", {
-        userId: targetUserId,
-        incUserId: incuserid,
-        startDate: startDate ? formatDateForAPI(startDate) : null,
-        endDate: endDate ? formatDateForAPI(endDate) : null,
-      });
+      const response = await api.post(
+        "resources/generic/getcollecteddocsdash",
+        {
+          userId: targetUserId,
+          incUserId: incuserid,
+          startDate: startDate ? formatDateForAPI(startDate) : null,
+          endDate: endDate ? formatDateForAPI(endDate) : null,
+        }
+      );
 
       const data = extractData(response, []);
 
@@ -157,7 +160,7 @@ export const DataProvider = ({ children }) => {
   // NEW: Function to fetch incubation list
   const fetchIncubationList = async () => {
     try {
-      const response = await api.post("/generic/getincubationlist", {
+      const response = await api.post("resources/generic/getincubationlist", {
         userId: userid,
         userIncId: "ALL",
       });
@@ -183,10 +186,13 @@ export const DataProvider = ({ children }) => {
     if (!incubationId) return null;
     setIncubationLoading(true);
     try {
-      const response = await api.post("/generic/getincubationdetails", {
-        userId: userid,
-        userIncId: incubationId,
-      });
+      const response = await api.post(
+        "resources/generic/getincubationdetails",
+        {
+          userId: userid,
+          userIncId: incubationId,
+        }
+      );
       const data = extractData(response, []);
       const details = data.find(
         (item) => item.incubationsrecid === parseInt(incubationId)
@@ -229,7 +235,7 @@ export const DataProvider = ({ children }) => {
 
     try {
       setMenuItemsLoading(true);
-      const response = await api.post("/generic/getapplist", {
+      const response = await api.post("resources/generic/getapplist", {
         userId: Number(userid),
         roleId: Number(roleid),
       });
@@ -258,13 +264,18 @@ export const DataProvider = ({ children }) => {
   const refreshCompanyDocuments = async () => {
     try {
       const targetUserId = adminViewingStartupId || userid;
-      const response = await api.post("/generic/getcollecteddocsdash", {
-        userId:
-          Number(roleid) === 1 && !adminViewingStartupId ? "ALL" : targetUserId,
-        incUserId: incuserid,
-        startDate: fromYear,
-        endDate: toYear,
-      });
+      const response = await api.post(
+        "resources/generic/getcollecteddocsdash",
+        {
+          userId:
+            Number(roleid) === 1 && !adminViewingStartupId
+              ? "ALL"
+              : targetUserId,
+          incUserId: incuserid,
+          startDate: fromYear,
+          endDate: toYear,
+        }
+      );
       const data = extractData(response, []);
       setCompanyDoc(data);
       setstartupcompanyDoc(data);
@@ -283,7 +294,7 @@ export const DataProvider = ({ children }) => {
     setAdminViewingStartupId(userId);
     try {
       const documentsResponse = await api.post(
-        "/generic/getcollecteddocsdash",
+        "resources/generic/getcollecteddocsdash",
         {
           userId: userId,
           startDate: fromYear,
@@ -291,10 +302,13 @@ export const DataProvider = ({ children }) => {
           incUserId: incuserid,
         }
       );
-      const incubateesResponse = await api.post("/generic/getincubatessdash", {
-        userId: userId,
-        incUserId: incuserid,
-      });
+      const incubateesResponse = await api.post(
+        "resources/generic/getincubatessdash",
+        {
+          userId: userId,
+          incUserId: incuserid,
+        }
+      );
       const documentsData = extractData(documentsResponse, []);
       setstartupcompanyDoc(documentsData);
       const incubateesData = extractData(incubateesResponse, []);
@@ -424,7 +438,7 @@ export const DataProvider = ({ children }) => {
             {
               name: "stats",
               call: () =>
-                api.post("/generic/getstatscom", {
+                api.post("resources/generic/getstatscom", {
                   userId: userid,
                   userIncId: userIncId,
                 }),
@@ -432,7 +446,7 @@ export const DataProvider = ({ children }) => {
             {
               name: "field",
               call: () =>
-                api.post("/generic/getcombyfield", {
+                api.post("resources/generic/getcombyfield", {
                   userId: userid,
                   userIncId: userIncId,
                 }),
@@ -440,7 +454,7 @@ export const DataProvider = ({ children }) => {
             {
               name: "stage",
               call: () =>
-                api.post("/generic/getcombystage", {
+                api.post("resources/generic/getcombystage", {
                   userId: userid,
                   userIncId: userIncId,
                 }),
@@ -456,7 +470,7 @@ export const DataProvider = ({ children }) => {
           {
             name: "documents",
             call: () =>
-              api.post("/generic/getcollecteddocsdash", {
+              api.post("resources/generic/getcollecteddocsdash", {
                 userId: userIdForListApis,
                 incUserId: userIncId,
                 startDate: fromYear,
@@ -466,7 +480,7 @@ export const DataProvider = ({ children }) => {
           {
             name: "incubatees",
             call: () =>
-              api.post("/generic/getincubatessdash", {
+              api.post("resources/generic/getincubatessdash", {
                 userId: userIdForListApis,
                 incUserId: userIncId,
               }),

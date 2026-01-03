@@ -12,7 +12,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Get the frontend URL for the reset link
+  // Get the frontend URL for the reset link (Vite way)
   const frontendUrl =
     import.meta.env.VITE_FRONTEND_URL || window.location.origin;
 

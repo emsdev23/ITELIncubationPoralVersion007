@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { IPAdress } from "../Datafetching/IPAdrees";
+import api from "../Datafetching/api";
 
 const DocumentUploadModal = ({
   isModalOpen,
@@ -167,30 +168,29 @@ const DocumentUploadModal = ({
     setError("");
     try {
       const token = sessionStorage.getItem("token");
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getdoccat`,
+      const response = await api.post(
+        "/resources/generic/getdoccat",
+
         {
-          method: "POST",
+          userId: userId,
+          roleId: 0,
+          userIncId: incuserid || 1,
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
             userid: userId || "1",
             "X-Module": "Document Module",
             "X-Action": "Fetching Document Categorie",
           },
-          body: JSON.stringify({
-            userId: userId,
-            roleId: 0,
-            userIncId: incuserid || 1,
-          }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // if (!response.ok) {
+      //   throw new Error(`HTTP error! status: ${response.status}`);
+      // }
 
-      const data = await response.json();
+      const data = response.data;
       if (data.statusCode === 200) {
         setCategories(data.data);
         console.log("Categories loaded:", data.data); // Debug log
@@ -218,30 +218,28 @@ const DocumentUploadModal = ({
 
     try {
       const token = sessionStorage.getItem("token");
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getdocsubcat`,
+      const response = await api.post(
+        "resources/generic/getdocsubcat",
         {
-          method: "POST",
+          userid: userId,
+          userIncId: incuserid || 1,
+          docid: selectedCategory,
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
             userid: userId || "1",
             "X-Module": "Document Module",
             "X-Action": "Fetching Document SubCategorie",
           },
-          body: JSON.stringify({
-            userid: userId,
-            userIncId: incuserid || 1,
-            docid: selectedCategory,
-          }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // if (!response.ok) {
+      //   throw new Error(`HTTP error! status: ${response.status}`);
+      // }
 
-      const data = await response.json();
+      const data = response.data;
+      // const data = await response.json();
       if (data.statusCode === 200) {
         setSubCategories(data.data);
         console.log("Subcategories loaded:", data.data); // Debug log
@@ -268,31 +266,28 @@ const DocumentUploadModal = ({
 
     try {
       const token = sessionStorage.getItem("token");
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getdocinfo`,
+      const response = await api.post(
+        "/resources/generic/getdocinfo",
         {
-          method: "POST",
+          userid: userId,
+          userIncId: incuserid || 1,
+          doccatid: parseInt(selectedCategory),
+          docsubcatid: parseInt(selectedSubCategory),
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
             userid: userId || "1",
             "X-Module": "Document Module",
             "X-Action": "Fetching Document Name",
           },
-          body: JSON.stringify({
-            userid: userId,
-            userIncId: incuserid || 1,
-            doccatid: parseInt(selectedCategory),
-            docsubcatid: parseInt(selectedSubCategory),
-          }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // if (!response.ok) {
+      //   throw new Error(`HTTP error! status: ${response.status}`);
+      // }
 
-      const data = await response.json();
+      const data = response.data;
       if (data.statusCode === 200) {
         setDocInfos(data.data);
         console.log("Doc infos loaded:", data.data); // Debug log
@@ -379,24 +374,22 @@ const DocumentUploadModal = ({
       console.log("Upload data:", uploadData);
 
       const token = sessionStorage.getItem("token");
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/adddocument`,
+      const response = await api.post(
+        "/resources/generic/adddocument",
+
+        uploadData,
         {
-          method: "POST",
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
             userid: userId || "1",
             "X-Module": "Add Document Module",
             "X-Action": "Add Incubatee Document",
           },
-          body: JSON.stringify(uploadData),
         }
       );
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (!response.ok) {
+      if (data.statusCode !== 200) {
         const errorMessage =
           data?.message || `HTTP error! status: ${response.status}`;
         throw new Error(errorMessage);

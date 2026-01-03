@@ -28,6 +28,61 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
     setError("");
   };
 
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+
+  //   if (!formData.email) {
+  //     setError("Email is required.");
+  //     return;
+  //   }
+
+  //   if (formData.newPassword !== formData.confirmPassword) {
+  //     setError("New password and confirm password do not match.");
+  //     return;
+  //   }
+
+  //   if (formData.captcha.toUpperCase() !== captchaText) {
+  //     setError("Captcha does not match.");
+  //     return;
+  //   }
+
+  //   setLoading(true);
+
+  //   try {
+  //     const response = await api.post("/generic/changepassword", {
+  //       email: formData.email,
+  //       oldPassword: formData.oldPassword,
+  //       newPassword: formData.newPassword,
+  //     });
+
+  //     if (response.data.statusCode === 200) {
+  //       Swal.fire({
+  //         icon: "success",
+  //         title: "Success!",
+  //         text: "Password changed successfully. Please login again.",
+  //         confirmButtonColor: "#3085d6",
+  //         confirmButtonText: "OK",
+  //       }).then(() => {
+  //         sessionStorage.clear();
+  //         window.location.href = "/";
+  //       });
+  //     } else {
+  //       setError(response.data.message || "Failed to change password");
+  //     }
+  //   } catch (err) {
+  //     if (err.response) {
+  //       setError(err.response.data?.message || "Authentication error");
+  //     } else {
+  //       setError("Network error: " + err.message);
+  //     }
+  //   } finally {
+  //     setLoading(false);
+  //     setCaptchaText(generateCaptcha());
+  //     setFormData({ ...formData, captcha: "" });
+  //   }
+  // };
+
+  // after encrypted password api call
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -47,6 +102,7 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
     }
 
     setLoading(true);
+    setError(null);
 
     try {
       const response = await api.post("/generic/changepassword", {
@@ -70,10 +126,18 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
         setError(response.data.message || "Failed to change password");
       }
     } catch (err) {
+      console.error("Error changing password:", err);
+
+      // Handle different types of errors
       if (err.response) {
+        // Server responded with an error status
         setError(err.response.data?.message || "Authentication error");
+      } else if (err.request) {
+        // Request was made but no response received
+        setError("Network error: No response from server");
       } else {
-        setError("Network error: " + err.message);
+        // Something else happened
+        setError(err.message || "Network error: " + err.message);
       }
     } finally {
       setLoading(false);

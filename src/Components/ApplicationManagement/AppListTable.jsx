@@ -23,6 +23,7 @@ import { styled } from "@mui/material/styles";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import { IPAdress } from "../Datafetching/IPAdrees";
+import api from "../Datafetching/api";
 // Styled components for custom styling
 const StyledPaper = styled(Paper)(({ theme }) => ({
   width: "100%",
@@ -90,39 +91,40 @@ export default function AppListTable() {
     setSearchQuery("");
   };
 
-  const fetchApps = () => {
+  const fetchApps = async () => {
     setLoading(true);
     setError(null);
 
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getapplist`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "Application Management",
-        "X-Action": "Fetching Application List",
-      },
-      body: JSON.stringify({
-        userId: userId || 35,
-        roleId: roleId || 0,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.statusCode === 200) {
-          setApps(data.data || []);
-          setFilteredApps(data.data || []);
-        } else {
-          throw new Error(data.message || "Failed to fetch apps");
+    try {
+      const response = await api.post(
+        "/resources/generic/getapplist",
+        {
+          userId: userId || 35,
+          roleId: roleId || 0,
+        },
+
+        {
+          headers: {
+            "X-Module": "Application Management",
+            "X-Action": "Fetching Application List",
+          },
         }
-      })
-      .catch((err) => {
-        console.error("Error fetching apps:", err);
-        setError("Failed to load apps. Please try again.");
-      })
-      .finally(() => setLoading(false));
+      );
+
+      if (response.data.statusCode === 200) {
+        setApps(response.data.data || []);
+        setFilteredApps(response.data.data || []);
+      } else {
+        throw new Error(
+          response.data.message || "Failed to fetch application details"
+        );
+      }
+    } catch (err) {
+      console.error("Error fetching apps:", err);
+      setError("Failed to load apps. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

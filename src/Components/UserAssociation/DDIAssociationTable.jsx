@@ -17,6 +17,7 @@ import {
 import Swal from "sweetalert2";
 import "./UserAssociationTable.css";
 import { IPAdress } from "../Datafetching/IPAdrees";
+import api from "../Datafetching/api";
 
 // Material-UI imports
 import {
@@ -94,109 +95,89 @@ export default function DDIAssociationTable() {
   };
 
   // Fetch functions
-  const fetchAssociations = () => {
+ const fetchAssociations = async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    const response = await api.post("/resources/generic/getddiassdetails", {
+      userId: userId || null,
+      incUserId: incUserid,
+    });
+
+    if (response.data.statusCode === 200) {
+      // --- FIX: Ensure the response data is an array before setting state ---
+      const data = Array.isArray(response.data) ? response.data : 
+                   (response.data.data && Array.isArray(response.data.data)) ? response.data.data : 
+                   [];
+      setAssociations(data);
+    } else {
+      throw new Error(response.data.message || "Failed to fetch DDI associations");
+    }
+  } catch (err) {
+    console.error("Error fetching DDI associations:", err);
+    const errorMessage = err.response?.data?.message || err.message || "Failed to load DDI associations. Please try again.";
+    setError(errorMessage);
+    // --- FIX: Reset associations to an empty array on error ---
+    setAssociations([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  const fetchIncubatees = async () => {
     setLoading(true);
     setError(null);
-
-    fetch(`${IP}/itelinc/resources/generic/getddiassdetails`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-
-        userid: userId || "1",
-        "X-Module": "DDI User Association",
-        "X-Action": "Fetching DDI User Association Details",
-      },
-      body: JSON.stringify({
+    try {
+      const response = await api.post("/resources/generic/getinclist", {
         userId: userId || null,
         incUserId: incUserid,
-      }),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data.statusCode === 200) {
-          setAssociations(data.data || []);
-        } else {
-          throw new Error(data.message || "Failed to fetch DDI associations");
-        }
-      })
-      .catch((err) => {
-        console.error("Error fetching DDI associations:", err);
-        setError("Failed to load DDI associations. Please try again.");
-      })
-      .finally(() => setLoading(false));
+      });
+
+      if (response.data.statusCode === 200) {
+        // --- FIX: Ensure the response data is an array ---
+        const data = Array.isArray(response.data) ? response.data : 
+                     (response.data.data && Array.isArray(response.data.data)) ? response.data.data : 
+                     [];
+        setIncubatees(data);
+      } else {
+        throw new Error(response.data.message || "Failed to fetch incubatees");
+      }
+    } catch (err) {
+      console.error("Error fetching incubatees:", err);
+      const errorMessage = err.response?.data?.message || err.message || "Failed to load incubatees. Please try again.";
+      setError(errorMessage);
+      // --- FIX: Reset incubatees to an empty array on error ---
+      setIncubatees([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const fetchIncubatees = () => {
-    fetch(`${IP}/itelinc/resources/generic/getinclist`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        userId: userId || null,
-        incUserId: incUserid,
-      }),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data.statusCode === 200) {
-          setIncubatees(data.data || []);
-        } else {
-          throw new Error(data.message || "Failed to fetch incubatees");
-        }
-      })
-      .catch((err) => {
-        console.error("Error fetching incubatees:", err);
-        Swal.fire("❌ Error", "Failed to load incubatees", "error");
-      });
-  };
+  const fetchUsers = async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    const response = await api.post("/resources/generic/getusers", {
+      userId: userId || null,
+      userIncId: incUserid,
+    });
 
-  const fetchUsers = () => {
-    fetch(`${IP}/itelinc/resources/generic/getusers`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        userId: userId || null,
-        userIncId: incUserid,
-      }),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data.statusCode === 200) {
-          setUsers(data.data || []);
-        } else {
-          throw new Error(data.message || "Failed to fetch users");
-        }
-      })
-      .catch((err) => {
-        console.error("Error fetching users:", err);
-        Swal.fire("❌ Error", "Failed to load users", "error");
-      });
-  };
+    if (response.data.statusCode === 200) {
+      const userData = response.data.data || [];
+      setUsers(userData);
+    } else {
+      throw new Error(response.data.message || "Failed to fetch users");
+    }
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    const errorMessage = err.response?.data?.message || err.message || "Failed to load users. Please try again.";
+    setError(errorMessage);
+    // --- FIX: Reset users to an empty array on error ---
+    setUsers([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchAssociations();
@@ -206,6 +187,12 @@ export default function DDIAssociationTable() {
 
   // Normalize associations data to handle both associated and unassociated users
   const normalizedData = useMemo(() => {
+    // --- FIX: Add a defensive check to ensure 'associations' is an array ---
+    if (!Array.isArray(associations)) {
+      console.error("Associations state is not an array:", associations);
+      return []; // Return an empty array to prevent the app from crashing
+    }
+
     const userMap = {};
 
     associations.forEach((item) => {
@@ -412,6 +399,7 @@ export default function DDIAssociationTable() {
     });
   };
 
+    // Update user associations (Refactored to use the 'api' instance)
   const updateAssociations = () => {
     if (!editingUserId) return;
 
@@ -432,69 +420,66 @@ export default function DDIAssociationTable() {
       (assoc) => !selectedIncubatees.includes(assoc.usrincassnincubateesrecid)
     );
 
+    // --- REFACTORED: Use the 'api' instance for adding associations ---
     const addPromises = toAdd.map((incubateeId) => {
-      const url = `${IP}/itelinc/addUserIncubationAssociation?usrincassnusersrecid=${editingUserId}&usrincassnincubateesrecid=${incubateeId}&usrincassncreatedby=${
-        userId || "1"
-      }&usrincassnmodifiedby=${userId || "1"}&usrincassnadminstate=1`;
-
-      return fetch(url, {
-        method: "POST",
-        mode: "cors",
+      return api.post("/addUserIncubationAssociation", null, {
+        params: {
+          usrincassnusersrecid: editingUserId,
+          usrincassnincubateesrecid: incubateeId,
+          usrincassncreatedby: userId || "1",
+          usrincassnmodifiedby: userId || "1",
+          usrincassnadminstate: 1,
+        },
         headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-
+          // The Authorization token is typically handled by an interceptor in the 'api' instance.
+          // We include the custom headers required by the backend.
           userid: userId || "1",
           "X-Module": "DDI User Association",
-          "X-Action": "Add/Edit DDI  user Association",
+          "X-Action": "Add/Edit DDI user Association",
         },
       })
         .then((res) => {
-          if (!res.ok) {
-            throw new Error(`HTTP error! Status: ${res.status}`);
-          }
-          return res.json();
-        })
-        .then((data) => {
-          if (data.statusCode !== 200) {
-            throw new Error(data.message || "Failed to add association");
+          if (res.data.statusCode !== 200) {
+            throw new Error(res.data.message || "Failed to add association");
           }
           return { success: true, incubateeId, action: "add" };
         })
         .catch((error) => {
+          // Extract a more informative error message from the Axios error object
+          const errorMessage = error.response?.data?.message || error.message || "An unknown error occurred";
           return {
             success: false,
             incubateeId,
             action: "add",
-            error: error.message,
+            error: errorMessage,
           };
         });
     });
 
+    // --- REFACTORED: Use the 'api' instance for removing associations ---
     const removePromises = toRemove.map((association) => {
-      const url = `${IP}/itelinc/deleteUserIncubationAssociation?usrincassnmodifiedby=${
-        userId || "1"
-      }&usrincassnrecid=${association.usrincassnrecid}`;
-
-      return fetch(url, {
-        method: "POST",
-        mode: "cors",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      // Using the centralized 'api' instance for consistency and automatic auth handling.
+      return api.post("/deleteUserIncubationAssociation", null, {
+        // Using the 'params' object is the standard, clean way to send query parameters with Axios.
+        params: {
+          usrincassnmodifiedby: userId || "1",
+          usrincassnrecid: association.usrincassnrecid,
         },
-        body: JSON.stringify({}),
+        // Custom headers required by the backend are included here.
+        // The 'Authorization' header is likely added automatically by an interceptor in the 'api' instance.
+        headers: {
+          userid: userId || "1",
+          "X-Module": "DDI User Association",
+          "X-Action": "Delete DDI user Association",
+        },
       })
         .then((res) => {
-          if (!res.ok) {
-            throw new Error(`HTTP error! Status: ${res.status}`);
+          // Check the status code from the response body, as is common with many APIs.
+          if (res.data.statusCode !== 200) {
+            // Throw an error to be caught by the .catch block, using the server's message if available.
+            throw new Error(res.data.message || "Failed to remove association");
           }
-          return res.json();
-        })
-        .then((data) => {
-          if (data.statusCode !== 200) {
-            throw new Error(data.message || "Failed to remove association");
-          }
+          // Return a structured object for the Promise.all handler to process.
           return {
             success: true,
             associationId: association.usrincassnrecid,
@@ -502,11 +487,14 @@ export default function DDIAssociationTable() {
           };
         })
         .catch((error) => {
+          // Robustly extract the most informative error message possible.
+          const errorMessage = error.response?.data?.message || error.message || "An unknown error occurred";
+          // Return a structured error object consistent with the success case.
           return {
             success: false,
             associationId: association.usrincassnrecid,
             action: "remove",
-            error: error.message,
+            error: errorMessage,
           };
         });
     });
@@ -949,7 +937,7 @@ export default function DDIAssociationTable() {
         </Paper>
       )}
 
-      {filteredData.length === 0 && (
+      {!loading && filteredData.length === 0 && (
         <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
           <Typography color="textSecondary">
             {searchQuery || hasActiveFilters

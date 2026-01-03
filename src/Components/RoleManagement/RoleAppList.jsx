@@ -4,6 +4,7 @@ import { Download } from "lucide-react";
 import Swal from "sweetalert2";
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Import the reusable component
 
+import api from "../Datafetching/api";
 // Material UI imports
 import { IPAdress } from "../Datafetching/IPAdrees";
 import {
@@ -36,58 +37,56 @@ export default function RoleAppList({ roleId, roleName, token, userId }) {
   const [isSaving, setIsSaving] = useState(false);
 
   // Fetch applications whenever the roleId prop changes
-  useEffect(() => {
+  // Fetch logs function
+  const Applications = async () => {
     if (roleId === null || roleId === undefined) return;
-
-    console.log("Fetching apps for roleId:", roleId);
-
     setLoading(true);
-    setError(null);
+    setError("");
 
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getapplist`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "Roles Management",
-        "X-Action": "Fetching Apps List",
-      },
-      body: JSON.stringify({
-        userId: userId || 35,
-        roleId: roleId,
-      }),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}`);
+    try {
+      const response = await api.post(
+        "/resources/generic/getapplist",
+        {
+          userId: userId || 35,
+          roleId: roleId,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            userid: userId || "1",
+          },
         }
-        return res.json();
-      })
-      .then((data) => {
-        console.log("API Response:", data);
-        if (data.statusCode === 200) {
-          // Add a unique ID for each app using the appsinrolesguiid field
-          const processedData = (data.data || []).map((app) => ({
-            ...app,
-            // Check if the app is assigned to the current role
-            isAssigned: app.appsinrolesroleid === roleId,
-            // Use the appsinrolesguiid as the app ID
-            appId: app.appsinrolesguiid,
-          }));
-          setApps(processedData);
-        } else {
-          throw new Error(data.message || "Failed to fetch application list");
-        }
-      })
-      .catch((err) => {
-        console.error("Error fetching application list:", err);
-        setError("Failed to load application list. Please try again.");
-      })
-      .finally(() => setLoading(false));
+      );
+
+      const result = response.data;
+      if (result.statusCode === 200 && result.data) {
+        // Process the data to add appId and isAssigned fields
+        const processedData = result.data.map((app) => ({
+          ...app,
+          // Use appsinrolesguiid as the app ID
+          appId: app.appsinrolesguiid,
+          // Check if the app is assigned to the current role
+          isAssigned: app.appsinrolesroleid === roleId,
+        }));
+
+        setApps(processedData);
+      } else {
+        setError(result.message || "Failed to fetch applications");
+      }
+    } catch (err) {
+      setError("Error fetching applications: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Refetch logs when date or modal open state changes
+  useEffect(() => {
+    Applications();
   }, [roleId, token, userId]);
 
+  console.log("Applications Data:", apps);
   // Handle checkbox changes for permissions
   const handlePermissionChange = (appId, accessType, isChecked) => {
     const updatedApps = apps.map((app) => {
@@ -129,45 +128,50 @@ export default function RoleAppList({ roleId, roleName, token, userId }) {
 
     // Create promises for each app update
     const updatePromises = apps.map((app) => {
-      const params = new URLSearchParams();
-      params.append("appsinrolesroleid", app.isAssigned ? roleId : 0);
-      // Use the actual appsinrolesguiid from the API response
-      params.append("appsinrolesguiid", app.appsinrolesguiid);
-      params.append("appsreadaccess", app.isAssigned ? app.appsreadaccess : 0);
-      params.append(
-        "appswriteaccess",
-        app.isAssigned ? app.appswriteaccess : 0
-      );
-      params.append("appsinrolesadminstate", "1"); // Default to enabled
-      params.append("appsinrolescreatedby", userId || "system");
-      params.append("appsinrolesmodifiedby", userId || "system");
-
-      return fetch(
-        `${API_BASE_URL}/itelinc/addAppsInRoles?${params.toString()}`,
+      // Use api.post instead of fetch with URLSearchParams
+      return api.post(
+        "/addAppsInRoles",
         {
-          method: "POST",
-          mode: "cors",
+          appsinrolesroleid: app.isAssigned ? roleId : 0,
+          appsinrolesguiid: app.appsinrolesguiid,
+          appsreadaccess: app.isAssigned ? app.appsreadaccess : 0,
+          appswriteaccess: app.isAssigned ? app.appswriteaccess : 0,
+          appsinrolesadminstate: "1", // Default to enabled
+          appsinrolescreatedby: userId || "system",
+          appsinrolesmodifiedby: userId || "system",
+        },
+        {
           headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Module": "Role Management",
+            "X-Action": "Updating App Permissions",
           },
         }
       );
     });
 
     Promise.all(updatePromises)
-      .then((responses) => Promise.all(responses.map((res) => res.json())))
-      .then((data) => {
-        console.log("Update responses:", data);
-        setHasChanges(false);
-        // Show success message with SweetAlert2
-        Swal.fire({
-          icon: "success",
-          title: "Success!",
-          text: "Applications and permissions updated successfully!",
-          confirmButtonColor: "#3085d6",
-          confirmButtonText: "OK",
-        });
+      .then((responses) => {
+        // The response data is already decrypted by the interceptor
+        console.log("Update responses:", responses);
+
+        // Check if all responses were successful
+        const allSuccessful = responses.every(
+          (response) => response.data.statusCode === 200
+        );
+
+        if (allSuccessful) {
+          setHasChanges(false);
+          // Show success message with SweetAlert2
+          Swal.fire({
+            icon: "success",
+            title: "Success!",
+            text: "Applications and permissions updated successfully!",
+            confirmButtonColor: "#3085d6",
+            confirmButtonText: "OK",
+          });
+        } else {
+          throw new Error("Some updates failed");
+        }
       })
       .catch((err) => {
         console.error("Error updating permissions:", err);
@@ -187,40 +191,8 @@ export default function RoleAppList({ roleId, roleName, token, userId }) {
 
   // Cancel changes
   const cancelChanges = () => {
-    // Reset to original data
-    setLoading(true);
-
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getapplist`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        userId: userId || 35,
-        roleId: roleId,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.statusCode === 200) {
-          const processedData = (data.data || []).map((app) => ({
-            ...app,
-            isAssigned: app.appsinrolesroleid === roleId,
-            appId: app.appsinrolesguiid,
-          }));
-          setApps(processedData);
-          setHasChanges(false);
-        } else {
-          throw new Error(data.message || "Failed to fetch application list");
-        }
-      })
-      .catch((err) => {
-        console.error("Error resetting application list:", err);
-        setError("Failed to reset application list. Please try again.");
-      })
-      .finally(() => setLoading(false));
+    // Reset to original data by refetching
+    Applications();
   };
 
   // Define columns for ReusableDataGrid

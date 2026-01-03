@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Swal from "sweetalert2";
-import { IPAdress } from "../Datafetching/IPAdrees";
+// IPAdress is no longer needed here since the API instance handles the base URL
+// import { IPAdress } from "../Datafetching/IPAdrees";
 import { Download } from "lucide-react";
 import { FaTimes } from "react-icons/fa";
 
@@ -25,16 +26,16 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
 
-// Import your reusable component
-import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Adjust path as needed
+// Import your reusable component and API instances
+import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
+import api from "../Datafetching/api"; // Import both instances
 
-// Styled components
+// Styled components (no changes here)
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,
   color: "#fff",
 }));
 
-// RESTORED: This is the styled component for your original circular buttons
 const ActionButton = styled(IconButton)(({ theme, color }) => ({
   margin: theme.spacing(0.5),
   backgroundColor:
@@ -46,7 +47,7 @@ const ActionButton = styled(IconButton)(({ theme, color }) => ({
   },
 }));
 
-// Common date formatting function
+// Common date formatting function (no changes here)
 const formatDate = (dateStr) => {
   if (!dateStr) return "-";
   try {
@@ -68,11 +69,10 @@ const formatDate = (dateStr) => {
 };
 
 export default function DocCatTable() {
-  // State declarations (same as before)
+  // State declarations
   const userId = sessionStorage.getItem("userid");
   const token = sessionStorage.getItem("token");
   const incUserid = sessionStorage.getItem("incuserid");
-  const IP = IPAdress;
 
   const [cats, setCats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -93,32 +93,30 @@ export default function DocCatTable() {
     severity: "success",
   });
 
-  // Effects and handlers (fetchCategories, openEditModal, handleDelete, etc.)
-  // ... (keeping them the same as the previous correct version for brevity)
-  // I will include them fully in the final code block to avoid confusion.
-
-  // --- HANDLER FUNCTIONS ---
+  // --- REFACTORED: Fetch Categories ---
   const fetchCategories = () => {
     setLoading(true);
     setError(null);
-    fetch(`${IP}/itelinc/resources/generic/getddidoccatlist`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        userid: userId || "1",
-        "X-Module": " DDI Document Management",
-        "X-Action": "Fetch DDI Document Categories",
-      },
-      body: JSON.stringify({
-        userId: parseInt(userId) || 1,
-        incUserId: incUserid,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setCats(data.data || []);
+    // Use the genericApi instance for this endpoint
+    api
+      .post(
+        "/resources/generic/getddidoccatlist",
+        {
+          // Request body (will be encrypted)
+          userId: parseInt(userId) || 1,
+          incUserId: incUserid,
+        },
+        {
+          // Axios config for headers
+          headers: {
+            "X-Module": "DDI Document Management",
+            "X-Action": "Fetch DDI Document Categories",
+          },
+        }
+      )
+      .then((response) => {
+        // Axios automatically parses the JSON and the interceptor decrypts it
+        setCats(response.data.data || []);
         setLoading(false);
       })
       .catch((err) => {
@@ -158,6 +156,7 @@ export default function DocCatTable() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // --- REFACTORED: Handle Delete ---
   const handleDelete = (catId) => {
     Swal.fire({
       title: "Are you sure?",
@@ -179,23 +178,24 @@ export default function DocCatTable() {
             Swal.showLoading();
           },
         });
-        const deleteUrl = `${IP}/itelinc/ddidoccatdelete?ddidoccatrecid=${catId}&ddidoccatmodifiedby=${
-          userId || 1
-        }`;
-        fetch(deleteUrl, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            Authorization: `Bearer ${token}`,
-            userid: userId || "1",
-            "X-Module": "DDI Document Management",
-            "X-Action": "Delete Category",
-          },
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.statusCode === 200) {
+        // Use the controllerApi instance and pass params in the config
+        api
+          .post(
+            "/ddidoccatdelete",
+            {}, // Empty request body
+            {
+              params: {
+                ddidoccatrecid: catId,
+                ddidoccatmodifiedby: userId || 1,
+              },
+              headers: {
+                "X-Module": "DDI Document Management",
+                "X-Action": "Delete Category",
+              },
+            }
+          )
+          .then((response) => {
+            if (response.data.statusCode === 200) {
               Swal.fire(
                 "Deleted!",
                 "Category deleted successfully!",
@@ -203,7 +203,9 @@ export default function DocCatTable() {
               );
               fetchCategories();
             } else {
-              throw new Error(data.message || "Failed to delete category");
+              throw new Error(
+                response.data.message || "Failed to delete category"
+              );
             }
           })
           .catch((err) => {
@@ -217,6 +219,7 @@ export default function DocCatTable() {
     });
   };
 
+  // --- REFACTORED: Handle Submit (Add/Edit) ---
   const handleSubmit = (e) => {
     e.preventDefault();
     setIsSaving(true);
@@ -230,49 +233,38 @@ export default function DocCatTable() {
       return;
     }
     setIsModalOpen(false);
-    let url;
-    if (editCat) {
-      url = `${IP}/itelinc/ddidoccatedit?ddidoccatrecid=${
-        editCat.ddidoccatrecid
-      }&ddidoccatname=${encodeURIComponent(
-        formData.ddidoccatname.trim()
-      )}&ddidoccatdescription=${encodeURIComponent(
-        formData.ddidoccatdescription.trim()
-      )}&ddidoccatmodifiedby=${userId || 1}&ddidoccatadminstate=${
-        formData.ddidoccatadminstate
-      }`;
-    } else {
-      url = `${IP}/itelinc/ddidoccatadd?ddidoccatname=${encodeURIComponent(
-        formData.ddidoccatname.trim()
-      )}&ddidoccatdescription=${encodeURIComponent(
-        formData.ddidoccatdescription.trim()
-      )}&ddidoccatcreatedby=${userId || 1}&ddidoccatmodifiedby=${
-        userId || 1
-      }&ddidoccatadminstate=${formData.ddidoccatadminstate}`;
-    }
+
+    const isEdit = !!editCat;
+    const endpoint = isEdit ? "/ddidoccatedit" : "/ddidoccatadd";
     const module = "DDI Document Management";
-    const action = editCat ? "Edit Category" : "Add Category";
-    fetch(url, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Bearer ${token}`,
-        userid: userId || "1",
-        "X-Module": module,
-        "X-Action": action,
-      },
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        if (data.statusCode === 200) {
+    const action = isEdit ? "Edit Category" : "Add Category";
+
+    // Use the controllerApi instance and pass all data in the params object
+    api
+      .post(
+        endpoint,
+        {}, // Empty request body
+        {
+          params: {
+            ...(isEdit && { ddidoccatrecid: editCat.ddidoccatrecid }),
+            ddidoccatname: formData.ddidoccatname.trim(),
+            ddidoccatdescription: formData.ddidoccatdescription.trim(),
+            ddidoccatadminstate: formData.ddidoccatadminstate,
+            ddidoccatcreatedby: isEdit ? undefined : userId || 1,
+            ddidoccatmodifiedby: userId || 1,
+          },
+          headers: {
+            "X-Module": module,
+            "X-Action": action,
+          },
+        }
+      )
+      .then((response) => {
+        if (response.data.statusCode === 200) {
           if (
-            data.data &&
-            typeof data.data === "string" &&
-            data.data.includes("Duplicate entry")
+            response.data.data &&
+            typeof response.data.data === "string" &&
+            response.data.data.includes("Duplicate entry")
           ) {
             setError("Category name already exists");
             Swal.fire(
@@ -290,13 +282,14 @@ export default function DocCatTable() {
             fetchCategories();
             Swal.fire(
               "Success",
-              data.message || "Category saved successfully!",
+              response.data.message || "Category saved successfully!",
               "success"
             );
           }
         } else {
           throw new Error(
-            data.message || `Operation failed with status: ${data.statusCode}`
+            response.data.message ||
+              `Operation failed with status: ${response.data.statusCode}`
           );
         }
       })
@@ -312,7 +305,7 @@ export default function DocCatTable() {
       .finally(() => setIsSaving(false));
   };
 
-  // --- MEMOIZED VALUES ---
+  // --- MEMOIZED VALUES (no changes here) ---
   const columns = useMemo(
     () => [
       {
@@ -370,8 +363,7 @@ export default function DocCatTable() {
         headerName: "Actions",
         width: 150,
         sortable: false,
-        filterable: false, // Disable filter for this column
-        // CORRECTED: Using a custom renderCell to restore original styling
+        filterable: false,
         renderCell: (params) => {
           if (!params || !params.row) return null;
           return (
@@ -430,7 +422,7 @@ export default function DocCatTable() {
     []
   );
 
-  // --- RENDER ---
+  // --- RENDER (no changes here) ---
   return (
     <Box sx={{ p: 2 }}>
       <Box

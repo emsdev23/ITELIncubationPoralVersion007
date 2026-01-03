@@ -8,6 +8,7 @@ import { IPAdress } from "../Datafetching/IPAdrees";
 // Material UI imports
 import { Box, Typography, Button, Chip } from "@mui/material";
 import { styled } from "@mui/material/styles";
+import api from "../Datafetching/api";
 
 // Styled components for custom styling
 const StyledChip = styled(Chip)(({ theme, status }) => {
@@ -41,39 +42,38 @@ export default function GroupDetailsTable() {
   // Check if XLSX is available
   const isXLSXAvailable = !!XLSX;
 
-  const fetchGroups = () => {
+  const fetchGroups = async () => {
     setLoading(true);
     setError(null);
-
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getgroupdetails`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "Application Management",
-        "X-Action": "Fetching Application Group Details",
-      },
-      body: JSON.stringify({
-        userId: userId || 1,
-        userIncId: incUserid || 0,
-        groupId: "ALL",
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.statusCode === 200) {
-          setGroups(data.data || []);
-        } else {
-          throw new Error(data.message || "Failed to fetch group details");
+    try {
+      const response = await api.post(
+        "resources/generic/getgroupdetails",
+        {
+          userId: userId || 1,
+          userIncId: incUserid || 0,
+          groupId: "ALL",
+        },
+        {
+          headers: {
+            userid: userId || "1",
+            "X-Module": "Application Management",
+            "X-Action": "Fetching Application Group Details",
+          },
         }
-      })
-      .catch((err) => {
-        console.error("Error fetching group details:", err);
-        setError("Failed to load group details. Please try again.");
-      })
-      .finally(() => setLoading(false));
+      );
+      if (response.data.statusCode === 200) {
+        setGroups(response.data.data || []);
+      } else {
+        throw new Error(
+          response.data.message || "Failed to fetch group details"
+        );
+      }
+    } catch (err) {
+      console.error("Error fetching group details:", err);
+      setError("Failed to load group details. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

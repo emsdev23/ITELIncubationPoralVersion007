@@ -22,6 +22,7 @@ import {
 import { styled } from "@mui/material/styles";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
+import api from "../Datafetching/api";
 
 // Styled components for custom styling
 const StyledPaper = styled(Paper)(({ theme }) => ({
@@ -91,42 +92,41 @@ export default function AppDetailsTable() {
     setSearchQuery("");
   };
 
-  const fetchApps = () => {
+  const fetchApps = async () => {
     setLoading(true);
     setError(null);
 
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getapplicationdetails`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "Application Management",
-        "X-Action": "Fetching Application Details List",
-      },
-      body: JSON.stringify({
-        userId: userId || 1,
-        incUserId: incUserid || 0,
-        groupId: "ALL",
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.statusCode === 200) {
-          setApps(data.data || []);
-          setFilteredApps(data.data || []);
-        } else {
-          throw new Error(
-            data.message || "Failed to fetch application details"
-          );
+    try {
+      // Use api.post for encryption
+      const response = await api.post(
+        "/resources/generic/getapplicationdetails",
+        {
+          userId: userId || 1,
+          incUserId: incUserid || 0,
+          groupId: "ALL",
+        },
+        {
+          headers: {
+            "X-Module": "Application Management",
+            "X-Action": "Fetching Application Details List",
+          },
         }
-      })
-      .catch((err) => {
-        console.error("Error fetching application details:", err);
-        setError("Failed to load application details. Please try again.");
-      })
-      .finally(() => setLoading(false));
+      );
+
+      if (response.data.statusCode === 200) {
+        setApps(response.data.data || []);
+        setFilteredApps(response.data.data || []);
+      } else {
+        throw new Error(
+          response.data.message || "Failed to fetch application details"
+        );
+      }
+    } catch (err) {
+      console.error("Error fetching application details:", err);
+      setError("Failed to load application details. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

@@ -7,7 +7,7 @@ import { IPAdress } from "../Datafetching/IPAdrees";
 // Material UI imports
 import { Box, Typography, CircularProgress, Chip } from "@mui/material";
 import { styled } from "@mui/material/styles";
-
+import api from "../Datafetching/api";
 // Styled components for custom styling
 const StyledChip = styled(Chip)(({ theme, status }) => {
   const getStatusColor = (status) => {
@@ -40,43 +40,45 @@ export default function GroupApplicationDetails({
   const isXLSXAvailable = !!XLSX;
 
   // Fetch applications whenever the groupId prop changes
-  useEffect(() => {
+
+  const fetchApplications = async () => {
     if (!groupId) return;
 
     setLoading(true);
     setError(null);
-
-    fetch(`${API_BASE_URL}/itelinc/resources/generic/getapplicationdetails`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "Application Management",
-        "X-Action": "Fetching Application Details List",
-      },
-      body: JSON.stringify({
-        userId: userId || 1,
-        incUserId: incUserid || 0,
-        groupId: groupId.toString(), // Ensure groupId is a string
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.statusCode === 200) {
-          setApps(data.data || []);
-        } else {
-          throw new Error(
-            data.message || "Failed to fetch application details"
-          );
+    try {
+      const response = await api.post(
+        "/resources/generic/getapplicationdetails",
+        {
+          userId: userId || 1,
+          incUserId: incUserid || 0,
+          groupId: groupId.toString(),
+        },
+        {
+          headers: {
+            userid: userId || "1",
+            "X-Module": "Application Management",
+            "X-Action": "Fetching Application Details List",
+          },
         }
-      })
-      .catch((err) => {
-        console.error("Error fetching application details:", err);
-        setError("Failed to load application details. Please try again.");
-      })
-      .finally(() => setLoading(false));
+      );
+      if (response.data.statusCode === 200) {
+        setApps(response.data.data || []);
+      } else {
+        throw new Error(
+          response.data.message || "Failed to fetch application details"
+        );
+      }
+    } catch (err) {
+      console.error("Error fetching application details:", err);
+      setError("Failed to load application details. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchApplications();
   }, [groupId, token, userId, incUserid]);
 
   // Define columns for ReusableDataGrid

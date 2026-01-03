@@ -52,7 +52,7 @@ export function InactivityHandler({ children }) {
 
       Swal.fire({
         title: "Session Expired",
-        text: "You have been logged out due to inactivity.",
+        text: "You will be logged out due to inactivity.",
         icon: "warning",
         confirmButtonText: "OK",
         allowOutsideClick: false,

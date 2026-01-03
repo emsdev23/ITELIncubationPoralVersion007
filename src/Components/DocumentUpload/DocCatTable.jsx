@@ -6,7 +6,8 @@ import React, {
   useContext,
 } from "react";
 import Swal from "sweetalert2";
-import { IPAdress } from "../Datafetching/IPAdrees";
+// IPAdress is no longer needed here since the API instance handles the base URL
+// import { IPAdress } from "../Datafetching/IPAdrees";
 import { Download } from "lucide-react";
 import { FaTimes } from "react-icons/fa";
 import { DataContext } from "../Datafetching/DataProvider";
@@ -30,10 +31,11 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
 
-// Import your reusable component
-import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Adjust path as needed
+// Import your reusable component and API instance
+import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
+import api from "../Datafetching/api"; // Import the controller API instance
 
-// Styled components
+// Styled components (no changes here)
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,
   color: "#fff",
@@ -50,7 +52,7 @@ const ActionButton = styled(IconButton)(({ theme, color }) => ({
   },
 }));
 
-// Common date formatting function
+// Common date formatting function (no changes here)
 const formatDate = (dateStr) => {
   if (!dateStr) return "-";
   try {
@@ -88,21 +90,18 @@ export default function DocCatTable() {
   const { menuItemsFromAPI } = useContext(DataContext);
 
   // Find the current path in menu items to check write access
-  const currentPath = "/Incubation/Dashboard/AddDocuments"; // Make sure this path matches your API
+  const currentPath = "/Incubation/Dashboard/AddDocuments";
   const menuItem = menuItemsFromAPI.find(
     (item) => item.guiappspath === currentPath
   );
 
-  console.log(menuItemsFromAPI);
   // The user has write access if the item exists and appswriteaccess is 1
   const hasWriteAccess = menuItem ? menuItem.appswriteaccess === 1 : false;
-  console.log("User Write Access:", hasWriteAccess);
 
   // --- 1. STATE DECLARATIONS ---
   const userId = sessionStorage.getItem("userid");
   const token = sessionStorage.getItem("token");
   const incUserid = sessionStorage.getItem("incuserid");
-  const IP = IPAdress;
 
   const [cats, setCats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,36 +117,30 @@ export default function DocCatTable() {
   const [isSaving, setIsSaving] = useState(false);
 
   // --- 2. HANDLER FUNCTIONS (Must be defined before useMemo) ---
-  const fetchCategories = useCallback(() => {
+
+  // --- REFACTORED: Fetch Categories ---
+  const fetchCategories = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const url = `${IP}/itelinc/getDoccatAll?incuserid=${encodeURIComponent(
-      incUserid
-    )}`;
-    fetch(url, {
-      method: "GET",
-      mode: "cors",
-      headers: {
-        userid: userId || "1",
-        "X-Module": "Document Management",
-        "X-Action": "Fetch  Document Categories",
-      },
-    })
-      .then((res) =>
-        res.ok
-          ? res.json()
-          : Promise.reject(`HTTP error! status: ${res.status}`)
-      )
-      .then((data) => {
-        setCats(data.data || []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error fetching categories:", err);
-        setError("Failed to load categories. Please try again.");
-        setLoading(false);
+
+    try {
+      // Use api.get for GET request with encryption
+      const response = await api.get(`/getDoccatAll?incuserid=${incUserid}`, {
+        headers: {
+          "X-Module": "Document Management",
+          "X-Action": "Fetch Document Categories",
+        },
       });
-  }, [IP, incUserid, userId]);
+
+      // Response is already decrypted by interceptor
+      setCats(response.data.data || []);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+      setError("Failed to load categories. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [incUserid]);
 
   const openAddModal = useCallback(() => {
     setEditCat(null);
@@ -168,8 +161,9 @@ export default function DocCatTable() {
 
   const handleChange = useCallback((e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  }, []); // Use functional update to avoid dependency on formData
+  }, []);
 
+  // --- REFACTORED: Handle Delete ---
   const handleDelete = useCallback(
     (catId) => {
       Swal.fire({
@@ -188,21 +182,24 @@ export default function DocCatTable() {
             allowOutsideClick: false,
             didOpen: () => Swal.showLoading(),
           });
-          const deleteUrl = `${IP}/itelinc/deletedoccat?doccatrecid=${catId}&doccatmodifiedby=${userId}`;
-          fetch(deleteUrl, {
-            method: "POST",
-            mode: "cors",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/x-www-form-urlencoded",
-              userid: userId || "1",
-              "X-Module": "Document Management",
-              "X-Action": "Delete Document Category",
-            },
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.statusCode === 200) {
+          // Use the controllerApi instance
+          api
+            .post(
+              "/deletedoccat", // The endpoint path
+              {}, // Empty request body
+              {
+                params: {
+                  doccatrecid: catId,
+                  doccatmodifiedby: userId,
+                },
+                headers: {
+                  "X-Module": "Document Management",
+                  "X-Action": "Delete Document Category",
+                },
+              }
+            )
+            .then((response) => {
+              if (response.data.statusCode === 200) {
                 Swal.fire(
                   "Deleted!",
                   "Category deleted successfully!",
@@ -210,7 +207,9 @@ export default function DocCatTable() {
                 );
                 fetchCategories();
               } else {
-                throw new Error(data.message || "Failed to delete category");
+                throw new Error(
+                  response.data.message || "Failed to delete category"
+                );
               }
             })
             .catch((err) => {
@@ -223,9 +222,10 @@ export default function DocCatTable() {
         }
       });
     },
-    [IP, userId, token, fetchCategories]
+    [userId, fetchCategories]
   );
 
+  // --- REFACTORED: Handle Submit (Add/Edit) ---
   const handleSubmit = useCallback(
     (e) => {
       e.preventDefault();
@@ -237,54 +237,38 @@ export default function DocCatTable() {
         return;
       }
       setIsModalOpen(false);
-      const loadingTitle = editCat ? "Updating..." : "Saving...";
-      // Swal.fire({
-      //   title: loadingTitle,
-      //   text: "Please wait...",
-      //   allowOutsideClick: false,
-      //   showConfirmButton: false,
-      //   didOpen: () => Swal.showLoading(),
-      // });
-      const params = new URLSearchParams();
-      if (editCat) {
-        params.append("doccatrecid", editCat.doccatrecid);
-      }
-      params.append("doccatname", formData.doccatname.trim());
-      params.append("doccatdescription", formData.doccatdescription.trim());
-      if (editCat) {
-        params.append("doccatmodifiedby", userId || "1");
-      } else {
-        params.append("doccatcreatedby", userId || "1");
-        params.append("doccatmodifiedby", userId || "1");
-      }
-      const baseUrl = editCat
-        ? `${IP}/itelinc/updateDoccat`
-        : `${IP}/itelinc/addDoccat`;
-      const url = `${baseUrl}?${params.toString()}`;
-      const action = editCat
+
+      const isEdit = !!editCat;
+      const endpoint = isEdit ? "/updateDoccat" : "/addDoccat";
+      const action = isEdit
         ? "Edit Document Category"
         : "Add Document Category";
-      fetch(url, {
-        method: "POST",
-        mode: "cors",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-          userid: userId || "1",
-          "X-Module": "Document Management",
-          "X-Action": action,
-        },
-      })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-          return res.json();
-        })
-        .then((data) => {
-          if (data.statusCode === 200) {
+
+      // Use the controllerApi instance
+      api
+        .post(
+          endpoint,
+          {
+            // Request body (will be encrypted)
+            doccatname: formData.doccatname.trim(),
+            doccatdescription: formData.doccatdescription.trim(),
+            ...(isEdit
+              ? { doccatrecid: editCat.doccatrecid, doccatmodifiedby: userId }
+              : { doccatcreatedby: userId, doccatmodifiedby: userId }),
+          },
+          {
+            headers: {
+              "X-Module": "Document Management",
+              "X-Action": action,
+            },
+          }
+        )
+        .then((response) => {
+          if (response.data.statusCode === 200) {
             if (
-              data.data &&
-              typeof data.data === "string" &&
-              data.data.includes("Duplicate entry")
+              response.data.data &&
+              typeof response.data.data === "string" &&
+              response.data.data.includes("Duplicate entry")
             ) {
               setError("Category name already exists");
               Swal.fire(
@@ -298,13 +282,14 @@ export default function DocCatTable() {
               fetchCategories();
               Swal.fire(
                 "Success",
-                data.message || "Category saved successfully!",
+                response.data.message || "Category saved successfully!",
                 "success"
               );
             }
           } else {
             throw new Error(
-              data.message || `Operation failed with status: ${data.statusCode}`
+              response.data.message ||
+                `Operation failed with status: ${response.data.statusCode}`
             );
           }
         })
@@ -319,10 +304,10 @@ export default function DocCatTable() {
         })
         .finally(() => setIsSaving(false));
     },
-    [formData, editCat, IP, userId, token, fetchCategories]
+    [formData, editCat, userId, fetchCategories]
   );
 
-  // --- 3. MEMOIZED VALUES (Must be defined after handler functions) ---
+  // --- 3. MEMOIZED VALUES (no changes here) ---
   const columns = useMemo(
     () => [
       {
@@ -375,43 +360,47 @@ export default function DocCatTable() {
         sortable: true,
         type: "date",
       },
-      {
-        field: "actions",
-        headerName: "Actions",
-        width: 150,
-        sortable: false,
-        filterable: false,
-        renderCell: (params) => {
-          if (!params?.row) return null;
-          return (
-            <Box>
-              <ActionButton
-                color="edit"
-                onClick={() => openEditModal(params.row)}
-                disabled={isSaving || isDeleting[params.row.doccatrecid]}
-                title="Edit"
-              >
-                <EditIcon fontSize="small" />
-              </ActionButton>
-              <ActionButton
-                color="delete"
-                onClick={() => handleDelete(params.row.doccatrecid)}
-                disabled={isSaving || isDeleting[params.row.doccatrecid]}
-                title="Delete"
-              >
-                {isDeleting[params.row.doccatrecid] ? (
-                  <CircularProgress size={18} color="inherit" />
-                ) : (
-                  <DeleteIcon fontSize="small" />
-                )}
-              </ActionButton>
-            </Box>
-          );
-        },
-      },
+      ...(hasWriteAccess // Conditionally add the actions column
+        ? [
+            {
+              field: "actions",
+              headerName: "Actions",
+              width: 150,
+              sortable: false,
+              filterable: false,
+              renderCell: (params) => {
+                if (!params?.row) return null;
+                return (
+                  <Box>
+                    <ActionButton
+                      color="edit"
+                      onClick={() => openEditModal(params.row)}
+                      disabled={isSaving || isDeleting[params.row.doccatrecid]}
+                      title="Edit"
+                    >
+                      <EditIcon fontSize="small" />
+                    </ActionButton>
+                    <ActionButton
+                      color="delete"
+                      onClick={() => handleDelete(params.row.doccatrecid)}
+                      disabled={isSaving || isDeleting[params.row.doccatrecid]}
+                      title="Delete"
+                    >
+                      {isDeleting[params.row.doccatrecid] ? (
+                        <CircularProgress size={18} color="inherit" />
+                      ) : (
+                        <DeleteIcon fontSize="small" />
+                      )}
+                    </ActionButton>
+                  </Box>
+                );
+              },
+            },
+          ]
+        : []),
     ],
-    [isSaving, isDeleting, openEditModal, handleDelete]
-  ); // Dependencies are now available
+    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete]
+  );
 
   const exportConfig = useMemo(
     () => ({
@@ -455,9 +444,16 @@ export default function DocCatTable() {
         }}
       >
         <Typography variant="h4">📂 Document Categories</Typography>
-        <Button variant="contained" onClick={openAddModal} disabled={isSaving}>
-          + Add Category
-        </Button>
+        {/* Conditionally render the "Add Category" button based on write access */}
+        {hasWriteAccess && (
+          <Button
+            variant="contained"
+            onClick={openAddModal}
+            disabled={isSaving}
+          >
+            + Add Category
+          </Button>
+        )}
       </Box>
       {error && (
         <Box

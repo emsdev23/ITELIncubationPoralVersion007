@@ -6,6 +6,7 @@ import { FaFilter, FaTimes } from "react-icons/fa"; // Added this import
 import "./UserTable.css";
 import { IPAdress } from "../Datafetching/IPAdrees";
 import * as XLSX from "xlsx";
+import api from "../Datafetching/api";
 
 // Material UI imports
 import { DataGrid } from "@mui/x-data-grid";
@@ -332,16 +333,6 @@ export default function UserTable() {
   const columns = useMemo(
     () => [
       {
-        field: "sno",
-        headerName: "S.No",
-        width: 70,
-        sortable: false,
-        valueGetter: (params) => {
-          if (!params || !params.api) return 0;
-          return params.api.getRowIndexRelativeToVisibleRows(params.row.id) + 1;
-        },
-      },
-      {
         field: "usersname",
         headerName: "Name",
         width: 150,
@@ -364,7 +355,7 @@ export default function UserTable() {
       {
         field: "usersemail",
         headerName: "Email",
-        width: 200,
+        width: 230,
         sortable: true,
         renderHeader: (params) => (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -495,7 +486,7 @@ export default function UserTable() {
       {
         field: "userscreatedby",
         headerName: "Created By",
-        width: 120,
+        width: 140,
         sortable: true,
         renderHeader: (params) => (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -515,7 +506,7 @@ export default function UserTable() {
       {
         field: "usersmodifiedby",
         headerName: "Modified By",
-        width: 120,
+        width: 140,
         sortable: true,
         renderHeader: (params) => (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -643,158 +634,134 @@ export default function UserTable() {
   );
 
   // Fetch all users
-  const fetchUsers = () => {
+  const fetchUsers = async () => {
     setLoading(true);
     setError(null);
-    fetch(`${IP}/itelinc/resources/generic/getusers`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "User Management",
-        "X-Action": "Fetching Users List",
-      },
-      body: JSON.stringify({
+    try {
+      // The api instance handles:
+      // 1. Building the full URL
+      // 2. Adding the correct headers (Authorization, userid, X-Module, X-Action)
+      // 3. Encrypting the request body into a 'payload'
+      const response = await api.post("/resources/generic/getusers", {
         userId: userId || null,
         userIncId: selectedIncubation
           ? selectedIncubation.incubationsrecid
           : incUserid,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.statusCode === 200) {
-          const userData = data.data || [];
-          console.log("Fetched users:", userData); // Debug log
-          setUsers(userData);
-          setFilteredUsers(userData);
-        } else {
-          throw new Error(data.message || "Failed to fetch users");
-        }
-      })
-      .catch((err) => {
-        console.error("Error fetching users:", err);
-        setError("Failed to load users. Please try again.");
-      })
-      .finally(() => setLoading(false));
+      });
+
+      // The response interceptor handles decrypting the payload.
+      // 'response.data' is already the parsed, decrypted JSON object.
+      if (response.data.statusCode === 200) {
+        const userData = response.data.data || [];
+        console.log("Fetched users:", userData);
+        setUsers(userData);
+        setFilteredUsers(userData);
+      } else {
+        // If the server sends an error message, it will be available here
+        throw new Error(response.data.message || "Failed to fetch users");
+      }
+    } catch (err) {
+      console.error("Error fetching users:", err);
+      // The error object from axios is detailed. We can get a specific message if available.
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to load users. Please try again.";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Fetch roles for dropdown
-  const fetchRoles = () => {
-    return fetch(`${IP}/itelinc/resources/generic/getrolelist`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "User Management",
-        "X-Action": "Fetching Roles List",
-      },
-      body: JSON.stringify({
+  const fetchRoles = async () => {
+    try {
+      const response = await api.post("/resources/generic/getrolelist", {
         userId: userId || null,
         incUserId: selectedIncubation
           ? selectedIncubation.incubationsrecid
           : incUserid,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.statusCode === 200) {
-          // Map the roles to ensure correct display names
-          const mappedRoles = (data.data || []).map((role) => ({
-            ...role,
-            text: getRoleName(role.value),
-          }));
-          setRoles(mappedRoles);
-          return mappedRoles;
-        } else {
-          throw new Error(data.message || "Failed to fetch roles");
-        }
-      })
-      .catch((err) => {
-        console.error("Error fetching roles:", err);
-        Swal.fire("❌ Error", "Failed to load roles", "error");
-        return [];
       });
+
+      if (response.data.statusCode === 200) {
+        // Map the roles to ensure correct display names
+        const mappedRoles = (response.data.data || []).map((role) => ({
+          ...role,
+          text: getRoleName(role.value),
+        }));
+        setRoles(mappedRoles);
+        return mappedRoles;
+      } else {
+        throw new Error(response.data.message || "Failed to fetch roles");
+      }
+    } catch (err) {
+      console.error("Error fetching roles:", err);
+      const errorMessage =
+        err.response?.data?.message || err.message || "Failed to load roles.";
+      Swal.fire("❌ Error", errorMessage, "error");
+      return [];
+    }
   };
 
   // Fetch incubatees for dropdown
-  const fetchIncubatees = (incubationId = null) => {
-    // Use the provided incubationId or selectedIncubation
-    const targetIncubationId =
-      incubationId ||
-      (selectedIncubation ? selectedIncubation.incubationsrecid : incUserid);
+  const fetchIncubatees = async (incubationId = null) => {
+    try {
+      // Use the provided incubationId or selectedIncubation
+      const targetIncubationId =
+        incubationId ||
+        (selectedIncubation ? selectedIncubation.incubationsrecid : incUserid);
 
-    return fetch(`${IP}/itelinc/resources/generic/getinclist`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "User Management",
-        "X-Action": "Fetching Incubatees List",
-      },
-      body: JSON.stringify({
+      const response = await api.post("/resources/generic/getinclist", {
         userId: userId || null,
         incUserId: targetIncubationId,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.statusCode === 200) {
-          setIncubatees(data.data || []);
-          return data.data || [];
-        } else {
-          throw new Error(data.message || "Failed to fetch incubatees");
-        }
-      })
-      .catch((err) => {
-        console.error("Error fetching incubatees:", err);
-        Swal.fire("❌ Error", "Failed to load incubatees", "error");
-        return [];
       });
+
+      if (response.data.statusCode === 200) {
+        setIncubatees(response.data.data || []);
+        return response.data.data || [];
+      } else {
+        throw new Error(response.data.message || "Failed to fetch incubatees");
+      }
+    } catch (err) {
+      console.error("Error fetching incubatees:", err);
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to load incubatees.";
+      Swal.fire("❌ Error", errorMessage, "error");
+      return [];
+    }
   };
 
   // Fetch incubations for dropdown (only if roleId is 0)
-  const fetchIncubations = () => {
+  const fetchIncubations = async () => {
+    // If roleId is not 0, we don't need to fetch incubations.
     if (!canSelectIncubation) {
-      // If roleId is not 0, we don't need to fetch incubations
       return Promise.resolve([]);
     }
 
-    return fetch(`${IP}/itelinc/resources/generic/getincubationlist`, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "User Management",
-        "X-Action": "Fetching Incubators List",
-      },
-      body: JSON.stringify({
+    try {
+      // Corrected URL path - removed the leading "/resources"
+      const response = await api.post("/resources/generic/getincubationlist", {
         userId: userId || null,
         userIncId: "ALL", // Use "ALL" to get all incubations
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.statusCode === 200) {
-          setIncubations(data.data || []);
-          return data.data || [];
-        } else {
-          throw new Error(data.message || "Failed to fetch incubations");
-        }
-      })
-      .catch((err) => {
-        console.error("Error fetching incubations:", err);
-        Swal.fire("❌ Error", "Failed to load incubations", "error");
-        return [];
       });
+
+      if (response.data.statusCode === 200) {
+        setIncubations(response.data.data || []);
+        return response.data.data || [];
+      } else {
+        throw new Error(response.data.message || "Failed to fetch incubations");
+      }
+    } catch (err) {
+      console.error("Error fetching incubations:", err);
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to load incubations.";
+      Swal.fire("❌ Error", errorMessage, "error");
+      return [];
+    }
   };
 
   // Fetch all required data
@@ -882,7 +849,6 @@ export default function UserTable() {
     });
   };
 
-  // Add new user
   const handleAddUser = async () => {
     // Check if dropdown data is loaded, if not, wait for it
     if (
@@ -914,12 +880,10 @@ export default function UserTable() {
       }
     }
 
-    // Create role dropdown HTML with mapped role names
+    // ... (rest of the role/incubation/incubatee HTML generation is fine) ...
     const roleOptions = roles
       .map((role) => `<option value="${role.value}">${role.text}</option>`)
       .join("");
-
-    // Create incubation dropdown HTML with "Select incubation" as placeholder (only if roleId is 0)
     const incubationOptions = canSelectIncubation
       ? [
           `<option value="" disabled selected>Select incubation</option>`,
@@ -929,8 +893,6 @@ export default function UserTable() {
           ),
         ].join("")
       : "";
-
-    // Create incubatee dropdown HTML with "Select incubatee" as placeholder
     const incubateeOptions = [
       `<option value="" disabled selected>Select incubatee</option>`,
       ...incubatees.map(
@@ -939,47 +901,50 @@ export default function UserTable() {
       ),
     ].join("");
 
-    Swal.fire({
+    // --- CHANGE 1: Await the SweetAlert result ---
+    const result = await Swal.fire({
       title: "Add New User",
       html: `
-        <div class="swal-form-container">
-          <div class="swal-form-row">
-            <input id="swal-name" class="swal2-input" placeholder="Name" required>
-          </div>
-          <div class="swal-form-row">
-            <input id="swal-email" class="swal2-input" placeholder="Email" required>
-          </div>
-          <div class="swal-form-row">
-            <input id="swal-password" type="password" class="swal2-input" placeholder="Password" required>
-          </div>
-          <div class="swal-form-row">
-            <select id="swal-role" class="swal2-select" required>
-              <option value="" disabled selected>Select a role</option>
-              ${roleOptions}
-            </select>
-          </div>
-          ${
-            canSelectIncubation
-              ? `
+      <div class="swal-form-container">
+        <!-- ... (your swal-form HTML is fine) ... -->
+        <div class="swal-form-row">
+          <input id="swal-name" class="swal2-input" placeholder="Name" required>
+        </div>
+        <div class="swal-form-row">
+          <input id="swal-email" class="swal2-input" placeholder="Email" required>
+        </div>
+        <div class="swal-form-row">
+          <input id="swal-password" type="password" class="swal2-input" placeholder="Password" required>
+        </div>
+        <div class="swal-form-row">
+          <select id="swal-role" class="swal2-select" required>
+            <option value="" disabled selected>Select a role</option>
+            ${roleOptions}
+          </select>
+        </div>
+        ${
+          canSelectIncubation
+            ? `
           <div class="swal-form-row">
             <select id="swal-incubation" class="swal2-select" required>
               ${incubationOptions}
             </select>
           </div>
           `
-              : ""
-          }
-          <div class="swal-form-row">
-            <select id="swal-incubatee" class="swal2-select" disabled>
-              ${incubateeOptions}
-            </select>
-          </div>
+            : ""
+        }
+        <div class="swal-form-row">
+          <select id="swal-incubatee" class="swal2-select" disabled>
+            ${incubateeOptions}
+          </select>
         </div>
-      `,
+      </div>
+    `,
       width: "600px",
       focusConfirm: false,
       showCancelButton: true,
       preConfirm: () => {
+        // ... (your preConfirm logic is fine) ...
         const name = document.getElementById("swal-name");
         const email = document.getElementById("swal-email");
         const password = document.getElementById("swal-password");
@@ -1026,116 +991,73 @@ export default function UserTable() {
         };
       },
       didOpen: () => {
-        // Add custom CSS for better styling
+        // ... (your didOpen CSS styling is fine) ...
         const style = document.createElement("style");
         style.textContent = `
-          .swal-form-container {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-          }
-          .swal-form-row {
-            width: 100%;
-          }
-          .swal2-input, .swal2-select {
-            width: 100% !important;
-            margin: 0 !important;
-          }
-          .swal2-select {
-            padding: 0.75em !important;
-          }
-          select:disabled {
-            background-color: #f8f9fa;
-            cursor: not-allowed;
-            opacity: 0.8;
-          }
-        `;
+        .swal-form-container { display: flex; flex-direction: column; gap: 12px; }
+        .swal-form-row { width: 100%; }
+        .swal2-input, .swal2-select { width: 100% !important; margin: 0 !important; }
+        .swal2-select { padding: 0.75em !important; }
+        select:disabled { background-color: #f8f9fa; cursor: not-allowed; opacity: 0.8; }
+      `;
         document.head.appendChild(style);
 
-        // Get form elements
         const roleSelect = document.getElementById("swal-role");
         const incubateeSelect = document.getElementById("swal-incubatee");
         const incubationSelect = canSelectIncubation
           ? document.getElementById("swal-incubation")
           : null;
 
-        // Function to update incubatee dropdown options
-        const updateIncubateeOptions = (incubationId) => {
-          if (!incubationId) {
-            incubateeSelect.innerHTML =
-              '<option value="" disabled selected>Select incubatee</option>';
-            return;
-          }
-
-          // Show loading state
+        // --- CHANGE 2: Corrected URL in updateIncubateeOptions ---
+        const updateIncubateeOptions = async (incubationId) => {
           incubateeSelect.innerHTML =
-            '<option value="" disabled>Loading incubatees...</option>';
-          incubateeSelect.disabled = true;
-
-          // Fetch incubatees for the selected incubation
-          fetch(`${IP}/itelinc/resources/generic/getinclist`, {
-            method: "POST",
-            mode: "cors",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
+            '<option value="" disabled>Loading...</option>';
+          try {
+            // Corrected URL path from "/resources/generic/getinclist" to "/generic/getinclist"
+            const response = await api.post("/generic/getinclist", {
               userId: userId || null,
               incUserId: incubationId,
-            }),
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.statusCode === 200) {
-                const incubateeOptions = [
-                  '<option value="" disabled selected>Select incubatee</option>',
-                  ...(data.data || []).map(
-                    (incubatee) =>
-                      `<option value="${incubatee.incubateesrecid}">${incubatee.incubateesname}</option>`
-                  ),
-                ].join("");
-                incubateeSelect.innerHTML = incubateeOptions;
-              } else {
-                incubateeSelect.innerHTML =
-                  '<option value="" disabled>No incubatees found</option>';
-              }
-            })
-            .catch((err) => {
-              console.error("Error fetching incubatees:", err);
-              incubateeSelect.innerHTML =
-                '<option value="" disabled>Error loading incubatees</option>';
             });
+            if (response.data.statusCode === 200) {
+              const options = [
+                '<option value="" disabled selected>Select incubatee</option>',
+                ...(response.data.data || []).map(
+                  (incubatee) =>
+                    `<option value="${incubatee.incubateesrecid}">${incubatee.incubateesname}</option>`
+                ),
+              ].join("");
+              incubateeSelect.innerHTML = options;
+            } else {
+              incubateeSelect.innerHTML =
+                '<option value="" disabled>No incubatees found</option>';
+            }
+          } catch (err) {
+            console.error("Error fetching incubatees:", err);
+            incubateeSelect.innerHTML =
+              '<option value="" disabled>Error loading incubatees</option>';
+          }
         };
 
         const toggleIncubateeDropdown = () => {
           const selectedRole = parseInt(roleSelect.value);
-
-          // For users with roleId === 0, check if incubation is selected
-          // For other users, just check if the role allows selecting an incubatee
           const shouldEnableIncubatee = canSelectIncubation
             ? incubationSelect && incubationSelect.value !== ""
             : INCUBATEE_ROLE_IDS.includes(selectedRole);
 
           if (shouldEnableIncubatee) {
-            // Update incubatee options based on the selected incubation
             if (canSelectIncubation && incubationSelect) {
               updateIncubateeOptions(incubationSelect.value);
             } else {
-              // For non-admin users, use their incUserid
               updateIncubateeOptions(incUserid);
             }
             incubateeSelect.disabled = false;
           } else {
             incubateeSelect.disabled = true;
-            incubateeSelect.value = ""; // Reset selection when disabled
+            incubateeSelect.value = "";
           }
         };
 
-        // Add event listeners
         roleSelect.addEventListener("change", toggleIncubateeDropdown);
-
-        // Add event listener to incubation dropdown if it exists
         if (incubationSelect) {
           incubationSelect.addEventListener("change", () => {
             const selectedRole = parseInt(roleSelect.value);
@@ -1145,91 +1067,57 @@ export default function UserTable() {
             }
           });
         }
-
-        // Initial check
         toggleIncubateeDropdown();
       },
-    }).then((result) => {
-      if (result.isConfirmed && result.value) {
-        const formData = result.value;
-        setIsAdding(true);
+    });
 
-        // Build URL with query parameters for adding user
-        const params = new URLSearchParams();
-        params.append("usersemail", formData.usersemail);
-        params.append("userspassword", formData.userspassword);
-        params.append("usersname", formData.usersname);
-        params.append("usersrolesrecid", formData.usersrolesrecid);
-        params.append("usersadminstate", "1");
-        params.append("userscreatedby", userId || "system");
-        params.append("usersmodifiedby", userId || "system");
-        params.append("usersincubationsrecid", formData.usersincubationsrecid);
-        // params.append("userid", userId || null);
+    // --- CHANGE 3: Refactored API call using await and try/catch ---
+    if (result.isConfirmed && result.value) {
+      const formData = result.value;
+      setIsAdding(true);
+
+      try {
+        // Create a plain object to be sent in the encrypted request body
+        const bodyPayload = {
+          usersemail: formData.usersemail,
+          userspassword: formData.userspassword,
+          usersname: formData.usersname,
+          usersrolesrecid: formData.usersrolesrecid,
+          usersadminstate: "1",
+          userscreatedby: userId || "system",
+          usersmodifiedby: userId || "system",
+          usersincubationsrecid: formData.usersincubationsrecid,
+        };
 
         // Only add incubateesrecid if it's not null or empty
         if (formData.usersincubateesrecid) {
-          params.append("usersincubateesrecid", formData.usersincubateesrecid);
+          bodyPayload.usersincubateesrecid = formData.usersincubateesrecid;
         }
 
-        const addUrl = `${IP}/itelinc/addUser?${params.toString()}`;
-        fetch(addUrl, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-            userid: userId || "1",
-            "X-Module": "user Management",
-            "X-Action": "Add User",
+        // Use the api instance. It will encrypt the bodyPayload and add all necessary headers.
+        const response = await api.post("/addUser", bodyPayload);
 
-            // userid: userId,
-          },
-        })
-          .then((res) => {
-            if (!res.ok) {
-              throw new Error(`HTTP error! Status: ${res.status}`);
-            }
-            return res.json();
-          })
-          .then((data) => {
-            if (data.statusCode === 200) {
-              Swal.fire("✅ Success", "User added successfully", "success");
-              fetchUsers();
-            } else {
-              Swal.fire(
-                "❌ Error",
-                data.message || "Failed to add user",
-                "error"
-              );
-            }
-          })
-          .catch((err) => {
-            console.error("Error adding user:", err);
-            if (
-              err.name === "TypeError" &&
-              err.message.includes("Failed to fetch")
-            ) {
-              Swal.fire(
-                "❌ CORS Error",
-                "Unable to connect to the server. This might be a CORS issue. Please contact your system administrator.",
-                "error"
-              );
-            } else {
-              Swal.fire(
-                "❌ Error",
-                err.message || "Something went wrong",
-                "error"
-              );
-            }
-          })
-          .finally(() => {
-            setIsAdding(false);
-          });
+        if (response.data.statusCode === 200) {
+          Swal.fire("✅ Success", "User added successfully", "success");
+          fetchUsers(); // This should also be refactored to use the api instance
+        } else {
+          Swal.fire(
+            "❌ Error",
+            response.data.message || "Failed to add user",
+            "error"
+          );
+        }
+      } catch (err) {
+        console.error("Error adding user:", err);
+        const errorMessage =
+          err.response?.data?.message || err.message || "Something went wrong";
+        Swal.fire("❌ Error", errorMessage, "error");
+      } finally {
+        setIsAdding(false);
       }
-    });
+    }
   };
 
-  // Edit user with popup form
   const handleEdit = async (user) => {
     // Check if dropdown data is loaded, if not, wait for it
     if (
@@ -1262,7 +1150,7 @@ export default function UserTable() {
       }
     }
 
-    // Create role dropdown HTML with mapped role names
+    // ... (rest of the role/incubation/incubatee HTML generation is fine) ...
     const roleOptions = roles
       .map(
         (role) =>
@@ -1271,8 +1159,6 @@ export default function UserTable() {
           }>${role.text}</option>`
       )
       .join("");
-
-    // Create incubation dropdown HTML with "Select incubation" as placeholder (only if roleId is 0)
     const incubationOptions = canSelectIncubation
       ? [
           `<option value="" ${
@@ -1288,8 +1174,6 @@ export default function UserTable() {
           ),
         ].join("")
       : "";
-
-    // Create incubatee dropdown HTML with "Select incubatee" as placeholder
     const incubateeOptions = [
       `<option value="" ${
         !user.usersincubateesrecid ? "selected" : ""
@@ -1304,57 +1188,59 @@ export default function UserTable() {
       ),
     ].join("");
 
-    Swal.fire({
+    // --- CHANGE 1: Await the SweetAlert result ---
+    const result = await Swal.fire({
       title: "Edit User",
       html: `
-        <div class="swal-form-container">
-          <div class="swal-form-row">
-            <input id="swal-name" class="swal2-input" placeholder="Name" value="${
-              user.usersname || ""
-            }">
-          </div>
-          <div class="swal-form-row">
-            <input id="swal-email" class="swal2-input" placeholder="Email" value="${
-              user.usersemail || ""
-            }">
-          </div>
-          <div class="swal-form-row">
-            <input id="swal-password" type="password" class="swal2-input" placeholder="Password" value="${
-              user.userspassword || ""
-            }" readonly>
-          </div>
-          <div class="swal-form-row">
-            <select id="swal-role" class="swal2-select">
-              ${roleOptions}
-            </select>
-          </div>
-          ${
-            canSelectIncubation
-              ? `
+      <div class="swal-form-container">
+        <!-- ... (your swal-form HTML is fine) ... -->
+        <div class="swal-form-row">
+          <input id="swal-name" class="swal2-input" placeholder="Name" value="${
+            user.usersname || ""
+          }">
+        </div>
+        <div class="swal-form-row">
+          <input id="swal-email" class="swal2-input" placeholder="Email" value="${
+            user.usersemail || ""
+          }">
+        </div>
+        <div class="swal-form-row">
+          <input id="swal-password" type="password" class="swal2-input" placeholder="Password" value="${
+            user.userspassword || ""
+          }" readonly>
+        </div>
+        <div class="swal-form-row">
+          <select id="swal-role" class="swal2-select">
+            ${roleOptions}
+          </select>
+        </div>
+        ${
+          canSelectIncubation
+            ? `
           <div class="swal-form-row">
             <select id="swal-incubation" class="swal2-select">
               ${incubationOptions}
             </select>
           </div>
           `
+            : ""
+        }
+        <div class="swal-form-row">
+          <select id="swal-incubatee" class="swal2-select" ${
+            !INCUBATEE_ROLE_IDS.includes(parseInt(user.usersrolesrecid))
+              ? "disabled"
               : ""
-          }
-          <div class="swal-form-row">
-            <select id="swal-incubatee" class="swal2-select" ${
-              !INCUBATEE_ROLE_IDS.includes(parseInt(user.usersrolesrecid))
-                ? "disabled"
-                : ""
-            }>
-              ${incubateeOptions}
-            </select>
-          </div>
+          }>
+            ${incubateeOptions}
+          </select>
         </div>
-      `,
+      </div>
+    `,
       width: "600px",
       focusConfirm: false,
       showCancelButton: true,
       preConfirm: () => {
-        // Get all form values
+        // ... (your preConfirm logic is fine) ...
         const name = document.getElementById("swal-name");
         const email = document.getElementById("swal-email");
         const password = document.getElementById("swal-password");
@@ -1363,8 +1249,6 @@ export default function UserTable() {
           ? document.getElementById("swal-incubation")
           : null;
         const incubatee = document.getElementById("swal-incubatee");
-
-        // Validate that all elements exist
         if (
           !name ||
           !email ||
@@ -1376,7 +1260,6 @@ export default function UserTable() {
           Swal.showValidationMessage("Form elements not found");
           return false;
         }
-
         return {
           usersname: name.value,
           usersemail: email.value,
@@ -1391,121 +1274,80 @@ export default function UserTable() {
         };
       },
       didOpen: () => {
-        // Add custom CSS for better styling
+        // ... (your didOpen CSS styling is fine) ...
         const style = document.createElement("style");
         style.textContent = `
-          .swal-form-container {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-          }
-          .swal-form-row {
-            width: 100%;
-          }
-          .swal2-input, .swal2-select {
-            width: 100% !important;
-            margin: 0 !important;
-          }
-          .swal2-select {
-            padding: 0.75em !important;
-          }
-          input[readonly] {
-            background-color: #f8f9fa;
-            cursor: not-allowed;
-            opacity: 0.8;
-          }
-          select:disabled {
-            background-color: #f8f9fa;
-            cursor: not-allowed;
-            opacity: 0.8;
-          }
-        `;
+        .swal-form-container { display: flex; flex-direction: column; gap: 12px; }
+        .swal-form-row { width: 100%; }
+        .swal2-input, .swal2-select { width: 100% !important; margin: 0 !important; }
+        .swal2-select { padding: 0.75em !important; }
+        input[readonly] { background-color: #f8f9fa; cursor: not-allowed; opacity: 0.8; }
+        select:disabled { background-color: #f8f9fa; cursor: not-allowed; opacity: 0.8; }
+      `;
         document.head.appendChild(style);
 
-        // Get form elements
         const roleSelect = document.getElementById("swal-role");
         const incubateeSelect = document.getElementById("swal-incubatee");
         const incubationSelect = canSelectIncubation
           ? document.getElementById("swal-incubation")
           : null;
 
-        // Function to update incubatee dropdown options
-        const updateIncubateeOptions = (incubationId) => {
+        // --- CHANGE 2: Corrected URL in updateIncubateeOptions ---
+        const updateIncubateeOptions = async (incubationId) => {
           if (!incubationId) {
             incubateeSelect.innerHTML =
               '<option value="" disabled selected>Select incubatee</option>';
             return;
           }
-
-          // Show loading state
           incubateeSelect.innerHTML =
             '<option value="" disabled>Loading incubatees...</option>';
           incubateeSelect.disabled = true;
-
-          // Fetch incubatees for the selected incubation
-          fetch(`${IP}/itelinc/resources/generic/getinclist`, {
-            method: "POST",
-            mode: "cors",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
+          try {
+            // Corrected URL path from "/resources/generic/getinclist" to "/generic/getinclist"
+            const response = await api.post("/generic/getinclist", {
               userId: userId || null,
               incUserId: incubationId,
-            }),
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.statusCode === 200) {
-                const incubateeOptions = [
-                  '<option value="" disabled selected>Select incubatee</option>',
-                  ...(data.data || []).map(
-                    (incubatee) =>
-                      `<option value="${incubatee.incubateesrecid}">${incubatee.incubateesname}</option>`
-                  ),
-                ].join("");
-                incubateeSelect.innerHTML = incubateeOptions;
-              } else {
-                incubateeSelect.innerHTML =
-                  '<option value="" disabled>No incubatees found</option>';
-              }
-            })
-            .catch((err) => {
-              console.error("Error fetching incubatees:", err);
-              incubateeSelect.innerHTML =
-                '<option value="" disabled>Error loading incubatees</option>';
             });
+            if (response.data.statusCode === 200) {
+              const options = [
+                '<option value="" disabled selected>Select incubatee</option>',
+                ...(response.data.data || []).map(
+                  (incubatee) =>
+                    `<option value="${incubatee.incubateesrecid}">${incubatee.incubateesname}</option>`
+                ),
+              ].join("");
+              incubateeSelect.innerHTML = options;
+            } else {
+              incubateeSelect.innerHTML =
+                '<option value="" disabled>No incubatees found</option>';
+            }
+          } catch (err) {
+            console.error("Error fetching incubatees:", err);
+            incubateeSelect.innerHTML =
+              '<option value="" disabled>Error loading incubatees</option>';
+          } finally {
+            incubateeSelect.disabled = false;
+          }
         };
 
         const toggleIncubateeDropdown = () => {
           const selectedRole = parseInt(roleSelect.value);
-
-          // For users with roleId === 0, check if incubation is selected
-          // For other users, just check if the role allows selecting an incubatee
           const shouldEnableIncubatee = canSelectIncubation
             ? incubationSelect && incubationSelect.value !== ""
             : INCUBATEE_ROLE_IDS.includes(selectedRole);
-
           if (shouldEnableIncubatee) {
-            // Update incubatee options based on the selected incubation
             if (canSelectIncubation && incubationSelect) {
               updateIncubateeOptions(incubationSelect.value);
             } else {
-              // For non-admin users, use their incUserid
               updateIncubateeOptions(incUserid);
             }
             incubateeSelect.disabled = false;
           } else {
             incubateeSelect.disabled = true;
-            incubateeSelect.value = ""; // Reset selection when disabled
+            incubateeSelect.value = "";
           }
         };
-
-        // Add event listeners
         roleSelect.addEventListener("change", toggleIncubateeDropdown);
-
-        // Add event listener to incubation dropdown if it exists
         if (incubationSelect) {
           incubationSelect.addEventListener("change", () => {
             const selectedRole = parseInt(roleSelect.value);
@@ -1515,76 +1357,55 @@ export default function UserTable() {
             }
           });
         }
-
-        // Initial check
         toggleIncubateeDropdown();
       },
-    }).then((result) => {
-      if (result.isConfirmed && result.value) {
-        const formData = result.value;
-        setIsUpdating(user.usersrecid);
+    });
 
-        // Build URL with query parameters
-        const params = new URLSearchParams();
-        params.append("usersemail", formData.usersemail);
-        params.append("usersname", formData.usersname);
-        params.append("usersrolesrecid", formData.usersrolesrecid);
-        params.append("userspassword", formData.userspassword);
-        params.append("usersadminstate", "1");
-        params.append("usersmodifiedby", userId);
-        params.append("usersrecid", user.usersrecid);
-        params.append("usersincubationsrecid", formData.usersincubationsrecid);
+    // --- CHANGE 3: Refactored API call using await and try/catch ---
+    if (result.isConfirmed && result.value) {
+      const formData = result.value;
+      setIsUpdating(user.usersrecid);
+
+      try {
+        // Create a plain object to be sent in the encrypted request body
+        const bodyPayload = {
+          usersemail: formData.usersemail,
+          usersname: formData.usersname,
+          usersrolesrecid: formData.usersrolesrecid,
+          userspassword: formData.userspassword, // Including password in update
+          usersadminstate: "1",
+          usersmodifiedby: userId,
+          usersrecid: user.usersrecid, // The ID of the user to update
+          usersincubationsrecid: formData.usersincubationsrecid,
+        };
 
         // Only add incubateesrecid if it's not null or empty
         if (formData.usersincubateesrecid) {
-          params.append("usersincubateesrecid", formData.usersincubateesrecid);
+          bodyPayload.usersincubateesrecid = formData.usersincubateesrecid;
         }
 
-        const updateUrl = `${IP}/itelinc/updateUser?${params.toString()}`;
-        fetch(updateUrl, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-            userid: userId || "1",
-            "X-Module": "User Management",
-            "X-Action": "Edit User",
-          },
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.statusCode === 200) {
-              Swal.fire("✅ Success", "User updated successfully", "success");
-              fetchUsers();
-            } else {
-              Swal.fire(
-                "❌ Error",
-                data.message || "Failed to update user",
-                "error"
-              );
-            }
-          })
-          .catch((err) => {
-            console.error("Error updating user:", err);
-            if (
-              err.name === "TypeError" &&
-              err.message.includes("Failed to fetch")
-            ) {
-              Swal.fire(
-                "❌ CORS Error",
-                "Unable to connect to the server. This might be a CORS issue. Please contact your system administrator.",
-                "error"
-              );
-            } else {
-              Swal.fire("❌ Error", "Something went wrong", "error");
-            }
-          })
-          .finally(() => {
-            setIsUpdating(null);
-          });
+        // Use the api instance. It will encrypt the bodyPayload and add all necessary headers.
+        const response = await api.post("/updateUser", bodyPayload);
+
+        if (response.data.statusCode === 200) {
+          Swal.fire("✅ Success", "User updated successfully", "success");
+          fetchUsers(); // This should also be refactored to use the api instance
+        } else {
+          Swal.fire(
+            "❌ Error",
+            response.data.message || "Failed to update user",
+            "error"
+          );
+        }
+      } catch (err) {
+        console.error("Error updating user:", err);
+        const errorMessage =
+          err.response?.data?.message || err.message || "Something went wrong";
+        Swal.fire("❌ Error", errorMessage, "error");
+      } finally {
+        setIsUpdating(null);
       }
-    });
+    }
   };
 
   return (

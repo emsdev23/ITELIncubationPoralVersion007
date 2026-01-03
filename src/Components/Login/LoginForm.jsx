@@ -35,7 +35,7 @@ const LoginForm = () => {
         },
       });
 
-      const response = await api.post("/auth/login", {
+      const response = await api.post("resources/auth/login", {
         username: formData.username,
         password: formData.password,
       });

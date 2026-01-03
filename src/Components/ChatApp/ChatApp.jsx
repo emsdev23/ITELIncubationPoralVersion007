@@ -19,7 +19,7 @@ const ChatApp = () => {
   const [messagePolling, setMessagePolling] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [currentUser, setCurrentUser] = useState({
-    id: sessionStorage.getItem("userid") || "1",
+    id: sessionStorage.getItem("userid"),
     name: sessionStorage.getItem("username") || "User",
     role: sessionStorage.getItem("userrole") || "incubatee",
     roleid: sessionStorage.getItem("roleid") || null,
@@ -162,7 +162,7 @@ const ChatApp = () => {
   useEffect(() => {
     chatListIntervalRef.current = setInterval(() => {
       fetchChatLists();
-    }, 3000);
+    }, 5000000);
 
     return () => {
       if (chatListIntervalRef.current) {
@@ -178,7 +178,7 @@ const ChatApp = () => {
 
       messageIntervalRef.current = setInterval(() => {
         checkForNewMessages(selectedChat.chatlistrecid);
-      }, 1000);
+      }, 5000000);
 
       return () => {
         if (messageIntervalRef.current) {

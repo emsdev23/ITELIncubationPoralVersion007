@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { IPAdress } from "../Datafetching/IPAdrees";
+import api from "../Datafetching/api";
 
 const DDIDocumentUploadModal = () => {
   const incUserid = sessionStorage.getItem("incuserid");
@@ -69,26 +70,23 @@ const DDIDocumentUploadModal = () => {
     try {
       const token = sessionStorage.getItem("token");
       const userID = sessionStorage.getItem("userid");
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getincubatessdash`,
+      const response = await api.post(
+        "resources/generic/getincubatessdash",
+        { userId: userID, incUserId: incUserid },
         {
-          method: "POST",
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
             userid: userID || "1",
             "X-Module": "DDI Documents",
             "X-Action": "Fetching Incubatees List assigned to DDI",
           },
-          body: JSON.stringify({ userId: userID, incUserId: incUserid }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // if (!response.ok) {
+      //   throw new Error(`HTTP error! status: ${response.status}`);
+      // }
 
-      const data = await response.json();
+      const data = response.data;
       if (data.statusCode === 200) {
         const companiesData = data.data || [];
         setCompanies(companiesData);
@@ -125,26 +123,27 @@ const DDIDocumentUploadModal = () => {
     try {
       const token = sessionStorage.getItem("token");
       const userID = sessionStorage.getItem("userid");
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getddidoccatdetails`,
+      const response = await api.post(
+        "/resources/generic/getddidoccatdetails",
         {
-          method: "POST",
+          // <-- Correct: Pass the data object directly
+          userId: userID,
+          incUserId: incUserid,
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
             userid: userID || "1",
             "X-Module": "DDI Documents",
             "X-Action": "Fetching DDI Document Types",
           },
-          body: JSON.stringify({ userId: userID, incUserId: incUserid }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // if (!response.ok) {
+      //   throw new Error(`HTTP error! status: ${response.status}`);
+      // }
 
-      const data = await response.json();
+      const data = response.data;
       if (data.statusCode === 200) {
         // Check if data is an array or a single object
         if (Array.isArray(data.data)) {
@@ -331,28 +330,25 @@ const DDIDocumentUploadModal = () => {
       });
 
       const token = sessionStorage.getItem("token");
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/adddocumentddi`,
+      const response = await api.post(
+        "/resources/generic/adddocumentddi",
+        uploadData,
         {
-          method: "POST",
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
             userid: companyDetails.usersrecid || "1",
             "X-Module": "DDI Documents",
             "X-Action": "Add DDI Document for Incubatee",
           },
-          body: JSON.stringify(uploadData),
         }
       );
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (!response.ok) {
-        const errorMessage =
-          data?.message || `HTTP error! status: ${response.status}`;
-        throw new Error(errorMessage);
-      }
+      // if (!response.ok) {
+      //   const errorMessage =
+      //     data?.message || `HTTP error! status: ${response.status}`;
+      //   throw new Error(errorMessage);
+      // }
 
       if (data.statusCode === 200) {
         // Close upload loader and show success

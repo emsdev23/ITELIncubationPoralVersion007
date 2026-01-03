@@ -45,6 +45,7 @@ import ChangePasswordModal from "./ChangePasswordModal";
 import ContactModal from "./ContactModal";
 import DocumentsTable from "../DocumentUpload/DocumentsTable";
 import { IPAdress } from "../Datafetching/IPAdrees";
+import api from "../Datafetching/api";
 import AuditLogsModal from "../AuditLogsModal ";
 import ShareDocumentModal from "./ShareDocumentModal";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -708,39 +709,35 @@ const StartupDashboard = () => {
   };
 
   const handleViewDocument = async (filepath) => {
-    console.log(filepath);
     try {
       const token = sessionStorage.getItem("token");
-      const userid = sessionStorage.getItem("userid");
 
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getfileurl`,
+      const response = await api.post(
+        "/resources/generic/getfileurl",
+
         {
-          method: "POST",
+          // 2. The data object (will be encrypted by the interceptor)
+          userid: userid,
+          incUserid: incuserid,
+          url: filepath,
+        },
+        {
+          // 3. The config object for custom headers
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            userid: userid || "1",
-            "X-Module": "Incubatee Documents",
-            "X-Action": "Incubatee Document Preview",
+            "X-Module": "DDI Documents",
+            "X-Action": "DDI Document preview",
           },
-          body: JSON.stringify({
-            userid: userid,
-            url: filepath,
-          }),
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // if (!response.ok)
+      //   throw new Error(`HTTP error! status: ${response.status}`);
 
-      const data = await response.json();
+      const data = response.data;
 
       if (data.statusCode === 200 && data.data) {
         const fileUrl = data.data;
         const fileExtension = filepath.split(".").pop().toLowerCase();
-
         const previewable = ["pdf", "png", "jpeg", "jpg"];
 
         if (previewable.includes(fileExtension)) {
@@ -755,14 +752,9 @@ const StartupDashboard = () => {
             confirmButtonText: "Download",
             cancelButtonText: "Cancel",
           }).then((result) => {
-            if (result.isConfirmed) {
-              const link = document.createElement("a");
-              link.href = fileUrl;
-              link.download = filepath.split("/").pop();
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }
+            // if (result.isConfirmed) {
+            //   downloadFile(fileUrl, documentName, filepath);
+            // }
           });
         }
       } else {
@@ -948,6 +940,7 @@ const StartupDashboard = () => {
 
       if (!result.isConfirmed) return;
 
+      // setIsAbolishing(true);
       const userId = sessionStorage.getItem("userid");
       const token = sessionStorage.getItem("token");
 
@@ -960,44 +953,38 @@ const StartupDashboard = () => {
         return;
       }
 
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/markobsolete?modifiedBy=${userId}`,
+      // Use api.post for encryption
+      const response = await api.post(
+        `/resources/generic/markobsolete?modifiedBy=${userId}`,
         {
-          method: "POST",
+          url: filepath,
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            userid: userId || "1",
-            "X-Module": "Document Obsolete",
+            "X-Module": "Document Management",
             "X-Action": "Mark Document as Obsolete",
+            userid: userId || "1",
           },
-          body: JSON.stringify({ url: filepath }),
         }
       );
 
-      const resultData = await response.json();
-
-      if (response.ok && resultData.statusCode === 200) {
-        console.log("Document marked as obsolete:", resultData);
-
+      if (response.data.statusCode === 200) {
+        console.log("Document marked as obsolete:", response.data);
         Swal.fire(
           "Marked Obsolete!",
           "Document has been successfully marked as obsolete.",
           "success"
         );
 
+        // Refresh documents list
         if (refreshCompanyDocuments) {
           await refreshCompanyDocuments();
         } else if (fetchCompanyDocuments) {
           await fetchCompanyDocuments();
         }
       } else {
-        console.error("Failed to mark document as obsolete:", resultData);
-        Swal.fire(
-          "Failed",
-          resultData.message ||
-            "Failed to mark document as obsolete. Please try again.",
-          "error"
+        throw new Error(
+          response.data.message || "Failed to mark document as obsolete"
         );
       }
     } catch (error) {
@@ -1007,6 +994,8 @@ const StartupDashboard = () => {
         "An error occurred while marking the document as obsolete.",
         "error"
       );
+    } finally {
+      // setIsAbolishing(false);
     }
   };
 

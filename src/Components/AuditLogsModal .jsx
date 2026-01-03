@@ -15,7 +15,8 @@ import {
   Alert,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
-import ReusableDataGrid from "./Datafetching/ReusableDataGrid"; // Import the reusable component
+import ReusableDataGrid from "./Datafetching/ReusableDataGrid";
+import api from "./Datafetching/api"; // Import the reusable component
 import * as XLSX from "xlsx";
 
 // Styled components
@@ -90,25 +91,25 @@ const AuditLogsModal = ({ isOpen, onClose, IPAddress, token, userid }) => {
       const start = startDate || getTodayString();
       const end = endDate || getTodayString();
 
-      const response = await fetch(
-        `${IPAddress}/itelinc/resources/generic/getauditlogs`,
+      const response = await api.post(
+        "/resources/generic/getauditlogs",
         {
-          method: "POST",
+          startDate: `${start} 00:00:00`,
+          endDate: `${end} 23:59:59`,
+          userId: userid.toString(),
+        },
+        {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            startDate: `${start} 00:00:00`,
-            endDate: `${end} 23:59:59`,
-            userId: userid.toString(),
-          }),
         }
       );
 
-      const result = await response.json();
-
-      if (response.ok && result.data) {
+      const result = response.data;
+      // setLogs(result.data);
+      // const data = response.data;
+      if (result.data) {
         setLogs(result.data);
       } else {
         setError(result.message || "Failed to fetch logs");

@@ -7,8 +7,10 @@ import { IPAdress } from "./IPAdrees";
 import { encryptAES, decryptAES } from "./crypto";
 
 const api = axios.create({
-  baseURL: `${IPAdress}/itelinc/resources`,
+  baseURL: `${IPAdress}/itelinc`,
 });
+
+// `${IPAdress}/itelinc/resources`,
 
 // --- Request Interceptor ---
 // This interceptor now handles both encryption and adding headers

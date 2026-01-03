@@ -61,6 +61,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HowToRegIcon from "@mui/icons-material/HowToReg";
 import UndoIcon from "@mui/icons-material/Undo";
+import api from "../Datafetching/api";
 
 // Import your reusable component
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
@@ -262,6 +263,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     message: "",
     severity: "success",
   });
+  const [error, setError] = useState(null);
 
   // New state for additional categories only (no subcategories)
   const [showAdditionalCategories, setShowAdditionalCategories] =
@@ -278,83 +280,79 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
   }));
 
   // HANDLER FUNCTIONS
-  const fetchDocuments = useCallback(() => {
-    const url = `${IP}/itelinc/api/documents/getDocumentsAll?incuserid=${encodeURIComponent(
-      incUserid
-    )}`;
+  const fetchDocuments = useCallback(async () => {
     setLoading(true);
-    fetch(url, {
-      method: "GET",
-      mode: "cors",
-      headers: {
-        "Content-Type": "application/json",
-        userid: userId || "1",
-        "X-Module": "Document Management",
-        "X-Action": "fetch All Documents",
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setDocuments(data.data || []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Error fetching documents:", err);
-        setToast({
-          open: true,
-          message: "Failed to load documents. Please try again.",
-          severity: "error",
-        });
-        setLoading(false);
-      });
+    setError(null);
+
+    try {
+      // Use api.get for GET request with encryption
+      const response = await api.get(
+        `/api/documents/getDocumentsAll?incuserid=${incUserid}`,
+        {
+          headers: {
+            "X-Module": "Document Management",
+            "X-Action": "fetch All Documents",
+          },
+        }
+      );
+
+      // Response is already decrypted by interceptor
+      setDocuments(response.data.data || []);
+    } catch (err) {
+      console.error("Error fetching documents:", err);
+      setError("Failed to load documents. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }, [IP, incUserid, userId]);
 
-  const fetchCategories = useCallback(() => {
-    // Using the exact URL provided
-    const url = `http://121.242.232.213:8089/itelinc/getDoccatAll?incuserid=${encodeURIComponent(
-      incUserid || "1"
-    )}`;
-    fetch(url, {
-      method: "GET",
-      mode: "cors",
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log("Categories data:", data);
-        setCats(data.data || []);
-      })
-      .catch((err) => {
-        console.error("Error fetching categories:", err);
-        setCats([]);
-      });
-  }, [incUserid]);
+  const fetchSubCategories = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-  const fetchSubCategories = useCallback(() => {
-    // Using the exact URL provided
-    const url = `http://121.242.232.213:8089/itelinc/getDocsubcatAll?incuserid=${encodeURIComponent(
-      incUserid || "1"
-    )}`;
-    fetch(url, {
-      method: "GET",
-      mode: "cors",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log("Subcategories data:", data);
-        if (data && data.data && Array.isArray(data.data)) {
-          setSubcats(data.data);
-        } else if (data && Array.isArray(data)) {
-          setSubcats(data);
-        } else {
-          console.warn("Unexpected subcategories data structure:", data);
-          setSubcats([]);
+    try {
+      // Use api.get for GET request with encryption
+      const response = await api.get(
+        `/getDocsubcatAll?incuserid=${encodeURIComponent(incUserid)}`,
+        {
+          headers: {
+            "X-Module": "Document Management",
+            "X-Action": "Fetch Document SubCategories",
+          },
         }
-      })
-      .catch((err) => {
-        console.error("Error fetching subcategories:", err);
-        setSubcats([]);
+      );
+
+      // Response is already decrypted by interceptor
+      setSubcats(response.data.data || []);
+    } catch (err) {
+      console.error("Error fetching subcategories:", err);
+      setError("Failed to load subcategories. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [IP, incUserid, userId]);
+
+  const fetchCategories = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Use api.get for GET request with encryption
+      const response = await api.get(`/getDoccatAll?incuserid=${incUserid}`, {
+        headers: {
+          "X-Module": "Document Management",
+          "X-Action": "Fetch Document Categories",
+        },
       });
+
+      // Response is already decrypted by interceptor
+      setCats(response.data.data || []);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+      setError("Failed to load categories. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }, [incUserid]);
 
   const fetchApplicabilityDetails = useCallback(() => {
@@ -478,76 +476,69 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       if (!filePath) return null;
 
       try {
-        // First get the file URL
-        const fileUrlResponse = await fetch(
-          `${IP}/itelinc/resources/generic/getfileurl`,
+        // Use api.post for encryption to get the file URL
+        const fileUrlResponse = await api.post(
+          "/resources/generic/getfileurl",
           {
-            method: "POST",
+            userid: userId || "39",
+            url: filePath,
+          },
+          {
             headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-              userid: userId || "1",
               "X-Module": "Document Management",
               "X-Action": "Get File URL",
             },
-            body: JSON.stringify({
-              userid: userId || "39",
-              url: filePath,
-            }),
           }
         );
 
-        if (!fileUrlResponse.ok) {
-          throw new Error(`HTTP error! status: ${fileUrlResponse.status}`);
+        if (
+          fileUrlResponse.data.statusCode !== 200 ||
+          !fileUrlResponse.data.data
+        ) {
+          throw new Error(
+            fileUrlResponse.data.message || "Invalid response format"
+          );
         }
 
-        const fileUrlData = await fileUrlResponse.json();
+        const fileUrl = fileUrlResponse.data.data;
 
-        if (fileUrlData.statusCode !== 200 || !fileUrlData.data) {
-          throw new Error(fileUrlData.message || "Invalid response format");
+        // Fetch the actual file - DO NOT encrypt this part
+        let fileResponse;
+
+        try {
+          // First, try with the auth token
+          fileResponse = await fetch(fileUrl, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        } catch (error) {
+          // If that fails, try without the auth token
+          fileResponse = await fetch(fileUrl, {
+            method: "GET",
+          });
         }
-
-        // Now fetch the file and convert to base64
-        const fileResponse = await fetch(fileUrlData.data, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
 
         if (!fileResponse.ok) {
-          // Try without auth
-          const fileResponseNoAuth = await fetch(fileUrlData.data);
-          if (!fileResponseNoAuth.ok) {
-            throw new Error(
-              `Failed to fetch file. Status: ${fileResponseNoAuth.status}`
-            );
-          }
-
-          const blob = await fileResponseNoAuth.blob();
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const result = reader.result;
-              const base64Data = result.split(",")[1];
-              resolve(base64Data);
-            };
-            reader.onerror = (error) => reject(error);
-            reader.readAsDataURL(blob);
-          });
-        } else {
-          const blob = await fileResponse.blob();
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const result = reader.result;
-              const base64Data = result.split(",")[1];
-              resolve(base64Data);
-            };
-            reader.onerror = (error) => reject(error);
-            reader.readAsDataURL(blob);
-          });
+          throw new Error(
+            `Failed to fetch file. Status: ${fileResponse.status}`
+          );
         }
+
+        const blob = await fileResponse.blob();
+
+        // Convert blob to base64
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result;
+            const base64Data = result.split(",")[1];
+            resolve(base64Data);
+          };
+          reader.onerror = (error) => reject(error);
+          reader.readAsDataURL(blob);
+        });
       } catch (error) {
         console.error("Error fetching file as base64:", error);
         throw error;
@@ -684,33 +675,26 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
   const getFileUrl = useCallback(
     async (path) => {
       try {
-        const response = await fetch(
-          `${IP}/itelinc/resources/generic/getfileurl`,
+        // Use api.post for encryption
+        const response = await api.post(
+          "/resources/generic/getfileurl",
           {
-            method: "POST",
+            userid: userId || "39",
+            url: path,
+          },
+          {
             headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-              userid: userId || "1",
               "X-Module": "Document Management",
               "X-Action": "Document Preview Fetch",
             },
-            body: JSON.stringify({
-              userid: userId || "39",
-              url: path,
-            }),
           }
         );
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data.statusCode === 200 && data.data) {
-          return data.data;
+        // Check if the response was successful
+        if (response.data.statusCode === 200 && response.data.data) {
+          return response.data.data;
         } else {
-          throw new Error(data.message || "Invalid response format");
+          throw new Error(response.data.message || "Invalid response format");
         }
       } catch (error) {
         console.error("Error getting file URL:", error);
@@ -731,72 +715,64 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       showToast(`Preparing download for ${docName}...`, "info");
 
       try {
-        const response = await fetch(
-          `${IP}/itelinc/resources/generic/getfileurl`,
+        // Use api.post for encryption to get the file URL
+        const response = await api.post(
+          "/resources/generic/getfileurl",
           {
-            method: "POST",
-            mode: "cors",
+            userid: userId || "39",
+            url: docPath,
+          },
+          {
             headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-              userid: userId || "1",
               "X-Module": "Document Management",
               "X-Action": "Document Preview Fetch",
             },
-            body: JSON.stringify({
-              userid: userId || "39",
-              url: docPath,
-            }),
           }
         );
 
-        const data = await response.json();
+        if (response.data.statusCode === 200 && response.data.data) {
+          const fileUrl = response.data.data;
 
-        if (data.statusCode === 200 && data.data) {
-          const fileResponse = await fetch(data.data, {
-            method: "GET",
-            mode: "cors",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          // Fetch the actual file using the URL - DO NOT encrypt this part
+          // This is a direct download from a file URL (like S3), not our API
+          let fileResponse;
+
+          try {
+            // First, try with the auth token
+            fileResponse = await fetch(fileUrl, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+          } catch (error) {
+            // If that fails, try without the auth token
+            fileResponse = await fetch(fileUrl, {
+              method: "GET",
+            });
+          }
 
           if (!fileResponse.ok) {
-            const fileResponseNoAuth = await fetch(data.data, {
-              method: "GET",
-              mode: "cors",
-            });
-
-            if (!fileResponseNoAuth.ok) {
-              throw new Error(
-                `Failed to fetch file. Status: ${fileResponseNoAuth.status}`
-              );
-            }
-
-            const blob = await fileResponseNoAuth.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = docName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-          } else {
-            const blob = await fileResponse.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = docName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
+            throw new Error(
+              `Failed to fetch file. Status: ${fileResponse.status}`
+            );
           }
+
+          const blob = await fileResponse.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = docName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
 
           showToast(`Downloaded ${docName}`, "success");
         } else {
-          throw new Error(data.message || "Failed to get download URL");
+          throw new Error(
+            response.data.message || "Failed to get download URL"
+          );
         }
       } catch (error) {
         console.error("Error downloading document:", error);

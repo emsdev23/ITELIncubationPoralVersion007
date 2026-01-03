@@ -24,6 +24,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import api from "./Datafetching/api";
 
 // Common date formatting function
 const formatDate = (dateInput) => {
@@ -251,22 +252,21 @@ export default function DocumentTable() {
     try {
       const token = sessionStorage.getItem("token");
 
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getfileurl`,
+      const response = await api.post(
+        "/resources/generic/getfileurl",
+
         {
-          method: "POST",
+          // 2. The data object (will be encrypted by the interceptor)
+          userid: userid,
+          incUserid: incuserid,
+          url: filepath,
+        },
+        {
+          // 3. The config object for custom headers
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            userid: userid || "1",
             "X-Module": "DDI Documents",
             "X-Action": "DDI Document preview",
           },
-          body: JSON.stringify({
-            userid: userid,
-            incUserid: incuserid,
-            url: filepath,
-          }),
         }
       );
 

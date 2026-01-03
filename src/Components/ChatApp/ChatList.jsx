@@ -29,12 +29,29 @@ const ChatList = ({
     return types[chatTypeId] || "Unknown";
   };
 
+  // =======================================================================
+  // CORRECTED FUNCTION: Handle Group and One-to-One Chats
+  // =======================================================================
   const getChatPartnerName = (chat) => {
+    // 1. Handle Group/Broadcast Chats
+    if (chat.chatlistisgroup) {
+      const recipientCount = chat.chatlistrecipients ? chat.chatlistrecipients.split(',').length : 0;
+      if (chat.chatlistfrom == currentUser.id) {
+        // If the current user is the broadcaster
+        return `Broadcast to ${recipientCount} recipients`;
+      } else {
+        // If the current user is a recipient
+        return `Broadcast from ${chat.usersnamefrom || 'Unknown'}`;
+      }
+    }
+    
+    // 2. Handle One-to-One Chats (Original Logic)
     if (chat.chatlistfrom == currentUser.id) {
-      return chat.usersnameto || "Unknown";
+      return chat.usernameto || "Unknown";
     }
     return chat.usersnamefrom || "Unknown";
   };
+  // =======================================================================
 
   const formatTime = (timeString) => {
     if (!timeString) return "";
@@ -45,16 +62,11 @@ const ChatList = ({
     });
   };
 
-  // --- MODIFIED FUNCTION ---
   const handleCloseChat = async (e, chat) => {
-    e.stopPropagation(); // Prevent selecting the chat when clicking close
-
-    // 1. Show confirmation dialog
+    e.stopPropagation();
     const result = await Swal.fire({
       title: "Close Chat",
-      text: `Are you sure you want to close this chat with ${getChatPartnerName(
-        chat
-      )}?`,
+      text: `Are you sure you want to close this chat with ${getChatPartnerName(chat)}?`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#3085d6",
@@ -63,77 +75,32 @@ const ChatList = ({
       cancelButtonText: "Cancel",
     });
 
-    // If user cancels, do nothing
-    if (!result.isConfirmed) {
-      return;
-    }
+    if (!result.isConfirmed) return;
 
-    // 2. Get the Bearer Token
     if (!token) {
-      Swal.fire({
-        title: "Authentication Error",
-        text: "Authentication token not found. Please log in again.",
-        icon: "error",
-      });
+      Swal.fire({ title: "Authentication Error", text: "Authentication token not found. Please log in again.", icon: "error" });
       return;
     }
 
-    // 3. Construct the Request Body
     const requestBody = {
       chatdetailsfrom: String(currentUser.id),
       userIncId: String(currentUser.incUserid),
       chatrecid: chat.chatlistrecid,
     };
 
-    // 4. Show loading state
-    Swal.fire({
-      title: "Closing Chat",
-      text: "Please wait...",
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
-    });
+    Swal.fire({ title: "Closing Chat", text: "Please wait...", allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-    // 5. Make the API Call
     try {
-      const response = api.post(`${IPAdress}/itelinc/resources/chat/close`, {
-        body: JSON.stringify(requestBody),
+      const response = await api.post(`${IPAdress}/itelinc/resources/chat/close`, requestBody, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message ||
-            `Error: ${response.status} ${response.statusText}`
-        );
-      }
-
-      // 6. Handle Success
-      const result = await response.json();
-      console.log("Chat closed successfully:", result);
-
-      // Show success message
-      Swal.fire({
-        title: "Success!",
-        text: "Chat closed successfully!",
-        icon: "success",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-
-      // 7. Notify Parent Component
-      if (onCloseChat) {
-        onCloseChat(chat);
-      }
+      console.log("Chat closed successfully:", response.data);
+      Swal.fire({ title: "Success!", text: "Chat closed successfully!", icon: "success", timer: 2000, showConfirmButton: false });
+      if (onCloseChat) onCloseChat(chat);
     } catch (error) {
-      // 8. Handle Errors
       console.error("Failed to close chat:", error);
-      Swal.fire({
-        title: "Error",
-        text: `Could not close chat: ${error.message}`,
-        icon: "error",
-      });
+      const errorMessage = error.response?.data?.message || error.message || "Unknown error occurred";
+      Swal.fire({ title: "Error", text: `Could not close chat: ${errorMessage}`, icon: "error" });
     }
   };
 
@@ -149,27 +116,14 @@ const ChatList = ({
   const activeChats = chatLists.filter((chat) => chat.chatlistchatstate === 1);
   const closedChats = chatLists.filter((chat) => chat.chatlistchatstate === 0);
   const chatsToDisplay = activeTab === "active" ? activeChats : closedChats;
-  const noChatsMessage =
-    activeTab === "active"
-      ? "No active chats. Start a new conversation!"
-      : "No closed chats.";
+  const noChatsMessage = activeTab === "active" ? "No active chats. Start a new conversation!" : "No closed chats.";
 
   return (
     <div className="chat-list">
       <div className="chat-list-header">
         <div className="chat-list-tabs">
-          <button
-            className={`tab-button ${activeTab === "active" ? "active" : ""}`}
-            onClick={() => setActiveTab("active")}
-          >
-            Active
-          </button>
-          <button
-            className={`tab-button ${activeTab === "closed" ? "active" : ""}`}
-            onClick={() => setActiveTab("closed")}
-          >
-            Closed
-          </button>
+          <button className={`tab-button ${activeTab === "active" ? "active" : ""}`} onClick={() => setActiveTab("active")}>Active</button>
+          <button className={`tab-button ${activeTab === "closed" ? "active" : ""}`} onClick={() => setActiveTab("closed")}>Closed</button>
         </div>
         {refreshing && (
           <div className="refresh-indicator">
@@ -185,35 +139,20 @@ const ChatList = ({
           {chatsToDisplay.map((chat) => (
             <li
               key={chat.chatlistrecid}
-              className={`chat-list-item ${
-                selectedChat?.chatlistrecid === chat.chatlistrecid
-                  ? "active"
-                  : ""
-              }`}
+              className={`chat-list-item ${selectedChat?.chatlistrecid === chat.chatlistrecid ? "active" : ""}`}
               onClick={() => onSelectChat(chat)}
             >
               <div className="chat-item-header">
-                <span className="chat-partner">{getChatPartnerName(chat)}</span>
+                <span className="chat-partner">{chat.chatlistsubject}</span>
                 <div className="chat-item-actions">
-                  <span className="chat-time">
-                    {formatTime(chat.chatlistmodifiedtime)}
-                  </span>
-                  {activeTab === "active" &&
-                    chat.chatlistfrom == currentUser.id && (
-                      <button
-                        className="close-chat-btn"
-                        onClick={(e) => handleCloseChat(e, chat)}
-                        title="Close this chat"
-                      >
-                        Close
-                      </button>
-                    )}
+                  <span className="chat-time">{formatTime(chat.chatlistmodifiedtime)}</span>
+                  {activeTab === "active" && chat.chatlistfrom == currentUser.id && (
+                    <button className="close-chat-btn" onClick={(e) => handleCloseChat(e, chat)} title="Close this chat">Close</button>
+                  )}
                 </div>
               </div>
-              <div className="chat-item-subject">{chat.chatlistsubject}</div>
-              <div className="chat-type-badge">
-                {getChatTypeLabel(chat.chatlistchattypeid)}
-              </div>
+              <div className="chat-item-subject">{getChatPartnerName(chat)}</div>
+              <div className="chat-type-badge">{getChatTypeLabel(chat.chatlistchattypeid)}</div>
             </li>
           ))}
         </ul>

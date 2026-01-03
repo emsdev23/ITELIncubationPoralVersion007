@@ -16,7 +16,7 @@ export default function CompanyTable({ companyList = [] }) {
     const fetchFields = async () => {
       try {
         const response = await api.post(
-          "/generic/getcombyfield",
+          "/resources/generic/getcombyfield",
           { userId: 1, userIncId: incuserid },
           {
             headers: {
