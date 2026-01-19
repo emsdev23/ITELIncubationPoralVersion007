@@ -1,0 +1,594 @@
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useContext,
+} from "react";
+import Swal from "sweetalert2";
+import { Download } from "lucide-react";
+import { FaTimes } from "react-icons/fa";
+import { DataContext } from "../Datafetching/DataProvider";
+
+// Material UI imports
+import {
+  Button,
+  Box,
+  Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  CircularProgress,
+  Backdrop,
+  TextField,
+} from "@mui/material";
+import { styled } from "@mui/material/styles";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import CloseIcon from "@mui/icons-material/Close";
+
+// Import your reusable component and API instance
+import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
+import api from "../Datafetching/api"; // Import the controller API instance
+
+// Styled components
+const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
+  zIndex: theme.zIndex.drawer + 1,
+  color: "#fff",
+}));
+
+const ActionButton = styled(IconButton)(({ theme, color }) => ({
+  margin: theme.spacing(0.5),
+  backgroundColor:
+    color === "edit" ? theme.palette.primary.main : theme.palette.error.main,
+  color: "white",
+  "&:hover": {
+    backgroundColor:
+      color === "edit" ? theme.palette.primary.dark : theme.palette.error.dark,
+  },
+}));
+
+// Common date formatting function
+const formatDate = (dateStr) => {
+  if (!dateStr) return "-";
+  try {
+    // Handle timestamp format from API
+    if (Array.isArray(dateStr)) {
+      dateStr = dateStr.map((num) => num.toString().padStart(2, "0")).join("");
+    } else {
+      dateStr = String(dateStr).replace(/,/g, "");
+    }
+    if (dateStr.length < 14) dateStr = dateStr.padEnd(14, "0");
+    const year = dateStr.substring(0, 4);
+    const month = dateStr.substring(4, 6);
+    const day = dateStr.substring(6, 8);
+    const hour = dateStr.substring(8, 10);
+    const minute = dateStr.substring(10, 12);
+    const second = dateStr.substring(12, 14);
+    const formattedDate = new Date(
+      `${year}-${month}-${day}T${hour}:${minute}:${second}`
+    );
+    return formattedDate.toLocaleString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return dateStr;
+  }
+};
+
+export default function TrainingCatTable() {
+  const { menuItemsFromAPI } = useContext(DataContext);
+
+  // Find the current path in menu items to check write access
+  const currentPath = "/Incubation/Dashboard/AddTrainingCategories"; // Adjust this path as needed
+  const menuItem = menuItemsFromAPI.find(
+    (item) => item.guiappspath === currentPath
+  );
+
+  // The user has write access if the item exists and appswriteaccess is 1
+  const hasWriteAccess = menuItem ? menuItem.appswriteaccess === 1 : false;
+
+  // --- 1. STATE DECLARATIONS ---
+  const userId = sessionStorage.getItem("userid");
+  const token = sessionStorage.getItem("token");
+  const incUserid = sessionStorage.getItem("incuserid");
+
+  const [cats, setCats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editCat, setEditCat] = useState(null);
+  const [formData, setFormData] = useState({
+    trainingcatname: "",
+    trainingcatdescription: "",
+    trainingcatadminstate: 1, // Default to active
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  // --- 2. HANDLER FUNCTIONS ---
+
+  // Fetch Training Categories - Updated to use POST API
+  const fetchCategories = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Use api.post for POST request with the specified body
+      const response = await api.post(
+        "/resources/generic/gettrainingcatlist", // The endpoint path
+        {
+          // Request body
+          userId: parseInt(userId, 10),
+          userIncId: "ALL",
+        },
+        {
+          headers: {
+            "X-Module": "Training Management",
+            "X-Action": "Fetch Training Categories",
+          },
+        }
+      );
+
+      // Response is already decrypted by interceptor
+      setCats(response.data.data || []);
+    } catch (err) {
+      console.error("Error fetching training categories:", err);
+      setError("Failed to load training categories. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  const openAddModal = useCallback(() => {
+    setEditCat(null);
+    setFormData({ 
+      trainingcatname: "", 
+      trainingcatdescription: "",
+      trainingcatadminstate: 1 
+    });
+    setIsModalOpen(true);
+    setError(null);
+  }, []);
+
+  const openEditModal = useCallback((cat) => {
+    setEditCat(cat);
+    setFormData({
+      trainingcatname: cat.trainingcatname || "",
+      trainingcatdescription: cat.trainingcatdescription || "",
+      trainingcatadminstate: cat.trainingcatadminstate || 1,
+    });
+    setIsModalOpen(true);
+    setError(null);
+  }, []);
+
+  const handleChange = useCallback((e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({ 
+      ...prev, 
+      [name]: type === 'checkbox' ? (checked ? 1 : 0) : value 
+    }));
+  }, []);
+
+  // Handle Delete
+  const handleDelete = useCallback(
+    (catId) => {
+      Swal.fire({
+        title: "Are you sure?",
+        text: "This training category will be deleted permanently.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Yes, delete it!",
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setIsDeleting((prev) => ({ ...prev, [catId]: true }));
+          Swal.fire({
+            title: "Deleting...",
+            text: "Please wait while we delete the training category",
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading(),
+          });
+          // Use the api instance
+          api
+            .post(
+              "/deleteTrainingCat", // The endpoint path
+              {}, // Empty request body
+              {
+                params: {
+                  trainingcatid: catId,
+                  trainingcatmodifiedby: userId,
+                },
+                headers: {
+                  "X-Module": "Training Management",
+                  "X-Action": "Delete Training Category",
+                },
+              }
+            )
+            .then((response) => {
+              if (response.data.statusCode === 200) {
+                Swal.fire(
+                  "Deleted!",
+                  "Training category deleted successfully!",
+                  "success"
+                );
+                fetchCategories();
+              } else {
+                throw new Error(
+                  response.data.message || "Failed to delete training category"
+                );
+              }
+            })
+            .catch((err) => {
+              console.error("Error deleting training category:", err);
+              Swal.fire("Error", `Failed to delete: ${err.message}`, "error");
+            })
+            .finally(() => {
+              setIsDeleting((prev) => ({ ...prev, [catId]: false }));
+            });
+        }
+      });
+    },
+    [userId, fetchCategories]
+  );
+
+  // Handle Submit (Add/Edit)
+  const handleSubmit = useCallback(
+    (e) => {
+      e.preventDefault();
+      setIsSaving(true);
+      setError(null);
+      if (!formData.trainingcatname.trim() || !formData.trainingcatdescription.trim()) {
+        setError("Category name and description are required");
+        setIsSaving(false);
+        return;
+      }
+      setIsModalOpen(false);
+
+      const isEdit = !!editCat;
+      const endpoint = isEdit ? "/updateTrainingCat" : "/addTrainingCat";
+      const action = isEdit
+        ? "Edit Training Category"
+        : "Add Training Category";
+
+      // Use the api instance
+      api
+        .post(
+          endpoint,
+          {
+            // Request body (will be encrypted)
+            trainingcatname: formData.trainingcatname.trim(),
+            trainingcatdescription: formData.trainingcatdescription.trim(),
+            trainingcatadminstate: formData.trainingcatadminstate,
+            ...(isEdit
+              ? { trainingcatid: editCat.trainingcatid, trainingcatmodifiedby: userId }
+              : { trainingcatcreatedby: userId, trainingcatmodifiedby: userId }),
+          },
+          {
+            headers: {
+              "X-Module": "Training Management",
+              "X-Action": action,
+            },
+          }
+        )
+        .then((response) => {
+          if (response.data.statusCode === 200) {
+            if (
+              response.data.data &&
+              typeof response.data.data === "string" &&
+              response.data.data.includes("Duplicate entry")
+            ) {
+              setError("Training category name already exists");
+              Swal.fire(
+                "Duplicate",
+                "Training category name already exists!",
+                "warning"
+              ).then(() => setIsModalOpen(true));
+            } else {
+              setEditCat(null);
+              setFormData({ 
+                trainingcatname: "", 
+                trainingcatdescription: "",
+                trainingcatadminstate: 1 
+              });
+              fetchCategories();
+              Swal.fire(
+                "Success",
+                response.data.message || "Training category saved successfully!",
+                "success"
+              );
+            }
+          } else {
+            throw new Error(
+              response.data.message ||
+                `Operation failed with status: ${response.data.statusCode}`
+            );
+          }
+        })
+        .catch((err) => {
+          console.error("Error saving training category:", err);
+          setError(`Failed to save: ${err.message}`);
+          Swal.fire(
+            "Error",
+            `Failed to save training category: ${err.message}`,
+            "error"
+          ).then(() => setIsModalOpen(true));
+        })
+        .finally(() => setIsSaving(false));
+    },
+    [formData, editCat, userId, fetchCategories]
+  );
+
+  // --- 3. MEMOIZED VALUES ---
+  const columns = useMemo(
+    () => [
+      {
+        field: "trainingcatname",
+        headerName: "Category Name",
+        width: 200,
+        sortable: true,
+      },
+      {
+        field: "trainingcatdescription",
+        headerName: "Description",
+        width: 300,
+        sortable: true,
+      },
+      {
+        field: "trainingcatcreatedby",
+        headerName: "Created By",
+        width: 150,
+        sortable: true,
+        renderCell: (params) =>
+          params?.row
+            ? isNaN(params.row.trainingcatcreatedby)
+              ? params.row.trainingcatcreatedby
+              : "Admin"
+            : "Admin",
+      },
+      {
+        field: "trainingcatcreatedtime",
+        headerName: "Created Time",
+        width: 180,
+        sortable: true,
+        type: "date",
+        valueFormatter: (params) => formatDate(params.value),
+      },
+      {
+        field: "trainingcatmodifiedby",
+        headerName: "Modified By",
+        width: 150,
+        sortable: true,
+        renderCell: (params) =>
+          params?.row
+            ? isNaN(params.row.trainingcatmodifiedby)
+              ? params.row.trainingcatmodifiedby
+              : "Admin"
+            : "Admin",
+      },
+      {
+        field: "trainingcatmodifiedtime",
+        headerName: "Modified Time",
+        width: 180,
+        sortable: true,
+        type: "date",
+        valueFormatter: (params) => formatDate(params.value),
+      },
+      ...(hasWriteAccess // Conditionally add the actions column
+        ? [
+            {
+              field: "actions",
+              headerName: "Actions",
+              width: 150,
+              sortable: false,
+              filterable: false,
+              renderCell: (params) => {
+                if (!params?.row) return null;
+                return (
+                  <Box>
+                    <ActionButton
+                      color="edit"
+                      onClick={() => openEditModal(params.row)}
+                      disabled={isSaving || isDeleting[params.row.trainingcatid]}
+                      title="Edit"
+                    >
+                      <EditIcon fontSize="small" />
+                    </ActionButton>
+                    <ActionButton
+                      color="delete"
+                      onClick={() => handleDelete(params.row.trainingcatid)}
+                      disabled={isSaving || isDeleting[params.row.trainingcatid]}
+                      title="Delete"
+                    >
+                      {isDeleting[params.row.trainingcatid] ? (
+                        <CircularProgress size={18} color="inherit" />
+                      ) : (
+                        <DeleteIcon fontSize="small" />
+                      )}
+                    </ActionButton>
+                  </Box>
+                );
+              },
+            },
+          ]
+        : []),
+    ],
+    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete]
+  );
+
+  const exportConfig = useMemo(
+    () => ({
+      filename: "training_categories",
+      sheetName: "Training Categories",
+    }),
+    []
+  );
+  const onExportData = useMemo(
+    () => (data) =>
+      data.map((cat, index) => ({
+        "S.No": index + 1,
+        "Category Name": cat.trainingcatname || "",
+        Description: cat.trainingcatdescription || "",
+        Status: cat.trainingcatadminstate === 1 ? "Active" : "Inactive",
+        "Created By": isNaN(cat.trainingcatcreatedby)
+          ? cat.trainingcatcreatedby
+          : "Admin",
+        "Created Time": formatDate(cat.trainingcatcreatedtime),
+        "Modified By": isNaN(cat.trainingcatmodifiedby)
+          ? cat.trainingcatmodifiedby
+          : "Admin",
+        "Modified Time": formatDate(cat.trainingcatmodifiedtime),
+      })),
+    []
+  );
+
+  // --- 4. EFFECTS ---
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  // --- 5. RENDER (JSX) ---
+  return (
+    <Box sx={{ p: 2 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 2,
+        }}
+      >
+        <Typography variant="h4">🎓 Training Categories</Typography>
+        {/* Conditionally render the "Add Category" button based on write access */}
+        {hasWriteAccess && (
+          <Button
+            variant="contained"
+            onClick={openAddModal}
+            disabled={isSaving}
+          >
+            + Add Category
+          </Button>
+        )}
+      </Box>
+      {error && (
+        <Box
+          sx={{
+            p: 2,
+            mb: 2,
+            bgcolor: "error.light",
+            color: "error.contrastText",
+            borderRadius: 1,
+          }}
+        >
+          {error}
+        </Box>
+      )}
+      <ReusableDataGrid
+        data={cats}
+        columns={columns}
+        title=""
+        enableExport={true}
+        enableColumnFilters={true}
+        searchPlaceholder="Search training categories..."
+        searchFields={["trainingcatname", "trainingcatdescription"]}
+        uniqueIdField="trainingcatid"
+        onExportData={onExportData}
+        exportConfig={exportConfig}
+        loading={loading}
+      />
+      <Dialog
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {editCat ? "Edit Training Category" : "Add Training Category"}
+          <IconButton
+            aria-label="close"
+            onClick={() => setIsModalOpen(false)}
+            sx={{
+              position: "absolute",
+              right: 8,
+              top: 8,
+              color: (theme) => theme.palette.grey[500],
+            }}
+            disabled={isSaving}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <form onSubmit={handleSubmit}>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              name="trainingcatname"
+              label="Category Name"
+              type="text"
+              fullWidth
+              variant="outlined"
+              value={formData.trainingcatname}
+              onChange={handleChange}
+              required
+              disabled={isSaving}
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              margin="dense"
+              name="trainingcatdescription"
+              label="Description"
+              type="text"
+              fullWidth
+              variant="outlined"
+              multiline
+              rows={3}
+              value={formData.trainingcatdescription}
+              onChange={handleChange}
+              required
+              disabled={isSaving}
+              sx={{ mb: 2 }}
+            />
+            {error && <Box sx={{ color: "error.main", mt: 1 }}>{error}</Box>}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setIsModalOpen(false)} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isSaving}
+              startIcon={isSaving ? <CircularProgress size={20} /> : null}
+            >
+              {editCat ? "Update" : "Save"}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+      <StyledBackdrop open={isSaving}>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
+          <CircularProgress color="inherit" />
+          <Typography sx={{ mt: 2 }}>
+            {editCat ? "Updating training category..." : "Saving training category..."}
+          </Typography>
+        </Box>
+      </StyledBackdrop>
+    </Box>
+  );
+}

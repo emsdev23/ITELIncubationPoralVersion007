@@ -162,7 +162,7 @@ const ChatApp = () => {
   useEffect(() => {
     chatListIntervalRef.current = setInterval(() => {
       fetchChatLists();
-    }, 5000000);
+    }, 3000);
 
     return () => {
       if (chatListIntervalRef.current) {

@@ -25,7 +25,7 @@ const ContactModal = ({ isOpen, onClose, userId, incuserid }) => {
       try {
         // 2. Pass the controller's signal to the API call
         const response = await api.post(
-          "/generic/getspocs",
+          "resources/generic/getspocs",
           {
             userId: userId,
             incUserId: incuserid,

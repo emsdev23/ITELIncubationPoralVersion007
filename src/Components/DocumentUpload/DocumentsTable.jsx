@@ -239,6 +239,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     templateDocBase64: "",
     documentapplystatus: 1,
     documentreferencelink: "",
+    documentreferencevideo: "",
     documentapplicability: "",
   });
   const [originalFileNames, setOriginalFileNames] = useState({
@@ -620,8 +621,17 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           } else {
             delete errors[name];
           }
-          break;
+          ///home/tenet/Documents/itelIncubationV5/src/Components/DocumentUpload/DocumentsTable.jsx
+
+          file: break;
         case "documentreferencelink":
+          if (value && !/^https?:\/\/.+/i.test(value)) {
+            errors[name] = "Please enter a valid URL (http:// or https://)";
+          } else {
+            delete errors[name];
+          }
+          break;
+        case "documentreferencevideo":
           if (value && !/^https?:\/\/.+/i.test(value)) {
             errors[name] = "Please enter a valid URL (http:// or https://)";
           } else {
@@ -648,7 +658,8 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         formData.documentperiodicityrecid
       ) &&
       validateField("documentapplystatus", formData.documentapplystatus) &&
-      validateField("documentreferencelink", formData.documentreferencelink);
+      validateField("documentreferencelink", formData.documentreferencelink) &&
+      validateField("documentreferencevideo", formData.documentreferencevideo);
 
     return isValid;
   }, [formData, validateField]);
@@ -908,6 +919,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       documentapplystatus: 1,
       documentreferencelink: "",
       documentapplicability: "",
+      documentreferencevideo: "",
     });
     setFieldErrors({});
     setShowAdditionalCategories(false);
@@ -966,6 +978,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           doc.documentapplystatus !== undefined ? doc.documentapplystatus : 1,
         documentreferencelink: doc.documentreferencelink || "",
         documentapplicability: doc.documentapplicability || "",
+        documentreferencevideo: doc.documentreferencevideo || "",
       });
       setFieldErrors({});
 
@@ -1625,6 +1638,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             documentmodifiedby: parseInt(userId) || 39,
             documentapplystatus: parseInt(formData.documentapplystatus),
             documentreferencelink: formData.documentreferencelink,
+            documentreferencevideo: formData.documentreferencevideo,
             documentapplicability: formData.documentapplicability,
           };
 
@@ -1700,6 +1714,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             documentmodifiedby: parseInt(userId) || 39,
             documentapplystatus: parseInt(formData.documentapplystatus),
             documentreferencelink: formData.documentreferencelink,
+            documentreferencevideo: formData.documentreferencevideo,
             documentapplicability: formData.documentapplicability,
           };
 
@@ -1956,6 +1971,31 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
                 {params.row.documentreferencelink.length > 20
                   ? `${params.row.documentreferencelink.substring(0, 20)}...`
                   : params.row.documentreferencelink}
+              </Button>
+            </Tooltip>
+          );
+        },
+      },
+      {
+        field: "documentvideoreference",
+        headerName: "Reference Video Link",
+        width: 200,
+        sortable: true,
+        renderCell: (params) => {
+          if (!params || !params.row || !params.row.documentreferencevideo)
+            return "-";
+          return (
+            <Tooltip title={params.row.documentreferencevideo} arrow>
+              <Button
+                size="small"
+                onClick={() =>
+                  window.open(params.row.documentreferencevideo, "_blank")
+                }
+                sx={{ textTransform: "none" }}
+              >
+                {params.row.documentreferencevideo.length > 20
+                  ? `${params.row.documentreferencevideo.substring(0, 20)}...`
+                  : params.row.documentreferencevideo}
               </Button>
             </Tooltip>
           );
@@ -2568,6 +2608,28 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
                   disabled={isSaving}
                   error={!!fieldErrors.documentdescription}
                   helperText={fieldErrors.documentdescription}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  margin="dense"
+                  name="documentreferencevideo"
+                  label="Reference Video Link"
+                  type="url"
+                  variant="outlined"
+                  value={formData.documentreferencevideo}
+                  onChange={handleChange}
+                  onBlur={(e) =>
+                    validateField("documentreferencevideo", e.target.value)
+                  }
+                  disabled={isSaving}
+                  error={!!fieldErrors.documentreferencevideo}
+                  helperText={
+                    fieldErrors.documentreferencevideo ||
+                    "Enter a valid URL (http:// or https://)"
+                  }
                 />
               </Grid>
 

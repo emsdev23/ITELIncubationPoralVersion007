@@ -235,7 +235,7 @@ const LoginForm = () => {
           <div className={styles.versionContainer}>
             <span className={styles.versionLabel}>Version</span>
 
-            <span className={styles.versionNumber}> 0.0.4</span>
+            <span className={styles.versionNumber}> 0.0.6c</span>
           </div>
           <div className={styles.copyright}>
             © {new Date().getFullYear()} ITEL. All rights reserved.

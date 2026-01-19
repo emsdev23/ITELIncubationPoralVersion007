@@ -105,7 +105,7 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
     setError(null);
 
     try {
-      const response = await api.post("/generic/changepassword", {
+      const response = await api.post("/resources/generic/changepassword", {
         email: formData.email,
         oldPassword: formData.oldPassword,
         newPassword: formData.newPassword,

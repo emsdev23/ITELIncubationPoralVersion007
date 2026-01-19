@@ -140,12 +140,11 @@ const ChatHistory = ({ currentUser: propCurrentUser }) => {
     try {
       const response = await api.post(
         `${IPAdress}/itelinc/resources/generic/getfileurl`,
+
         {
-          body: JSON.stringify({
-            userid: currentUser.id,
-            incUserId: currentUser.incUserid,
-            url: path,
-          }),
+          userid: currentUser.id,
+          incUserId: currentUser.incUserid,
+          url: path,
         }
       );
 

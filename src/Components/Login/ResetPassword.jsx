@@ -72,7 +72,7 @@ const ResetPassword = () => {
       // Use the same endpoint as your JSP page
       const response = await api.post("/resources/auth/reset-password", {
         token,
-        email: email, // Use the decoded email
+        // email: email, // Use the decoded email
         newPassword,
       });
 

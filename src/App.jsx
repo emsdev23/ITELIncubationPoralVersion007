@@ -24,6 +24,7 @@ import RolesManagement from "./Components/RoleManagement/RolesManagement";
 import ApplicationManagement from "./Components/ApplicationManagement/ApplicationManagement";
 import MainDashboard from "./Components/MainDashboard";
 import DocumentAccessManagement from "./Components/DocumentAccessManagement/DocumentAccessManagement";
+import TrainingManagementPage from "./Components/TrainingManagement/TrainingManagementPage";
 
 import ResetPassword from "./Components/Login/ResetPassword";
 
@@ -146,6 +147,14 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <ApplicationManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/Incubation/Dashboard/TrainingManagementPage"
+              element={
+                <ProtectedRoute>
+                  <TrainingManagementPage />
                 </ProtectedRoute>
               }
             />
