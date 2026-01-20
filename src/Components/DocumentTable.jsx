@@ -248,7 +248,7 @@ export default function DocumentTable() {
   };
 
   // Handle viewing document
-  const handleViewDocument = async (filepath, documentName) => {
+  const handleViewDocument = async (filepath) => {
     try {
       const token = sessionStorage.getItem("token");
 
@@ -270,10 +270,10 @@ export default function DocumentTable() {
         }
       );
 
-      if (!response.ok)
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // if (!response.ok)
+      //   throw new Error(`HTTP error! status: ${response.status}`);
 
-      const data = await response.json();
+      const data = response.data;
 
       if (data.statusCode === 200 && data.data) {
         const fileUrl = data.data;
@@ -292,9 +292,9 @@ export default function DocumentTable() {
             confirmButtonText: "Download",
             cancelButtonText: "Cancel",
           }).then((result) => {
-            if (result.isConfirmed) {
-              downloadFile(fileUrl, documentName, filepath);
-            }
+            // if (result.isConfirmed) {
+            //   downloadFile(fileUrl, documentName, filepath);
+            // }
           });
         }
       } else {
@@ -528,12 +528,7 @@ export default function DocumentTable() {
             variant="outlined"
             size="small"
             startIcon={<VisibilityIcon fontSize="small" />}
-            onClick={() =>
-              handleViewDocument(
-                params.row.documentsampledoc,
-                params.row.documentsampledocname || "Sample Document"
-              )
-            }
+            onClick={() => handleViewDocument(params.row.documentsampledoc)}
             sx={{
               padding: "4px 12px",
               fontSize: "0.75rem",
@@ -572,9 +567,7 @@ export default function DocumentTable() {
           <Button
             variant="contained"
             size="small"
-            onClick={() =>
-              handleViewDocument(params.row.filepath, params.row.documentname)
-            }
+            onClick={() => handleViewDocument(params.row.filepath)}
             sx={{
               padding: "4px 12px",
               fontSize: "0.75rem",

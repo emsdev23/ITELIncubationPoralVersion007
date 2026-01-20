@@ -18,6 +18,7 @@ import {
   ChevronDown,
   FolderKanban,
   FolderRoot,
+  FileSliders,
   FileUser,
   WifiOff, // Add this icon
   Wifi, // Add this icon
@@ -294,6 +295,7 @@ const Navbar = () => {
       FolderKanban: <FolderKanban size={20} />,
       FolderRoot: <FolderRoot size={20} />,
       FileUser: <FileUser size={20} />,
+      FileSliders: <FileSliders size={20} />,
     };
     return iconMap[iconName] || <Home size={20} />;
   };

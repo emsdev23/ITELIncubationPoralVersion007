@@ -1,7 +1,12 @@
 // src/components/NewChatModal.jsx
 import React, { useState, useEffect, useRef } from "react";
 import "./NewChatModal.css";
-import { getUsers, createChat, createChatGroup, getChatTypes } from "./chatService";
+import {
+  getUsers,
+  createChat,
+  createChatGroup,
+  getChatTypes,
+} from "./chatService";
 import api from "../Datafetching/api";
 
 const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
@@ -46,13 +51,32 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
       setChatTypesLoading(true);
       setError("");
       const data = await getChatTypes(currentUser.id, currentUser.incUserid);
-      
-      if (data.length === 0 && parseInt(currentUser.roleid) === ROLE_IDS.SUPERADMIN) {
+
+      if (
+        data.length === 0 &&
+        parseInt(currentUser.roleid) === ROLE_IDS.SUPERADMIN
+      ) {
         const defaultChatTypes = [
-          { value: 1, text: "incubator to incubatee", chattypedescription: "incubator to incubatee" },
-          { value: 3, text: "broadcast without reply", chattypedescription: "broadcast without reply" },
-          { value: 4, text: "broadcast with reply public", chattypedescription: "broadcast with reply public" },
-          { value: 5, text: "broadcast with reply private", chattypedescription: "broadcast with reply private" },
+          {
+            value: 1,
+            text: "incubator to incubatee",
+            chattypedescription: "incubator to incubatee",
+          },
+          {
+            value: 3,
+            text: "broadcast without reply",
+            chattypedescription: "broadcast without reply",
+          },
+          {
+            value: 4,
+            text: "broadcast with reply public",
+            chattypedescription: "broadcast with reply public",
+          },
+          {
+            value: 5,
+            text: "broadcast with reply private",
+            chattypedescription: "broadcast with reply private",
+          },
         ];
         setChatTypes(defaultChatTypes);
       } else {
@@ -71,7 +95,9 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
       setUsersLoading(true);
       setError("");
       const data = await getUsers(currentUser.id, currentUser.incUserid);
-      let filteredUsers = data.filter((user) => user.usersrecid != currentUser.id);
+      let filteredUsers = data.filter(
+        (user) => user.usersrecid != currentUser.id,
+      );
       setUsers(filteredUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -82,15 +108,52 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
   };
 
   const handleUserSelection = (userId) => {
-    const selectedChatType = chatTypes.find((type) => type.value.toString() === chatType);
+    const selectedChatType = chatTypes.find(
+      (type) => type.value.toString() === chatType,
+    );
     const userRoleId = parseInt(currentUser.roleid);
 
-    if (selectedChatType && (selectedChatType.value === 3 || selectedChatType.value === 4 || selectedChatType.value === 5) && (userRoleId === ROLE_IDS.SUPERADMIN || userRoleId === ROLE_IDS.ADMIN || userRoleId === ROLE_IDS.ADMIN_OPERATOR)) {
-      setSelectedUsers((prev) => prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]);
+    if (
+      selectedChatType &&
+      (selectedChatType.value === 3 ||
+        selectedChatType.value === 4 ||
+        selectedChatType.value === 5) &&
+      (userRoleId === ROLE_IDS.SUPERADMIN ||
+        userRoleId === ROLE_IDS.ADMIN ||
+        userRoleId === ROLE_IDS.ADMIN_OPERATOR)
+    ) {
+      setSelectedUsers((prev) =>
+        prev.includes(userId)
+          ? prev.filter((id) => id !== userId)
+          : [...prev, userId],
+      );
     } else {
       setSelectedUsers([userId]);
       setDropdownOpen(false);
     }
+  };
+
+  // New function to handle select all/deselect all
+  const handleSelectAll = () => {
+    if (selectedUsers.length === users.length) {
+      // If all users are selected, deselect all
+      setSelectedUsers([]);
+    } else {
+      // Otherwise, select all users
+      setSelectedUsers(users.map((user) => user.usersrecid.toString()));
+    }
+  };
+
+  // Fixed checkbox handler
+  const handleCheckboxChange = (e, userId) => {
+    e.stopPropagation();
+    handleUserSelection(userId);
+  };
+
+  // Fixed select all checkbox handler
+  const handleSelectAllCheckboxChange = (e) => {
+    e.stopPropagation();
+    handleSelectAll();
   };
 
   const handleSubmit = async (e) => {
@@ -111,8 +174,12 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
 
     try {
       const userRoleId = parseInt(currentUser.roleid);
-      const isBroadcastType = chatType === "3" || chatType === "4" || chatType === "5";
-      const isAdminUser = userRoleId === ROLE_IDS.SUPERADMIN || userRoleId === ROLE_IDS.ADMIN || userRoleId === ROLE_IDS.ADMIN_OPERATOR;
+      const isBroadcastType =
+        chatType === "3" || chatType === "4" || chatType === "5";
+      const isAdminUser =
+        userRoleId === ROLE_IDS.SUPERADMIN ||
+        userRoleId === ROLE_IDS.ADMIN ||
+        userRoleId === ROLE_IDS.ADMIN_OPERATOR;
 
       if (isBroadcastType && isAdminUser) {
         const chatData = {
@@ -120,7 +187,7 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
           from: currentUser.id,
           subject: subject,
           isgroupchat: true,
-          recipients: JSON.stringify(selectedUsers.map(id => parseInt(id))),
+          recipients: JSON.stringify(selectedUsers.map((id) => parseInt(id))),
         };
         const newChat = await createChatGroup(chatData);
         onChatCreated(newChat);
@@ -153,13 +220,21 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
     const userRoleId = parseInt(currentUser.roleid);
 
     // If user is an ADMIN (SUPERADMIN, ADMIN, ADMIN_OPERATOR)
-    if (userRoleId === ROLE_IDS.SUPERADMIN || userRoleId === ROLE_IDS.ADMIN || userRoleId === ROLE_IDS.ADMIN_OPERATOR) {
+    if (
+      userRoleId === ROLE_IDS.SUPERADMIN ||
+      userRoleId === ROLE_IDS.ADMIN ||
+      userRoleId === ROLE_IDS.ADMIN_OPERATOR
+    ) {
       // Show all types EXCEPT "Incubatee -> Incubator" (value 2)
       return chatTypes.filter((type) => type.value !== 2);
     }
 
     // If user is an INCUBATEE (ADMIN, MANAGER, OPERATOR)
-    if (userRoleId === ROLE_IDS.INCUBATEE_ADMIN || userRoleId === ROLE_IDS.INCUBATEE_MANAGER || userRoleId === ROLE_IDS.INCUBATEE_OPERATOR) {
+    if (
+      userRoleId === ROLE_IDS.INCUBATEE_ADMIN ||
+      userRoleId === ROLE_IDS.INCUBATEE_MANAGER ||
+      userRoleId === ROLE_IDS.INCUBATEE_OPERATOR
+    ) {
       // Show ONLY the "Incubatee -> Incubator" option (value 2)
       return chatTypes.filter((type) => type.value === 2);
     }
@@ -170,19 +245,41 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
   // =======================================================================
 
   const isMultiSelect = () => {
-    const selectedChatType = chatTypes.find((type) => type.value.toString() === chatType);
+    const selectedChatType = chatTypes.find(
+      (type) => type.value.toString() === chatType,
+    );
     const userRoleId = parseInt(currentUser.roleid);
-    if (userRoleId === ROLE_IDS.SUPERADMIN || userRoleId === ROLE_IDS.ADMIN || userRoleId === ROLE_IDS.ADMIN_OPERATOR) {
-      return selectedChatType && (selectedChatType.value === 3 || selectedChatType.value === 4 || selectedChatType.value === 5);
+    if (
+      userRoleId === ROLE_IDS.SUPERADMIN ||
+      userRoleId === ROLE_IDS.ADMIN ||
+      userRoleId === ROLE_IDS.ADMIN_OPERATOR
+    ) {
+      return (
+        selectedChatType &&
+        (selectedChatType.value === 3 ||
+          selectedChatType.value === 4 ||
+          selectedChatType.value === 5)
+      );
     }
     return false;
   };
 
   const getSelectedUsersDisplay = () => {
-    if (selectedUsers.length === 0) return isMultiSelect() ? "Select recipients" : "Select recipient";
-    const selectedNames = selectedUsers.map(userId => users.find(u => u.usersrecid.toString() === userId)?.usersname).filter(Boolean);
-    if (selectedNames.length === 0) return isMultiSelect() ? "Select recipients" : "Select recipient";
+    if (selectedUsers.length === 0)
+      return isMultiSelect() ? "Select recipients" : "Select recipient";
+    const selectedNames = selectedUsers
+      .map(
+        (userId) =>
+          users.find((u) => u.usersrecid.toString() === userId)?.usersname,
+      )
+      .filter(Boolean);
+    if (selectedNames.length === 0)
+      return isMultiSelect() ? "Select recipients" : "Select recipient";
     if (selectedNames.length === 1) return selectedNames[0];
+    // Check if all users are selected
+    if (selectedUsers.length === users.length && users.length > 0) {
+      return `All users selected (${users.length})`;
+    }
     return `${selectedNames.length} users selected`;
   };
 
@@ -198,13 +295,14 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
     }
   }, [chatTypes, currentUser]);
 
-
   return (
     <div className="modal-overlay">
       <div className="modal-content">
         <div className="modal-header">
           <h3>Create New Chat</h3>
-          <button className="close-btn" onClick={onClose}>×</button>
+          <button className="close-btn" onClick={onClose}>
+            ×
+          </button>
         </div>
         <form onSubmit={handleSubmit} className="new-chat-form">
           <div className="form-group">
@@ -213,18 +311,36 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
               <div className="loading-users">Loading chat types...</div>
             ) : (
               <>
-                <select id="chat-type" value={chatType} onChange={(e) => { setChatType(e.target.value); setSelectedUsers([]); }}>
+                <select
+                  id="chat-type"
+                  value={chatType}
+                  onChange={(e) => {
+                    setChatType(e.target.value);
+                    setSelectedUsers([]);
+                  }}
+                >
                   {getAvailableChatTypes().length > 0 ? (
                     getAvailableChatTypes().map((type) => (
-                      <option key={type.value} value={type.value}>{type.text}</option>
+                      <option key={type.value} value={type.value}>
+                        {type.text}
+                      </option>
                     ))
                   ) : (
-                    <option value="">No chat types available for your role</option>
+                    <option value="">
+                      No chat types available for your role
+                    </option>
                   )}
                 </select>
                 {getAvailableChatTypes().length === 0 && !chatTypesLoading && (
-                  <p style={{ color: "red", fontSize: "0.8em", marginTop: "5px" }}>
-                    Your role (ID: {currentUser.roleid}) does not have permission to create chats.
+                  <p
+                    style={{
+                      color: "red",
+                      fontSize: "0.8em",
+                      marginTop: "5px",
+                    }}
+                  >
+                    Your role (ID: {currentUser.roleid}) does not have
+                    permission to create chats.
                   </p>
                 )}
               </>
@@ -232,20 +348,73 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
           </div>
           <div className="form-group">
             <label htmlFor="subject">Subject</label>
-            <input id="subject" type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Enter chat subject" />
+            <input
+              id="subject"
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Enter chat subject"
+            />
           </div>
           <div className="form-group">
-            <label>{isMultiSelect() ? "Select Recipients" : "Select Recipient"}</label>
+            <label>
+              {isMultiSelect() ? "Select Recipients" : "Select Recipient"}
+            </label>
             <div className="custom-dropdown" ref={dropdownRef}>
-              <div className={`dropdown-header ${dropdownOpen ? "open" : ""}`} onClick={toggleDropdown}>
+              <div
+                className={`dropdown-header ${dropdownOpen ? "open" : ""}`}
+                onClick={toggleDropdown}
+              >
                 {getSelectedUsersDisplay()}
                 <span className="dropdown-arrow"></span>
               </div>
               {dropdownOpen && (
                 <div className="dropdown-list">
+                  {/* Add Select All option for multi-select scenarios */}
+                  {isMultiSelect() && (
+                    <div
+                      className="dropdown-item select-all-option"
+                      onClick={handleSelectAll}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={
+                          selectedUsers.length === users.length &&
+                          users.length > 0
+                        }
+                        onChange={(e) => handleSelectAllCheckboxChange(e)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div className="user-info">
+                        <span className="user-name">
+                          {selectedUsers.length === users.length &&
+                          users.length > 0
+                            ? "Deselect All"
+                            : "Select All"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   {users.map((user) => (
-                    <div key={user.usersrecid} className={`dropdown-item ${selectedUsers.includes(user.usersrecid.toString()) ? "selected" : ""}`} onClick={() => handleUserSelection(user.usersrecid.toString())}>
-                      {isMultiSelect() && <input type="checkbox" checked={selectedUsers.includes(user.usersrecid.toString())} onChange={() => {}} onClick={(e) => e.stopPropagation()} />}
+                    <div
+                      key={user.usersrecid}
+                      className={`dropdown-item ${selectedUsers.includes(user.usersrecid.toString()) ? "selected" : ""}`}
+                      onClick={() =>
+                        handleUserSelection(user.usersrecid.toString())
+                      }
+                    >
+                      {isMultiSelect() && (
+                        <input
+                          type="checkbox"
+                          checked={selectedUsers.includes(
+                            user.usersrecid.toString(),
+                          )}
+                          onChange={(e) =>
+                            handleCheckboxChange(e, user.usersrecid.toString())
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
                       <div className="user-info">
                         <span className="user-name">{user.usersname}</span>
                         <span className="user-role">({user.rolesname})</span>
@@ -258,8 +427,12 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
           </div>
           {error && <div className="error-message">{error}</div>}
           <div className="form-actions">
-            <button type="button" className="cancel-btn" onClick={onClose}>Cancel</button>
-            <button type="submit" className="submit-btn" disabled={loading}>{loading ? "Creating..." : "Create Chat"}</button>
+            <button type="button" className="cancel-btn" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="submit-btn" disabled={loading}>
+              {loading ? "Creating..." : "Create Chat"}
+            </button>
           </div>
         </form>
       </div>
