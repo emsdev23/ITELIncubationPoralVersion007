@@ -27,7 +27,7 @@ import DocumentAccessManagement from "./Components/DocumentAccessManagement/Docu
 import TrainingManagementPage from "./Components/TrainingManagement/TrainingManagementPage";
 
 import ResetPassword from "./Components/Login/ResetPassword";
-
+import IncubateeTable from "./Components/IncubateeManagement/IncubateeTable";
 // Create a context for authentication state
 export const AuthContext = createContext();
 
@@ -164,6 +164,14 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <DocumentAccessManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/Incubation/Dashboard/IncubateeManagement"
+              element={
+                <ProtectedRoute>
+                  <IncubateeTable />
                 </ProtectedRoute>
               }
             />

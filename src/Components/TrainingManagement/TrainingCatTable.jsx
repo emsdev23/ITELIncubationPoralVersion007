@@ -32,6 +32,7 @@ import CloseIcon from "@mui/icons-material/Close";
 // Import your reusable component and API instance
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
 import api from "../Datafetching/api"; // Import the controller API instance
+import { useWriteAccess } from "../Datafetching/UseWriteAccess";
 
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
@@ -68,7 +69,7 @@ const formatDate = (dateStr) => {
     const minute = dateStr.substring(10, 12);
     const second = dateStr.substring(12, 14);
     const formattedDate = new Date(
-      `${year}-${month}-${day}T${hour}:${minute}:${second}`
+      `${year}-${month}-${day}T${hour}:${minute}:${second}`,
     );
     return formattedDate.toLocaleString("en-US", {
       year: "numeric",
@@ -85,17 +86,10 @@ const formatDate = (dateStr) => {
 };
 
 export default function TrainingCatTable() {
-  const { menuItemsFromAPI } = useContext(DataContext);
-
-  // Find the current path in menu items to check write access
-  const currentPath = "/Incubation/Dashboard/AddTrainingCategories"; // Adjust this path as needed
-  const menuItem = menuItemsFromAPI.find(
-    (item) => item.guiappspath === currentPath
+  // Use the custom hook to check write access
+  const hasWriteAccess = useWriteAccess(
+    "/Incubation/Dashboard/TrainingManagementPage",
   );
-
-  // The user has write access if the item exists and appswriteaccess is 1
-  const hasWriteAccess = menuItem ? menuItem.appswriteaccess === 1 : false;
-
   // --- 1. STATE DECLARATIONS ---
   const userId = sessionStorage.getItem("userid");
   const token = sessionStorage.getItem("token");
@@ -136,7 +130,7 @@ export default function TrainingCatTable() {
             "X-Module": "Training Management",
             "X-Action": "Fetch Training Categories",
           },
-        }
+        },
       );
 
       // Response is already decrypted by interceptor
@@ -151,10 +145,10 @@ export default function TrainingCatTable() {
 
   const openAddModal = useCallback(() => {
     setEditCat(null);
-    setFormData({ 
-      trainingcatname: "", 
+    setFormData({
+      trainingcatname: "",
       trainingcatdescription: "",
-      trainingcatadminstate: 1 
+      trainingcatadminstate: 1,
     });
     setIsModalOpen(true);
     setError(null);
@@ -173,9 +167,9 @@ export default function TrainingCatTable() {
 
   const handleChange = useCallback((e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({ 
-      ...prev, 
-      [name]: type === 'checkbox' ? (checked ? 1 : 0) : value 
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? (checked ? 1 : 0) : value,
     }));
   }, []);
 
@@ -212,19 +206,19 @@ export default function TrainingCatTable() {
                   "X-Module": "Training Management",
                   "X-Action": "Delete Training Category",
                 },
-              }
+              },
             )
             .then((response) => {
               if (response.data.statusCode === 200) {
                 Swal.fire(
                   "Deleted!",
                   "Training category deleted successfully!",
-                  "success"
+                  "success",
                 );
                 fetchCategories();
               } else {
                 throw new Error(
-                  response.data.message || "Failed to delete training category"
+                  response.data.message || "Failed to delete training category",
                 );
               }
             })
@@ -238,7 +232,7 @@ export default function TrainingCatTable() {
         }
       });
     },
-    [userId, fetchCategories]
+    [userId, fetchCategories],
   );
 
   // Handle Submit (Add/Edit)
@@ -247,7 +241,10 @@ export default function TrainingCatTable() {
       e.preventDefault();
       setIsSaving(true);
       setError(null);
-      if (!formData.trainingcatname.trim() || !formData.trainingcatdescription.trim()) {
+      if (
+        !formData.trainingcatname.trim() ||
+        !formData.trainingcatdescription.trim()
+      ) {
         setError("Category name and description are required");
         setIsSaving(false);
         return;
@@ -270,15 +267,21 @@ export default function TrainingCatTable() {
             trainingcatdescription: formData.trainingcatdescription.trim(),
             trainingcatadminstate: formData.trainingcatadminstate,
             ...(isEdit
-              ? { trainingcatid: editCat.trainingcatid, trainingcatmodifiedby: userId }
-              : { trainingcatcreatedby: userId, trainingcatmodifiedby: userId }),
+              ? {
+                  trainingcatid: editCat.trainingcatid,
+                  trainingcatmodifiedby: userId,
+                }
+              : {
+                  trainingcatcreatedby: userId,
+                  trainingcatmodifiedby: userId,
+                }),
           },
           {
             headers: {
               "X-Module": "Training Management",
               "X-Action": action,
             },
-          }
+          },
         )
         .then((response) => {
           if (response.data.statusCode === 200) {
@@ -291,26 +294,27 @@ export default function TrainingCatTable() {
               Swal.fire(
                 "Duplicate",
                 "Training category name already exists!",
-                "warning"
+                "warning",
               ).then(() => setIsModalOpen(true));
             } else {
               setEditCat(null);
-              setFormData({ 
-                trainingcatname: "", 
+              setFormData({
+                trainingcatname: "",
                 trainingcatdescription: "",
-                trainingcatadminstate: 1 
+                trainingcatadminstate: 1,
               });
               fetchCategories();
               Swal.fire(
                 "Success",
-                response.data.message || "Training category saved successfully!",
-                "success"
+                response.data.message ||
+                  "Training category saved successfully!",
+                "success",
               );
             }
           } else {
             throw new Error(
               response.data.message ||
-                `Operation failed with status: ${response.data.statusCode}`
+                `Operation failed with status: ${response.data.statusCode}`,
             );
           }
         })
@@ -320,12 +324,12 @@ export default function TrainingCatTable() {
           Swal.fire(
             "Error",
             `Failed to save training category: ${err.message}`,
-            "error"
+            "error",
           ).then(() => setIsModalOpen(true));
         })
         .finally(() => setIsSaving(false));
     },
-    [formData, editCat, userId, fetchCategories]
+    [formData, editCat, userId, fetchCategories],
   );
 
   // --- 3. MEMOIZED VALUES ---
@@ -398,7 +402,9 @@ export default function TrainingCatTable() {
                     <ActionButton
                       color="edit"
                       onClick={() => openEditModal(params.row)}
-                      disabled={isSaving || isDeleting[params.row.trainingcatid]}
+                      disabled={
+                        isSaving || isDeleting[params.row.trainingcatid]
+                      }
                       title="Edit"
                     >
                       <EditIcon fontSize="small" />
@@ -406,7 +412,9 @@ export default function TrainingCatTable() {
                     <ActionButton
                       color="delete"
                       onClick={() => handleDelete(params.row.trainingcatid)}
-                      disabled={isSaving || isDeleting[params.row.trainingcatid]}
+                      disabled={
+                        isSaving || isDeleting[params.row.trainingcatid]
+                      }
                       title="Delete"
                     >
                       {isDeleting[params.row.trainingcatid] ? (
@@ -422,7 +430,7 @@ export default function TrainingCatTable() {
           ]
         : []),
     ],
-    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete]
+    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete],
   );
 
   const exportConfig = useMemo(
@@ -430,7 +438,7 @@ export default function TrainingCatTable() {
       filename: "training_categories",
       sheetName: "Training Categories",
     }),
-    []
+    [],
   );
   const onExportData = useMemo(
     () => (data) =>
@@ -448,7 +456,7 @@ export default function TrainingCatTable() {
           : "Admin",
         "Modified Time": formatDate(cat.trainingcatmodifiedtime),
       })),
-    []
+    [],
   );
 
   // --- 4. EFFECTS ---
@@ -585,7 +593,9 @@ export default function TrainingCatTable() {
         >
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {editCat ? "Updating training category..." : "Saving training category..."}
+            {editCat
+              ? "Updating training category..."
+              : "Saving training category..."}
           </Typography>
         </Box>
       </StyledBackdrop>

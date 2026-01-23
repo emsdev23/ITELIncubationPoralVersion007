@@ -937,7 +937,7 @@ export default function IncubateeTable() {
   );
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 3 }} style={{ marginTop: "100px" }}>
       <Box
         sx={{
           display: "flex",

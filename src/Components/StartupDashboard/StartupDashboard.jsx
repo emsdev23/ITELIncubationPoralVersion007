@@ -212,7 +212,7 @@ const StartupDashboard = () => {
 
   // Date filter states
   const [startDate, setStartDate] = useState(
-    fromYear ? new Date(fromYear) : null
+    fromYear ? new Date(fromYear) : null,
   );
   const [endDate, setEndDate] = useState(toYear ? new Date(toYear) : null);
   const [datesSelected, setDatesSelected] = useState(!!(fromYear && toYear));
@@ -303,10 +303,10 @@ const StartupDashboard = () => {
         setEndDate(newValue);
       }
       setDatesSelected(
-        !!(type === "start" ? newValue && endDate : startDate && newValue)
+        !!(type === "start" ? newValue && endDate : startDate && newValue),
       );
     },
-    [startDate, endDate]
+    [startDate, endDate],
   );
 
   const handleApplyDateFilter = useCallback(() => {
@@ -550,7 +550,7 @@ const StartupDashboard = () => {
   const submittedDocuments = useMemo(() => {
     return localCompanyDoc.filter(
       (d) =>
-        d.status === "Submitted" && d.collecteddocobsoletestate !== "Obsolete"
+        d.status === "Submitted" && d.collecteddocobsoletestate !== "Obsolete",
     ).length;
   }, [localCompanyDoc]);
 
@@ -562,12 +562,13 @@ const StartupDashboard = () => {
     const pendingDocs = localCompanyDoc.filter(
       (d) =>
         d.status === "Pending" ||
-        (d.status === "Submitted" && d.collecteddocobsoletestate === "Obsolete")
+        (d.status === "Submitted" &&
+          d.collecteddocobsoletestate === "Obsolete"),
     );
 
     console.log("All pending documents:", pendingDocs);
     console.log(
-      `Total pending documents before deduplication: ${pendingDocs.length}`
+      `Total pending documents before deduplication: ${pendingDocs.length}`,
     );
 
     // Create a Set to store unique keys
@@ -605,7 +606,7 @@ const StartupDashboard = () => {
 
     console.log("All overdue documents:", overdueDocs);
     console.log(
-      `Total overdue documents before deduplication: ${overdueDocs.length}`
+      `Total overdue documents before deduplication: ${overdueDocs.length}`,
     );
 
     // 2. Create a Set to store unique keys
@@ -672,7 +673,7 @@ const StartupDashboard = () => {
             userid: userid,
             incubateesrecid: incubateesrecid,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -727,7 +728,7 @@ const StartupDashboard = () => {
             "X-Module": "DDI Documents",
             "X-Action": "DDI Document preview",
           },
-        }
+        },
       );
 
       // if (!response.ok)
@@ -777,7 +778,7 @@ const StartupDashboard = () => {
       const categories = await fetchDocumentCategories();
 
       const matchingCategory = categories.find(
-        (cat) => cat.text === document.doccatname
+        (cat) => cat.text === document.doccatname,
       );
 
       if (!matchingCategory) {
@@ -785,11 +786,11 @@ const StartupDashboard = () => {
       }
 
       const subcategories = await fetchDocumentSubcategories(
-        matchingCategory.value
+        matchingCategory.value,
       );
 
       const matchingSubcategory = subcategories.find(
-        (subcat) => subcat.text === document.docsubcatname
+        (subcat) => subcat.text === document.docsubcatname,
       );
 
       if (!matchingSubcategory) {
@@ -798,11 +799,11 @@ const StartupDashboard = () => {
 
       const docInfo = await fetchDocumentInfo(
         matchingCategory.value,
-        matchingSubcategory.value
+        matchingSubcategory.value,
       );
 
       const matchingDocInfo = docInfo.find(
-        (info) => info.text === document.documentname
+        (info) => info.text === document.documentname,
       );
 
       if (!matchingDocInfo) {
@@ -889,7 +890,7 @@ const StartupDashboard = () => {
             userid,
             reason: `Manual Logout at ${currentTime}`,
           }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -948,7 +949,7 @@ const StartupDashboard = () => {
         Swal.fire(
           "Error",
           "User authentication not found. Please login again.",
-          "error"
+          "error",
         );
         return;
       }
@@ -965,7 +966,7 @@ const StartupDashboard = () => {
             "X-Action": "Mark Document as Obsolete",
             userid: userId || "1",
           },
-        }
+        },
       );
 
       if (response.data.statusCode === 200) {
@@ -973,7 +974,7 @@ const StartupDashboard = () => {
         Swal.fire(
           "Marked Obsolete!",
           "Document has been successfully marked as obsolete.",
-          "success"
+          "success",
         );
 
         // Refresh documents list
@@ -984,7 +985,7 @@ const StartupDashboard = () => {
         }
       } else {
         throw new Error(
-          response.data.message || "Failed to mark document as obsolete"
+          response.data.message || "Failed to mark document as obsolete",
         );
       }
     } catch (error) {
@@ -992,7 +993,7 @@ const StartupDashboard = () => {
       Swal.fire(
         "Error",
         "An error occurred while marking the document as obsolete.",
-        "error"
+        "error",
       );
     } finally {
       // setIsAbolishing(false);
@@ -1023,7 +1024,7 @@ const StartupDashboard = () => {
               ? `"${value}"`
               : value;
           })
-          .join(",")
+          .join(","),
       ),
     ].join("\n");
 
@@ -1033,7 +1034,7 @@ const StartupDashboard = () => {
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `documents_${new Date().toISOString().slice(0, 10)}.csv`
+      `documents_${new Date().toISOString().slice(0, 10)}.csv`,
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
@@ -1068,7 +1069,7 @@ const StartupDashboard = () => {
 
       XLSX.writeFile(
         wb,
-        `documents_${new Date().toISOString().slice(0, 10)}.xlsx`
+        `documents_${new Date().toISOString().slice(0, 10)}.xlsx`,
       );
     } catch (error) {
       console.error("Error exporting to Excel:", error);
@@ -1233,7 +1234,7 @@ const StartupDashboard = () => {
               onClick={() =>
                 handleViewDocument(
                   params.row.documentsampledoc,
-                  params.row.documentsampledocname || "Sample Document"
+                  params.row.documentsampledocname || "Sample Document",
                 )
               }
               sx={{
@@ -1371,36 +1372,30 @@ const StartupDashboard = () => {
   // Function to fetch document categories
   const fetchDocumentCategories = async () => {
     try {
-      const token = sessionStorage.getItem("token");
       const userId = sessionStorage.getItem("userid");
       const incUserId = sessionStorage.getItem("incuserid");
 
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getdoccat`,
+      const response = await api.post(
+        "/resources/generic/getdoccat",
         {
-          method: "POST",
+          userId: userId,
+          userIncId: incUserId || 1,
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            "X-Module": "Document Management",
+            "X-Action": "Fetch Document Categories",
           },
-          body: JSON.stringify({
-            userId: userId,
-            roleId: roleid || 0,
-            userIncId: incUserId || 1,
-          }),
-        }
+        },
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.statusCode === 200) {
-        setDocumentCategories(data.data);
-        return data.data;
+      if (response.data.statusCode === 200) {
+        setDocumentCategories(response.data.data);
+        return response.data.data;
       } else {
-        throw new Error(data.message || "Failed to fetch document categories");
+        throw new Error(
+          response.data.message || "Failed to fetch document categories",
+        );
       }
     } catch (error) {
       console.error("Error fetching document categories:", error);
@@ -1416,37 +1411,29 @@ const StartupDashboard = () => {
   // Function to fetch document subcategories
   const fetchDocumentSubcategories = async (docCatId) => {
     try {
-      const token = sessionStorage.getItem("token");
       const userId = sessionStorage.getItem("userid");
       const incUserId = sessionStorage.getItem("incuserid");
 
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getdocsubcat`,
+      const response = await api.post(
+        "/resources/generic/getdocsubcat",
         {
-          method: "POST",
+          userid: userId,
+          docid: docCatId,
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            "X-Module": "Document Management",
+            "X-Action": "Fetch Document Subcategories",
           },
-          body: JSON.stringify({
-            userid: userId,
-            docid: docCatId,
-            userIncId: incUserId || 1,
-          }),
-        }
+        },
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.statusCode === 200) {
-        setDocumentSubcategories(data.data);
-        return data.data;
+      if (response.data.statusCode === 200) {
+        setDocumentSubcategories(response.data.data);
+        return response.data.data;
       } else {
         throw new Error(
-          data.message || "Failed to fetch document subcategories"
+          response.data.message || "Failed to fetch document subcategories",
         );
       }
     } catch (error) {
@@ -1463,37 +1450,31 @@ const StartupDashboard = () => {
   // Function to fetch document info
   const fetchDocumentInfo = async (docCatId, docSubCatId) => {
     try {
-      const token = sessionStorage.getItem("token");
       const userId = sessionStorage.getItem("userid");
       const incUserId = sessionStorage.getItem("incuserid");
 
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/generic/getdocinfo`,
+      const response = await api.post(
+        "/resources/generic/getdocinfo",
         {
-          method: "POST",
+          userid: userId,
+          doccatid: docCatId,
+          docsubcatid: docSubCatId,
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            "X-Module": "Document Management",
+            "X-Action": "Fetch Document Info",
           },
-          body: JSON.stringify({
-            userid: userId,
-            doccatid: docCatId,
-            docsubcatid: docSubCatId,
-            userIncId: incUserId || 1,
-          }),
-        }
+        },
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.statusCode === 200) {
-        setDocumentInfo(data.data);
-        return data.data;
+      if (response.data.statusCode === 200) {
+        setDocumentInfo(response.data.data);
+        return response.data.data;
       } else {
-        throw new Error(data.message || "Failed to fetch document info");
+        throw new Error(
+          response.data.message || "Failed to fetch document info",
+        );
       }
     } catch (error) {
       console.error("Error fetching document info:", error);

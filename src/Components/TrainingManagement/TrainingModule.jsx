@@ -5,6 +5,7 @@ import React, {
   useImperativeHandle,
   useMemo,
   useCallback,
+  use,
 } from "react";
 import Swal from "sweetalert2";
 import { IPAdress } from "../Datafetching/IPAdrees";
@@ -43,7 +44,7 @@ import ArticleIcon from "@mui/icons-material/Article";
 // Import your reusable component
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
 import api from "../Datafetching/api";
-
+import { useWriteAccess } from "../Datafetching/UseWriteAccess";
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,
@@ -82,6 +83,9 @@ const FileUploadButton = styled(Button)(({ theme }) => ({
 
 // Using forwardRef to allow parent components to access methods
 const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
+  const hasWriteAccess = useWriteAccess(
+    "/Incubation/Dashboard/TrainingManagementPage",
+  );
   const userId = sessionStorage.getItem("userid");
   const token = sessionStorage.getItem("token");
   const roleid = sessionStorage.getItem("roleid");
@@ -140,7 +144,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             "X-Module": "Training Management",
             "X-Action": "Fetch Training List",
           },
-        }
+        },
       );
       setTrainings(response.data.data || []);
     } catch (err) {
@@ -164,7 +168,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             "X-Module": "Training Management",
             "X-Action": "Fetch Categories",
           },
-        }
+        },
       );
       setCategories(response.data.data || []);
     } catch (err) {
@@ -185,7 +189,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             "X-Module": "Training Management",
             "X-Action": "Fetch Sub Categories",
           },
-        }
+        },
       );
       setSubCategories(response.data.data || []);
     } catch (err) {
@@ -206,7 +210,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             "X-Module": "Training Management",
             "X-Action": "Fetch Material Types",
           },
-        }
+        },
       );
       console.log("Material Types Response:", response.data);
       setMaterialTypes(response.data.data || []);
@@ -270,7 +274,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
       setFieldErrors(errors);
       return !errors[name];
     },
-    [fieldErrors]
+    [fieldErrors],
   );
 
   const validateForm = useCallback(() => {
@@ -300,14 +304,14 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         setFormData((prev) => ({ ...prev, [name]: value }));
       }
     },
-    [fieldErrors, validateField]
+    [fieldErrors, validateField],
   );
 
   const getFilteredSubCategories = useCallback(() => {
     if (!formData.trainingcatid) return [];
     return subCategories.filter(
       (sub) =>
-        String(sub.trainingsubcatcatid) === String(formData.trainingcatid)
+        String(sub.trainingsubcatcatid) === String(formData.trainingcatid),
     );
   }, [formData.trainingcatid, subCategories]);
 
@@ -351,7 +355,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
       setFieldErrors({});
       setIsModalOpen(true);
     },
-    [fetchCategories, fetchSubCategories, fetchMaterialTypes]
+    [fetchCategories, fetchSubCategories, fetchMaterialTypes],
   );
 
   const createTraining = useCallback(async () => {
@@ -449,7 +453,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         throw error;
       }
     },
-    [IP, token, userId]
+    [IP, token, userId],
   );
 
   const handleSubmit = useCallback(
@@ -477,7 +481,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             editTraining
               ? "Training module updated successfully"
               : "Training module added successfully",
-            "success"
+            "success",
           );
           refreshData();
         } else {
@@ -499,7 +503,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
       updateTraining,
       createTraining,
       refreshData,
-    ]
+    ],
   );
 
   const handleDelete = useCallback(
@@ -523,7 +527,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
               Swal.fire(
                 "Deleted!",
                 "Training module has been deleted.",
-                "success"
+                "success",
               );
               refreshData();
             } else {
@@ -542,7 +546,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         }
       });
     },
-    [deleteTraining, refreshData, showToast]
+    [deleteTraining, refreshData, showToast],
   );
 
   // --- DATA GRID CONFIG ---
@@ -618,51 +622,67 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
       },
     ];
 
-    if (Number(roleid) === 1) {
-      baseColumns.push({
-        field: "actions",
-        headerName: "Actions",
-        width: 120,
-        sortable: false,
-        filterable: false,
-        renderCell: (params) => {
-          // SAFETY CHECK
-          if (!params || !params.row) return null;
-          return (
-            <Box>
-              <ActionButton
-                color="edit"
-                onClick={() => openEditModal(params.row)}
-                disabled={isSaving || isDeleting[params.row.trainingid]}
-              >
-                <EditIcon fontSize="small" />
-              </ActionButton>
-              <ActionButton
-                color="delete"
-                onClick={() => handleDelete(params.row)}
-                disabled={isSaving || isDeleting[params.row.trainingid]}
-              >
-                {isDeleting[params.row.trainingid] ? (
-                  <CircularProgress size={18} color="inherit" />
-                ) : (
-                  <DeleteIcon fontSize="small" />
-                )}
-              </ActionButton>
-            </Box>
-          );
-        },
-      });
-    }
-
-    return baseColumns;
-  }, [roleid, isSaving, isDeleting, openEditModal, handleDelete]);
+    // OPTION 1: Return combined array with spread operator
+    return [
+      ...baseColumns,
+      ...(hasWriteAccess && Number(roleid) === 1
+        ? [
+            {
+              field: "actions",
+              headerName: "Actions",
+              width: 150,
+              sortable: false,
+              filterable: false,
+              renderCell: (params) => {
+                if (!params?.row) return null;
+                return (
+                  <Box>
+                    <ActionButton
+                      color="edit"
+                      onClick={() => openEditModal(params.row)}
+                      disabled={
+                        isSaving || isDeleting[params.row.trainingsubcatid]
+                      }
+                      title="Edit"
+                    >
+                      <EditIcon fontSize="small" />
+                    </ActionButton>
+                    <ActionButton
+                      color="delete"
+                      onClick={() => handleDelete(params.row.trainingsubcatid)}
+                      disabled={
+                        isSaving || isDeleting[params.row.trainingsubcatid]
+                      }
+                      title="Delete"
+                    >
+                      {isDeleting[params.row.trainingsubcatid] ? (
+                        <CircularProgress size={18} color="inherit" />
+                      ) : (
+                        <DeleteIcon fontSize="small" />
+                      )}
+                    </ActionButton>
+                  </Box>
+                );
+              },
+            },
+          ]
+        : []),
+    ];
+  }, [
+    hasWriteAccess,
+    roleid,
+    isSaving,
+    isDeleting,
+    openEditModal,
+    handleDelete,
+  ]);
 
   const exportConfig = useMemo(
     () => ({
       filename: "training_modules",
       sheetName: "Training",
     }),
-    []
+    [],
   );
 
   const onExportData = useMemo(
@@ -677,7 +697,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         "Material Link": item.trainingmateriallink || "",
       }));
     },
-    []
+    [],
   );
 
   // EFFECTS
@@ -697,7 +717,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         }}
       >
         <Typography variant="h4">{title}</Typography>
-        {Number(roleid) === 1 && (
+        {Number(roleid) === 1 && hasWriteAccess && (
           <Button
             variant="contained"
             onClick={openAddModal}

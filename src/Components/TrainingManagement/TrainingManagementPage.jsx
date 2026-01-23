@@ -3,10 +3,11 @@ import TrainingSubCatTable from "./TrainingSubCatTable";
 import TrainingCatTable from "./TrainingCatTable";
 import TrainingModule from "./TrainingModule";
 import TrainingMaterialType from "./TrainingMaterialType";
-import "./TrainingManagementPage.css"
+import "./TrainingManagementPage.css";
 import styles from "../Navbar.module.css"; // CSS module for scoped styles
 import ITELLogo from "../../assets/ITEL_Logo.png"; // Logo image
 import { NavLink } from "react-router-dom";
+import { DataContext } from "../Datafetching/DataProvider";
 
 export default function DocumentManagementPage() {
   const [activeTab, setActiveTab] = useState("documents"); // State to track active tab

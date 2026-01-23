@@ -84,7 +84,7 @@ const DocumentUploadModal = ({
 
       // Find the category that matches the document's category name
       const matchingCategory = categories.find(
-        (cat) => cat.text === documentData.doccatname
+        (cat) => cat.text === documentData.doccatname,
       );
 
       if (matchingCategory) {
@@ -122,7 +122,7 @@ const DocumentUploadModal = ({
     ) {
       // Find the subcategory that matches the document's subcategory name
       const matchingSubCategory = subCategories.find(
-        (subCat) => subCat.text === documentData.docsubcatname
+        (subCat) => subCat.text === documentData.docsubcatname,
       );
 
       if (matchingSubCategory) {
@@ -151,7 +151,7 @@ const DocumentUploadModal = ({
     ) {
       // Find the document info that matches the document's name
       const matchingDocInfo = docInfos.find(
-        (docInfo) => docInfo.text === documentData.documentname
+        (docInfo) => docInfo.text === documentData.documentname,
       );
 
       if (matchingDocInfo) {
@@ -183,7 +183,7 @@ const DocumentUploadModal = ({
             "X-Module": "Document Module",
             "X-Action": "Fetching Document Categorie",
           },
-        }
+        },
       );
 
       // if (!response.ok) {
@@ -196,7 +196,7 @@ const DocumentUploadModal = ({
         console.log("Categories loaded:", data.data); // Debug log
       } else {
         setError(
-          "Failed to fetch categories: " + (data.message || "Unknown error")
+          "Failed to fetch categories: " + (data.message || "Unknown error"),
         );
       }
     } catch (err) {
@@ -231,7 +231,7 @@ const DocumentUploadModal = ({
             "X-Module": "Document Module",
             "X-Action": "Fetching Document SubCategorie",
           },
-        }
+        },
       );
 
       // if (!response.ok) {
@@ -245,7 +245,7 @@ const DocumentUploadModal = ({
         console.log("Subcategories loaded:", data.data); // Debug log
       } else {
         setError(
-          "Failed to fetch subcategories: " + (data.message || "Unknown error")
+          "Failed to fetch subcategories: " + (data.message || "Unknown error"),
         );
       }
     } catch (err) {
@@ -280,7 +280,7 @@ const DocumentUploadModal = ({
             "X-Module": "Document Module",
             "X-Action": "Fetching Document Name",
           },
-        }
+        },
       );
 
       // if (!response.ok) {
@@ -293,7 +293,7 @@ const DocumentUploadModal = ({
         console.log("Doc infos loaded:", data.data); // Debug log
       } else {
         setError(
-          "Failed to fetch document info: " + (data.message || "Unknown error")
+          "Failed to fetch document info: " + (data.message || "Unknown error"),
         );
       }
     } catch (err) {
@@ -326,8 +326,8 @@ const DocumentUploadModal = ({
       if (!validExtensions.includes(fileExtension)) {
         setError(
           `File type not supported. Allowed types: ${validExtensions.join(
-            ", "
-          )}`
+            ", ",
+          )}`,
         );
         return;
       }
@@ -384,7 +384,7 @@ const DocumentUploadModal = ({
             "X-Module": "Add Document Module",
             "X-Action": "Add Incubatee Document",
           },
-        }
+        },
       );
 
       const data = response.data;
@@ -464,8 +464,8 @@ const DocumentUploadModal = ({
       if (!validExtensions.includes(fileExtension)) {
         setError(
           `File type not supported. Allowed types: ${validExtensions.join(
-            ", "
-          )}`
+            ", ",
+          )}`,
         );
         return;
       }
@@ -602,7 +602,7 @@ const DocumentUploadModal = ({
                 <div className="file-placeholder">
                   <p>Drag & drop file here or click to select</p>
                   <p className="file-hint">
-                    Max file size: 5MB. Supported formats: "pdf", "png", "jpg",
+                    Max file size: 10MB. Supported formats: "pdf", "png", "jpg",
                     "jpeg", "docx", "xls", "xlsx",
                   </p>
                 </div>
@@ -639,8 +639,8 @@ const DocumentUploadModal = ({
             {loading.uploading
               ? "Uploading..."
               : isUpdating
-              ? "Update"
-              : "Upload"}
+                ? "Update"
+                : "Upload"}
           </button>
         </div>
       </div>

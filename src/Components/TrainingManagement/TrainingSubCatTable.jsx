@@ -1,8 +1,15 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useContext,
+} from "react";
 import Swal from "sweetalert2";
 import { IPAdress } from "../Datafetching/IPAdrees";
 import { Download } from "lucide-react";
 import { FaTimes } from "react-icons/fa";
+import { DataContext } from "../Datafetching/DataProvider";
 
 // Material UI imports
 import {
@@ -29,7 +36,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import api from "../Datafetching/api";
 
 // Import your reusable component
-import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Adjust path as needed
+import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
+import { useWriteAccess } from "../Datafetching/UseWriteAccess"; // Adjust path as needed
 
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
@@ -65,7 +73,7 @@ const formatDate = (dateStr) => {
     const minute = dateStr.substring(10, 12);
     const second = dateStr.substring(12, 14);
     const formattedDate = new Date(
-      `${year}-${month}-${day}T${hour}:${minute}:${second}`
+      `${year}-${month}-${day}T${hour}:${minute}:${second}`,
     );
     return formattedDate.toLocaleString("en-US", {
       year: "numeric",
@@ -82,6 +90,10 @@ const formatDate = (dateStr) => {
 };
 
 export default function TrainingSubCatTable() {
+  const hasWriteAccess = useWriteAccess(
+    "/Incubation/Dashboard/TrainingManagementPage",
+  ); // Adjust this path as needed
+
   // --- 1. STATE DECLARATIONS ---
   const userId = sessionStorage.getItem("userid");
   const token = sessionStorage.getItem("token");
@@ -121,7 +133,7 @@ export default function TrainingSubCatTable() {
             "X-Module": "Training Management",
             "X-Action": "Fetch Training SubCategories",
           },
-        }
+        },
       );
 
       // Response is already decrypted by interceptor
@@ -151,7 +163,7 @@ export default function TrainingSubCatTable() {
             "X-Module": "Training Management",
             "X-Action": "Fetch Training Categories",
           },
-        }
+        },
       );
 
       // Response is already decrypted by interceptor
@@ -193,7 +205,7 @@ export default function TrainingSubCatTable() {
       setIsModalOpen(true);
       setError(null);
     },
-    [fetchTrainingCategories]
+    [fetchTrainingCategories],
   );
 
   const handleChange = useCallback((e) => {
@@ -236,7 +248,7 @@ export default function TrainingSubCatTable() {
                 Swal.fire(
                   "Deleted!",
                   "Subcategory deleted successfully!",
-                  "success"
+                  "success",
                 );
                 refreshData();
               } else {
@@ -253,7 +265,7 @@ export default function TrainingSubCatTable() {
         }
       });
     },
-    [IP, userId, token, refreshData]
+    [IP, userId, token, refreshData],
   );
 
   const handleSubmit = useCallback(
@@ -274,12 +286,12 @@ export default function TrainingSubCatTable() {
 
       setIsModalOpen(false);
       const params = new URLSearchParams();
-      
+
       // Common params
       params.append("trainingsubcatname", formData.trainingsubcatname.trim());
       params.append(
         "trainingsubcatdescription",
-        formData.trainingsubcatdescription.trim()
+        formData.trainingsubcatdescription.trim(),
       );
       params.append("trainingsubcatcatid", formData.trainingsubcatcatid);
       params.append("trainingsubcatadminstate", "1"); // Defaulting to 1 as per prompt
@@ -326,7 +338,7 @@ export default function TrainingSubCatTable() {
               Swal.fire(
                 "Duplicate",
                 "Subcategory name already exists for this category!",
-                "warning"
+                "warning",
               ).then(() => setIsModalOpen(true));
             } else {
               setEditSubCat(null);
@@ -339,12 +351,13 @@ export default function TrainingSubCatTable() {
               Swal.fire(
                 "Success",
                 data.message || "Subcategory saved successfully!",
-                "success"
+                "success",
               );
             }
           } else {
             throw new Error(
-              data.message || `Operation failed with status: ${data.statusCode}`
+              data.message ||
+                `Operation failed with status: ${data.statusCode}`,
             );
           }
         })
@@ -354,12 +367,12 @@ export default function TrainingSubCatTable() {
           Swal.fire(
             "Error",
             `Failed to save subcategory: ${err.message}`,
-            "error"
+            "error",
           ).then(() => setIsModalOpen(true));
         })
         .finally(() => setIsSaving(false));
     },
-    [formData, editSubCat, IP, userId, token, refreshData]
+    [formData, editSubCat, IP, userId, token, refreshData],
   );
 
   // --- 3. MEMOIZED VALUES ---
@@ -423,42 +436,50 @@ export default function TrainingSubCatTable() {
         sortable: true,
         type: "date",
       },
-      {
-        field: "actions",
-        headerName: "Actions",
-        width: 150,
-        sortable: false,
-        filterable: false,
-        renderCell: (params) => {
-          if (!params?.row) return null;
-          return (
-            <Box>
-              <ActionButton
-                color="edit"
-                onClick={() => openEditModal(params.row)}
-                disabled={isSaving || isDeleting[params.row.trainingsubcatid]}
-                title="Edit"
-              >
-                <EditIcon fontSize="small" />
-              </ActionButton>
-              <ActionButton
-                color="delete"
-                onClick={() => handleDelete(params.row.trainingsubcatid)}
-                disabled={isSaving || isDeleting[params.row.trainingsubcatid]}
-                title="Delete"
-              >
-                {isDeleting[params.row.trainingsubcatid] ? (
-                  <CircularProgress size={18} color="inherit" />
-                ) : (
-                  <DeleteIcon fontSize="small" />
-                )}
-              </ActionButton>
-            </Box>
-          );
-        },
-      },
+      ...(hasWriteAccess // Conditionally add the actions column
+        ? [
+            {
+              field: "actions",
+              headerName: "Actions",
+              width: 150,
+              sortable: false,
+              filterable: false,
+              renderCell: (params) => {
+                if (!params?.row) return null;
+                return (
+                  <Box>
+                    <ActionButton
+                      color="edit"
+                      onClick={() => openEditModal(params.row)}
+                      disabled={
+                        isSaving || isDeleting[params.row.trainingsubcatid]
+                      }
+                      title="Edit"
+                    >
+                      <EditIcon fontSize="small" />
+                    </ActionButton>
+                    <ActionButton
+                      color="delete"
+                      onClick={() => handleDelete(params.row.trainingsubcatid)}
+                      disabled={
+                        isSaving || isDeleting[params.row.trainingsubcatid]
+                      }
+                      title="Delete"
+                    >
+                      {isDeleting[params.row.trainingsubcatid] ? (
+                        <CircularProgress size={18} color="inherit" />
+                      ) : (
+                        <DeleteIcon fontSize="small" />
+                      )}
+                    </ActionButton>
+                  </Box>
+                );
+              },
+            },
+          ]
+        : []),
     ],
-    [isSaving, isDeleting, openEditModal, handleDelete]
+    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete],
   );
 
   const exportConfig = useMemo(
@@ -466,7 +487,7 @@ export default function TrainingSubCatTable() {
       filename: "training_subcategories",
       sheetName: "Training Subcategories",
     }),
-    []
+    [],
   );
 
   const onExportData = useMemo(
@@ -485,7 +506,7 @@ export default function TrainingSubCatTable() {
           : "Admin",
         "Modified Time": formatDate(subcat.trainingsubcatmodifiedtime),
       })),
-    []
+    [],
   );
 
   // --- 4. EFFECTS ---
@@ -505,9 +526,15 @@ export default function TrainingSubCatTable() {
         }}
       >
         <Typography variant="h4">🎓 Training Subcategories</Typography>
-        <Button variant="contained" onClick={openAddModal} disabled={isSaving}>
-          + Add Subcategory
-        </Button>
+        {hasWriteAccess && (
+          <Button
+            variant="contained"
+            onClick={openAddModal}
+            disabled={isSaving}
+          >
+            + Add Subcategory
+          </Button>
+        )}
       </Box>
       {error && (
         <Box

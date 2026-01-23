@@ -21,15 +21,15 @@ export const DataProvider = ({ children }) => {
 
   // Initialize state from sessionStorage
   const [userid, setUseridState] = useState(
-    sessionStorage.getItem("userid") || null
+    sessionStorage.getItem("userid") || null,
   );
 
   const [roleid, setroleidState] = useState(
-    sessionStorage.getItem("roleid") || null
+    sessionStorage.getItem("roleid") || null,
   );
 
   const [incuserid, setincuseridstate] = useState(
-    sessionStorage.getItem("incuserid") || null
+    sessionStorage.getItem("incuserid") || null,
   );
 
   // NEW: State for incubation list and selected incubation
@@ -117,7 +117,7 @@ export const DataProvider = ({ children }) => {
           incUserId: incuserid,
           startDate: startDate ? formatDateForAPI(startDate) : null,
           endDate: endDate ? formatDateForAPI(endDate) : null,
-        }
+        },
       );
 
       const data = extractData(response, []);
@@ -150,7 +150,7 @@ export const DataProvider = ({ children }) => {
       }
 
       alert(
-        `Error fetching documents: ${err.message || "Unknown error occurred"}`
+        `Error fetching documents: ${err.message || "Unknown error occurred"}`,
       );
     } finally {
       setDateFilterLoading(false);
@@ -168,7 +168,7 @@ export const DataProvider = ({ children }) => {
       setIncubationList(data);
       if (incuserid && incuserid !== "ALL") {
         const defaultIncubation = data.find(
-          (item) => item.incubationsrecid === parseInt(incuserid)
+          (item) => item.incubationsrecid === parseInt(incuserid),
         );
         if (defaultIncubation) {
           setSelectedIncubation(defaultIncubation);
@@ -191,11 +191,11 @@ export const DataProvider = ({ children }) => {
         {
           userId: userid,
           userIncId: incubationId,
-        }
+        },
       );
       const data = extractData(response, []);
       const details = data.find(
-        (item) => item.incubationsrecid === parseInt(incubationId)
+        (item) => item.incubationsrecid === parseInt(incubationId),
       );
       setIncubationDetails(details);
       return details;
@@ -274,7 +274,7 @@ export const DataProvider = ({ children }) => {
           incUserId: incuserid,
           startDate: fromYear,
           endDate: toYear,
-        }
+        },
       );
       const data = extractData(response, []);
       setCompanyDoc(data);
@@ -300,14 +300,14 @@ export const DataProvider = ({ children }) => {
           startDate: fromYear,
           endDate: toYear,
           incUserId: incuserid,
-        }
+        },
       );
       const incubateesResponse = await api.post(
         "resources/generic/getincubatessdash",
         {
           userId: userId,
           incUserId: incuserid,
-        }
+        },
       );
       const documentsData = extractData(documentsResponse, []);
       setstartupcompanyDoc(documentsData);
@@ -490,7 +490,7 @@ export const DataProvider = ({ children }) => {
         // =================================================================
 
         const results = await Promise.allSettled(
-          apiCalls.map(({ call }) => call())
+          apiCalls.map(({ call }) => call()),
         );
 
         results.forEach((result, index) => {
