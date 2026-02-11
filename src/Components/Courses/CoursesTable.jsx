@@ -1,14 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  FaEdit,
-  FaTrash,
-  FaLayerGroup,
-  FaPlus,
-} from "react-icons/fa";
+import { FaEdit, FaTrash, FaLayerGroup, FaPlus } from "react-icons/fa";
 import Swal from "sweetalert2";
 import "./CoursesTable.css";
 import api from "../Datafetching/api";
-import { useWriteAccess } from "../Datafetching/useWriteAccess";
+import { useWriteAccess } from "../Datafetching/UseWriteAccess";
 
 // Material-UI imports
 import {
@@ -70,7 +65,7 @@ const formatDate = (dateStr) => {
     const minute = dateStr.substring(10, 12);
     const second = dateStr.substring(12, 14);
     const formattedDate = new Date(
-      `${year}-${month}-${day}T${hour}:${minute}:${second}`
+      `${year}-${month}-${day}T${hour}:${minute}:${second}`,
     );
     return formattedDate.toLocaleString("en-US", {
       year: "numeric",
@@ -91,7 +86,9 @@ export default function TrainingAssociationTable() {
   const incUserid = sessionStorage.getItem("incuserid");
 
   // Use the custom hook to check write access
-  const hasWriteAccess = useWriteAccess("/Incubation/Dashboard/TrainingAssociation");
+  const hasWriteAccess = useWriteAccess(
+    "/Incubation/Dashboard/TrainingAssociation",
+  );
 
   // States
   const [associations, setAssociations] = useState([]);
@@ -100,7 +97,7 @@ export default function TrainingAssociationTable() {
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogType, setDialogType] = useState("add"); // 'add' or 'edit'
   const [editingId, setEditingId] = useState(null);
-  
+
   // State to track loading status for specific rows during actions
   const [statusLoading, setStatusLoading] = useState({});
 
@@ -132,11 +129,9 @@ export default function TrainingAssociationTable() {
         "/resources/generic/gettrainingassndetails",
         {
           userId:
-            sessionStorage.getItem("roleid") === "1"
-              ? "ALL"
-              : (userId || "1"),
+            sessionStorage.getItem("roleid") === "1" ? "ALL" : userId || "1",
           userIncId: incUserid || "1",
-        }
+        },
       );
 
       if (response.data.statusCode === 200) {
@@ -145,12 +140,16 @@ export default function TrainingAssociationTable() {
           : [];
         setAssociations(data);
       } else {
-        throw new Error(response.data.message || "Failed to fetch associations");
+        throw new Error(
+          response.data.message || "Failed to fetch associations",
+        );
       }
     } catch (err) {
       console.error("Error fetching associations:", err);
       const errorMessage =
-        err.response?.data?.message || err.message || "Failed to load associations.";
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to load associations.";
       setError(errorMessage);
       setAssociations([]);
     } finally {
@@ -224,7 +223,7 @@ export default function TrainingAssociationTable() {
         throw error;
       }
     },
-    [userId]
+    [userId],
   );
 
   // --- HANDLERS ---
@@ -264,7 +263,7 @@ export default function TrainingAssociationTable() {
       setFieldErrors(errors);
       return !errors[name];
     },
-    [fieldErrors]
+    [fieldErrors],
   );
 
   const validateForm = useCallback(() => {
@@ -288,85 +287,102 @@ export default function TrainingAssociationTable() {
         [name]: finalValue,
       }));
     },
-    [fieldErrors, validateField]
+    [fieldErrors, validateField],
   );
 
   // Handler for starting training (Status 1 -> 2)
-  const handleStartTraining = useCallback(async (row) => {
-    const id = row.trainingassnrecid;
-    setStatusLoading(prev => ({ ...prev, [id]: true }));
+  const handleStartTraining = useCallback(
+    async (row) => {
+      const id = row.trainingassnrecid;
+      setStatusLoading((prev) => ({ ...prev, [id]: true }));
 
-    try {
-      await api.post("/updateTrainingAssn", null, {
-        params: {
-          trainingassnrecid: row.trainingassnrecid,
-          trainingassntrainingid: row.trainingassntrainingid,
-          trainingassnincusersid: row.trainingassnincusersid,
-          trainingassnmentorusersid: row.trainingassnmentorusersid,
-          trainingassnadminstate: row.trainingassnadminstate,
-          trainingassnmodifiedby: userId,
-          trainingassnstatus: 2 
-        }
-      });
+      try {
+        await api.post("/updateTrainingAssn", null, {
+          params: {
+            trainingassnrecid: row.trainingassnrecid,
+            trainingassntrainingid: row.trainingassntrainingid,
+            trainingassnincusersid: row.trainingassnincusersid,
+            trainingassnmentorusersid: row.trainingassnmentorusersid,
+            trainingassnadminstate: row.trainingassnadminstate,
+            trainingassnmodifiedby: userId,
+            trainingassnstatus: 2,
+          },
+        });
 
-      setAssociations(prev => prev.map(item => 
-        item.trainingassnrecid === id 
-        ? { ...item, trainingassnstatus: 2 } 
-        : item
-      ));
+        setAssociations((prev) =>
+          prev.map((item) =>
+            item.trainingassnrecid === id
+              ? { ...item, trainingassnstatus: 2 }
+              : item,
+          ),
+        );
 
-      window.open(row.trainingmateriallink, '_blank', 'noopener,noreferrer');
-
-    } catch (err) {
-      console.error("Error updating training status:", err);
-      showToast("Failed to update training status", "error");
-    } finally {
-      setStatusLoading(prev => ({ ...prev, [id]: false }));
-    }
-  }, [userId, showToast]);
+        window.open(row.trainingmateriallink, "_blank", "noopener,noreferrer");
+      } catch (err) {
+        console.error("Error updating training status:", err);
+        showToast("Failed to update training status", "error");
+      } finally {
+        setStatusLoading((prev) => ({ ...prev, [id]: false }));
+      }
+    },
+    [userId, showToast],
+  );
 
   // Handler for marking complete (Status -> 3)
-  const handleMarkComplete = useCallback(async (row) => {
-    const id = row.trainingassnrecid;
-    setStatusLoading(prev => ({ ...prev, [id]: true }));
+  const handleMarkComplete = useCallback(
+    async (row) => {
+      const id = row.trainingassnrecid;
+      setStatusLoading((prev) => ({ ...prev, [id]: true }));
 
-    try {
-      await api.post("/updateTrainingAssn", null, {
-        params: {
-          trainingassnrecid: row.trainingassnrecid,
-          trainingassntrainingid: row.trainingassntrainingid,
-          trainingassnincusersid: row.trainingassnincusersid,
-          trainingassnmentorusersid: row.trainingassnmentorusersid,
-          trainingassnadminstate: row.trainingassnadminstate,
-          trainingassnmodifiedby: userId,
-          trainingassnstatus: 3 // Set status to Completed
-        }
-      });
+      try {
+        await api.post("/updateTrainingAssn", null, {
+          params: {
+            trainingassnrecid: row.trainingassnrecid,
+            trainingassntrainingid: row.trainingassntrainingid,
+            trainingassnincusersid: row.trainingassnincusersid,
+            trainingassnmentorusersid: row.trainingassnmentorusersid,
+            trainingassnadminstate: row.trainingassnadminstate,
+            trainingassnmodifiedby: userId,
+            trainingassnstatus: 3, // Set status to Completed
+          },
+        });
 
-      setAssociations(prev => prev.map(item => 
-        item.trainingassnrecid === id 
-        ? { ...item, trainingassnstatus: 3 } 
-        : item
-      ));
+        setAssociations((prev) =>
+          prev.map((item) =>
+            item.trainingassnrecid === id
+              ? { ...item, trainingassnstatus: 3 }
+              : item,
+          ),
+        );
 
-      showToast("Training marked as completed!", "success");
-
-    } catch (err) {
-      console.error("Error marking training complete:", err);
-      showToast("Failed to mark training as complete", "error");
-    } finally {
-      setStatusLoading(prev => ({ ...prev, [id]: false }));
-    }
-  }, [userId, showToast]);
+        showToast("Training marked as completed!", "success");
+      } catch (err) {
+        console.error("Error marking training complete:", err);
+        showToast("Failed to mark training as complete", "error");
+      } finally {
+        setStatusLoading((prev) => ({ ...prev, [id]: false }));
+      }
+    },
+    [userId, showToast],
+  );
 
   const openAddModal = useCallback(() => {
     if (!hasWriteAccess) {
-      Swal.fire("Access Denied", "You do not have permission to add associations.", "warning");
+      Swal.fire(
+        "Access Denied",
+        "You do not have permission to add associations.",
+        "warning",
+      );
       return;
     }
     setDialogType("add");
     setEditingId(null);
-    setFormData({ trainingId: "", incUserId: "", mentorUserId: "", adminState: true });
+    setFormData({
+      trainingId: "",
+      incUserId: "",
+      mentorUserId: "",
+      adminState: true,
+    });
     setFieldErrors({});
     setOpenDialog(true);
   }, [hasWriteAccess]);
@@ -374,7 +390,11 @@ export default function TrainingAssociationTable() {
   const openEditModal = useCallback(
     (item) => {
       if (!hasWriteAccess) {
-        Swal.fire("Access Denied", "You do not have permission to edit associations.", "warning");
+        Swal.fire(
+          "Access Denied",
+          "You do not have permission to edit associations.",
+          "warning",
+        );
         return;
       }
       setDialogType("edit");
@@ -388,7 +408,7 @@ export default function TrainingAssociationTable() {
       setFieldErrors({});
       setOpenDialog(true);
     },
-    [hasWriteAccess]
+    [hasWriteAccess],
   );
 
   const handleClose = useCallback(() => {
@@ -418,28 +438,45 @@ export default function TrainingAssociationTable() {
         if (response.statusCode === 200) {
           showToast(
             `Association ${dialogType === "add" ? "added" : "updated"} successfully!`,
-            "success"
+            "success",
           );
           fetchAssociations();
         } else {
           throw new Error(response.message || "Operation failed");
         }
       } catch (err) {
-        console.error(`Error ${dialogType === "add" ? "adding" : "updating"} association:`, err);
-        const errorMessage = err.response?.data?.message || err.message || "An unknown error occurred";
+        console.error(
+          `Error ${dialogType === "add" ? "adding" : "updating"} association:`,
+          err,
+        );
+        const errorMessage =
+          err.response?.data?.message ||
+          err.message ||
+          "An unknown error occurred";
         showToast(errorMessage, "error");
         setOpenDialog(true);
       } finally {
         setIsSaving(false);
       }
     },
-    [validateForm, showToast, dialogType, createAssociation, updateAssociation, fetchAssociations]
+    [
+      validateForm,
+      showToast,
+      dialogType,
+      createAssociation,
+      updateAssociation,
+      fetchAssociations,
+    ],
   );
 
   const handleDelete = useCallback(
     (item) => {
       if (!hasWriteAccess) {
-        Swal.fire("Access Denied", "You do not have permission to delete associations.", "warning");
+        Swal.fire(
+          "Access Denied",
+          "You do not have permission to delete associations.",
+          "warning",
+        );
         return;
       }
 
@@ -452,18 +489,26 @@ export default function TrainingAssociationTable() {
         cancelButtonText: "Cancel",
         showLoaderOnConfirm: true,
         preConfirm: async () => {
-          setIsDeleting((prev) => ({ ...prev, [item.trainingassnrecid]: true }));
+          setIsDeleting((prev) => ({
+            ...prev,
+            [item.trainingassnrecid]: true,
+          }));
           try {
             const response = await deleteAssociation(item.trainingassnrecid);
             if (response.statusCode !== 200) {
-              throw new Error(response.message || "Failed to delete association");
+              throw new Error(
+                response.message || "Failed to delete association",
+              );
             }
             return response.data;
           } catch (error) {
             Swal.showValidationMessage(`Request failed: ${error.message}`);
             throw error;
           } finally {
-             setIsDeleting((prev) => ({ ...prev, [item.trainingassnrecid]: false }));
+            setIsDeleting((prev) => ({
+              ...prev,
+              [item.trainingassnrecid]: false,
+            }));
           }
         },
         allowOutsideClick: () => !Swal.isLoading(),
@@ -474,7 +519,7 @@ export default function TrainingAssociationTable() {
         }
       });
     },
-    [hasWriteAccess, deleteAssociation, fetchAssociations]
+    [hasWriteAccess, deleteAssociation, fetchAssociations],
   );
 
   // --- DATA GRID CONFIG ---
@@ -497,7 +542,8 @@ export default function TrainingAssociationTable() {
           const link = row.trainingmateriallink;
           if (!link) return "-";
 
-          const isTrainee = String(userId) === String(row.trainingassnincusersid);
+          const isTrainee =
+            String(userId) === String(row.trainingassnincusersid);
           const isAssigned = row.trainingassnstatus === 1;
           const shouldUpdate = isTrainee && isAssigned;
           const isLoading = statusLoading[row.trainingassnrecid];
@@ -546,17 +592,20 @@ export default function TrainingAssociationTable() {
           const statusMap = {
             1: { label: "Assigned", color: "gray" },
             2: { label: "In Progress", color: "orange" },
-            3: { label: "Completed", color: "green" }
+            3: { label: "Completed", color: "green" },
           };
 
-          const status = statusMap[params.value] || { label: "Unknown", color: "red" };
+          const status = statusMap[params.value] || {
+            label: "Unknown",
+            color: "red",
+          };
 
           return (
             <span style={{ fontWeight: 600, color: status.color }}>
               {status.label}
             </span>
           );
-        }
+        },
       },
       {
         field: "mentorname",
@@ -569,7 +618,8 @@ export default function TrainingAssociationTable() {
         headerName: "Created By",
         width: 150,
         sortable: true,
-        valueGetter: (params) => params.row.createdname || params.row.trainingassncreatedby,
+        valueGetter: (params) =>
+          params.row.createdname || params.row.trainingassncreatedby,
       },
       {
         field: "trainingassncreatedtime",
@@ -584,7 +634,8 @@ export default function TrainingAssociationTable() {
         headerName: "Modified By",
         width: 150,
         sortable: true,
-        valueGetter: (params) => params.row.modifiedname || params.row.trainingassnmodifiedby,
+        valueGetter: (params) =>
+          params.row.modifiedname || params.row.trainingassnmodifiedby,
       },
       {
         field: "traineeActions",
@@ -595,7 +646,8 @@ export default function TrainingAssociationTable() {
         renderCell: (params) => {
           const row = params.row;
           // Show only if user is the trainee and training is not already completed
-          const isTrainee = String(userId) === String(row.trainingassnincusersid);
+          const isTrainee =
+            String(userId) === String(row.trainingassnincusersid);
           const isNotCompleted = row.trainingassnstatus !== 3;
           const isLoading = statusLoading[row.trainingassnrecid];
 
@@ -615,7 +667,7 @@ export default function TrainingAssociationTable() {
                     showCancelButton: true,
                     confirmButtonColor: "#3085d6",
                     cancelButtonColor: "#d33",
-                    confirmButtonText: "Yes, complete it!"
+                    confirmButtonText: "Yes, complete it!",
                   }).then((result) => {
                     if (result.isConfirmed) {
                       handleMarkComplete(row);
@@ -683,7 +735,17 @@ export default function TrainingAssociationTable() {
           ]
         : []),
     ],
-    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete, userId, statusLoading, handleStartTraining, handleMarkComplete]
+    [
+      hasWriteAccess,
+      isSaving,
+      isDeleting,
+      openEditModal,
+      handleDelete,
+      userId,
+      statusLoading,
+      handleStartTraining,
+      handleMarkComplete,
+    ],
   );
 
   const exportConfig = useMemo(
@@ -691,7 +753,7 @@ export default function TrainingAssociationTable() {
       filename: "training_associations",
       sheetName: "Associations",
     }),
-    []
+    [],
   );
 
   const onExportData = useMemo(
@@ -702,13 +764,13 @@ export default function TrainingAssociationTable() {
         "Training ID": item.trainingassntrainingid || "",
         "Inc User ID": item.trainingassnincusersid || "",
         "Mentor User ID": item.trainingassnmentorusersid || "",
-        "Status": item.trainingassnadminstate === 1 ? "Active" : "Inactive",
+        Status: item.trainingassnadminstate === 1 ? "Active" : "Inactive",
         "Created By": item.createdname || item.trainingassncreatedby || "",
         "Created Time": formatDate(item.trainingassncreatedtime),
         "Modified By": item.modifiedname || item.trainingassnmodifiedby || "",
         "Modified Time": formatDate(item.trainingassnmodifiedtime),
       })),
-    []
+    [],
   );
 
   // --- EFFECTS ---
@@ -750,7 +812,11 @@ export default function TrainingAssociationTable() {
         enableExport={true}
         enableColumnFilters={true}
         searchPlaceholder="Search associations..."
-        searchFields={["trainingassntrainingid", "trainingassnincusersid", "trainingassnmentorusersid"]}
+        searchFields={[
+          "trainingassntrainingid",
+          "trainingassnincusersid",
+          "trainingassnmentorusersid",
+        ]}
         uniqueIdField="trainingassnrecid"
         onExportData={onExportData}
         exportConfig={exportConfig}
@@ -792,7 +858,7 @@ export default function TrainingAssociationTable() {
                   helperText={fieldErrors.trainingId}
                 />
               </Grid>
-              
+
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
@@ -809,7 +875,7 @@ export default function TrainingAssociationTable() {
               </Grid>
 
               <Grid item xs={12} sm={6}>
-                 <TextField
+                <TextField
                   fullWidth
                   name="mentorUserId"
                   label="Mentor User ID"
@@ -824,18 +890,18 @@ export default function TrainingAssociationTable() {
               </Grid>
 
               <Grid item xs={12} sm={6}>
-                 <FormControlLabel
-                    control={
-                      <Switch
-                        checked={formData.adminState}
-                        onChange={handleInputChange}
-                        name="adminState"
-                        color="primary"
-                      />
-                    }
-                    label="Active Status"
-                    sx={{ mt: 1 }}
-                  />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.adminState}
+                      onChange={handleInputChange}
+                      name="adminState"
+                      color="primary"
+                    />
+                  }
+                  label="Active Status"
+                  sx={{ mt: 1 }}
+                />
               </Grid>
             </Grid>
           </DialogContent>
@@ -843,13 +909,17 @@ export default function TrainingAssociationTable() {
             <Button onClick={handleClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button 
-                type="submit" 
-                variant="contained"
-                disabled={isSaving || Object.keys(fieldErrors).length > 0}
-                startIcon={isSaving ? <CircularProgress size={20} /> : null}
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isSaving || Object.keys(fieldErrors).length > 0}
+              startIcon={isSaving ? <CircularProgress size={20} /> : null}
             >
-              {isSaving ? "Saving..." : dialogType === "add" ? "Add" : "Save Changes"}
+              {isSaving
+                ? "Saving..."
+                : dialogType === "add"
+                  ? "Add"
+                  : "Save Changes"}
             </Button>
           </DialogActions>
         </form>
@@ -882,7 +952,9 @@ export default function TrainingAssociationTable() {
         >
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {dialogType === "add" ? "Adding association..." : "Updating association..."}
+            {dialogType === "add"
+              ? "Adding association..."
+              : "Updating association..."}
           </Typography>
         </Box>
       </StyledBackdrop>

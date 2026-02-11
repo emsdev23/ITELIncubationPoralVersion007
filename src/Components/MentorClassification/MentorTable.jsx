@@ -11,7 +11,7 @@ import {
 import Swal from "sweetalert2";
 import "./MentorClassificationTable.css";
 import api from "../Datafetching/api";
-import { useWriteAccess } from "../Datafetching/useWriteAccess";
+import { useWriteAccess } from "../Datafetching/UseWriteAccess";
 
 // Material-UI imports
 import {
@@ -65,7 +65,9 @@ export default function MentorTable() {
   const incUserid = sessionStorage.getItem("incuserid");
 
   // Use the custom hook to check write access
-  const hasWriteAccess = useWriteAccess("/Incubation/Dashboard/MentorManagement");
+  const hasWriteAccess = useWriteAccess(
+    "/Incubation/Dashboard/MentorManagement",
+  );
 
   // States
   const [mentors, setMentors] = useState([]);
@@ -121,7 +123,10 @@ export default function MentorTable() {
         incUserId: incUserid || "1",
       };
 
-      const response = await api.post("/resources/generic/getmentordetails", payload);
+      const response = await api.post(
+        "/resources/generic/getmentordetails",
+        payload,
+      );
 
       if (response.data.statusCode === 200) {
         setMentors(Array.isArray(response.data.data) ? response.data.data : []);
@@ -144,10 +149,15 @@ export default function MentorTable() {
         userId: userId || "20",
         userIncId: incUserid || "1",
       };
-      
-      const typeRes = await api.post("/resources/generic/getmentortypedetails", typePayload);
+
+      const typeRes = await api.post(
+        "/resources/generic/getmentortypedetails",
+        typePayload,
+      );
       if (typeRes.data.statusCode === 200) {
-        setMentorTypes(Array.isArray(typeRes.data.data) ? typeRes.data.data : []);
+        setMentorTypes(
+          Array.isArray(typeRes.data.data) ? typeRes.data.data : [],
+        );
       }
 
       // 2. Get Classifications
@@ -156,9 +166,14 @@ export default function MentorTable() {
         userIncId: incUserid || "1",
       };
 
-      const classRes = await api.post("/resources/generic/getmentorclassificationdetails", classPayload);
+      const classRes = await api.post(
+        "/resources/generic/getmentorclassificationdetails",
+        classPayload,
+      );
       if (classRes.data.statusCode === 200) {
-        setClassifications(Array.isArray(classRes.data.data) ? classRes.data.data : []);
+        setClassifications(
+          Array.isArray(classRes.data.data) ? classRes.data.data : [],
+        );
       }
     } catch (err) {
       console.error("Error fetching dropdown options:", err);
@@ -262,7 +277,7 @@ export default function MentorTable() {
         throw error;
       }
     },
-    [userId]
+    [userId],
   );
 
   // --- HANDLERS ---
@@ -281,7 +296,11 @@ export default function MentorTable() {
 
   const openAddModal = useCallback(() => {
     if (!hasWriteAccess) {
-      Swal.fire("Access Denied", "You do not have permission to add mentors.", "warning");
+      Swal.fire(
+        "Access Denied",
+        "You do not have permission to add mentors.",
+        "warning",
+      );
       return;
     }
     setDialogType("add");
@@ -314,7 +333,11 @@ export default function MentorTable() {
   const openEditModal = useCallback(
     (item) => {
       if (!hasWriteAccess) {
-        Swal.fire("Access Denied", "You do not have permission to edit mentors.", "warning");
+        Swal.fire(
+          "Access Denied",
+          "You do not have permission to edit mentors.",
+          "warning",
+        );
         return;
       }
       setDialogType("edit");
@@ -343,7 +366,7 @@ export default function MentorTable() {
       });
       setOpenDialog(true);
     },
-    [hasWriteAccess]
+    [hasWriteAccess],
   );
 
   const handleClose = useCallback(() => {
@@ -353,8 +376,12 @@ export default function MentorTable() {
 
   const handleNext = useCallback(() => {
     if (!formData.name.trim() || !formData.email.trim()) {
-        Swal.fire("Validation Error", "Name and Email are required before proceeding.", "error");
-        return;
+      Swal.fire(
+        "Validation Error",
+        "Name and Email are required before proceeding.",
+        "error",
+      );
+      return;
     }
     setStep(1);
   }, [formData.name, formData.email]);
@@ -366,7 +393,7 @@ export default function MentorTable() {
   const handleSubmit = useCallback(
     async (e) => {
       if (e) e.preventDefault();
-      
+
       if (!formData.name.trim() || !formData.email.trim()) {
         Swal.fire("Validation Error", "Name and Email are required.", "error");
         return;
@@ -384,27 +411,40 @@ export default function MentorTable() {
         }
 
         if (response.statusCode === 200) {
-          showToast(`Mentor ${dialogType === "add" ? "added" : "updated"} successfully!`, "success");
+          showToast(
+            `Mentor ${dialogType === "add" ? "added" : "updated"} successfully!`,
+            "success",
+          );
           fetchMentors();
         } else {
           throw new Error(response.message || "Operation failed");
         }
       } catch (err) {
-        console.error(`Error ${dialogType === "add" ? "adding" : "updating"} mentor:`, err);
-        const errorMessage = err.response?.data?.message || err.message || "An unknown error occurred";
+        console.error(
+          `Error ${dialogType === "add" ? "adding" : "updating"} mentor:`,
+          err,
+        );
+        const errorMessage =
+          err.response?.data?.message ||
+          err.message ||
+          "An unknown error occurred";
         showToast(errorMessage, "error");
         setOpenDialog(true);
       } finally {
         setIsSaving(false);
       }
     },
-    [dialogType, formData, createMentor, updateMentor, fetchMentors, showToast]
+    [dialogType, formData, createMentor, updateMentor, fetchMentors, showToast],
   );
 
   const handleDelete = useCallback(
     (item) => {
       if (!hasWriteAccess) {
-        Swal.fire("Access Denied", "You do not have permission to delete mentors.", "warning");
+        Swal.fire(
+          "Access Denied",
+          "You do not have permission to delete mentors.",
+          "warning",
+        );
         return;
       }
 
@@ -428,7 +468,7 @@ export default function MentorTable() {
             Swal.showValidationMessage(`Request failed: ${error.message}`);
             throw error;
           } finally {
-             setIsDeleting((prev) => ({ ...prev, [item.mentordetsid]: false }));
+            setIsDeleting((prev) => ({ ...prev, [item.mentordetsid]: false }));
           }
         },
         allowOutsideClick: () => !Swal.isLoading(),
@@ -439,7 +479,7 @@ export default function MentorTable() {
         }
       });
     },
-    [hasWriteAccess, deleteMentor, fetchMentors]
+    [hasWriteAccess, deleteMentor, fetchMentors],
   );
 
   // --- DATA GRID CONFIG ---
@@ -481,7 +521,8 @@ export default function MentorTable() {
         headerName: "Created By",
         width: 150,
         sortable: true,
-        valueGetter: (params) => params.row.createdname || params.row.mentordetscreatedby,
+        valueGetter: (params) =>
+          params.row.createdname || params.row.mentordetscreatedby,
       },
       ...(hasWriteAccess
         ? [
@@ -522,7 +563,7 @@ export default function MentorTable() {
           ]
         : []),
     ],
-    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete]
+    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete],
   );
 
   const exportConfig = useMemo(
@@ -530,7 +571,7 @@ export default function MentorTable() {
       filename: "mentors_directory",
       sheetName: "Mentors",
     }),
-    []
+    [],
   );
 
   const onExportData = useMemo(
@@ -546,7 +587,7 @@ export default function MentorTable() {
         "Time Commitment": item.mentordetstimecommitment || "",
         "Prev Startup Mentor": item.mentordetsprevstupmentor || "",
       })),
-    []
+    [],
   );
 
   // --- EFFECTS ---
@@ -605,7 +646,13 @@ export default function MentorTable() {
       />
 
       {/* Add/Edit Dialog */}
-      <Dialog open={openDialog} onClose={handleClose} maxWidth="xl" fullWidth scroll="paper">
+      <Dialog
+        open={openDialog}
+        onClose={handleClose}
+        maxWidth="xl"
+        fullWidth
+        scroll="paper"
+      >
         <DialogTitle>
           {dialogType === "add" ? "Add New" : "Edit"} Mentor
           <IconButton
@@ -621,16 +668,20 @@ export default function MentorTable() {
             <CloseIcon />
           </IconButton>
           <Stepper activeStep={step} sx={{ mt: 2, pb: 1 }}>
-            <Step><StepLabel>Basic Info</StepLabel></Step>
-            <Step><StepLabel>Professional Info</StepLabel></Step>
+            <Step>
+              <StepLabel>Basic Info</StepLabel>
+            </Step>
+            <Step>
+              <StepLabel>Professional Info</StepLabel>
+            </Step>
           </Stepper>
         </DialogTitle>
         <DialogContent dividers>
           {step === 0 && (
-             <Grid container spacing={3}>
+            <Grid container spacing={3}>
               {/* STEP 1: Basic Info */}
               <Grid item xs={12}>
-                <FormControl sx={{width:"150px"}}>
+                <FormControl sx={{ width: "150px" }}>
                   <InputLabel>Mentor Type</InputLabel>
                   <Select
                     name="typeId"
@@ -639,16 +690,19 @@ export default function MentorTable() {
                     onChange={handleInputChange}
                   >
                     {mentorTypes.map((type) => (
-                      <MenuItem key={type.mentortypeid} value={type.mentortypeid}>
+                      <MenuItem
+                        key={type.mentortypeid}
+                        value={type.mentortypeid}
+                      >
                         {type.mentortypename}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
               </Grid>
-              
+
               <Grid item xs={12}>
-                <FormControl sx={{width:"150px"}}>
+                <FormControl sx={{ width: "150px" }}>
                   <InputLabel>Classification</InputLabel>
                   <Select
                     name="classSetId"
@@ -657,7 +711,10 @@ export default function MentorTable() {
                     onChange={handleInputChange}
                   >
                     {classifications.map((cls) => (
-                      <MenuItem key={cls.mentorclassetrecid} value={cls.mentorclassetrecid}>
+                      <MenuItem
+                        key={cls.mentorclassetrecid}
+                        value={cls.mentorclassetrecid}
+                      >
                         {cls.mentorclassetname}
                       </MenuItem>
                     ))}
@@ -678,7 +735,7 @@ export default function MentorTable() {
               </Grid>
 
               <Grid item xs={12} sm={6}>
-                <FormControl sx={{width:"150px"}}>
+                <FormControl sx={{ width: "150px" }}>
                   <InputLabel>Gender</InputLabel>
                   <Select
                     name="gender"
@@ -769,16 +826,16 @@ export default function MentorTable() {
               </Grid>
 
               <Grid item xs={12} sm={4}>
-              <TextField
-                name="timeCommitment"
-                label="Time Commitment"
-                type="text"
-                fullWidth
-                variant="outlined"
-                value={formData.timeCommitment}
-                onChange={handleInputChange}
-              />
-            </Grid>
+                <TextField
+                  name="timeCommitment"
+                  label="Time Commitment"
+                  type="text"
+                  fullWidth
+                  variant="outlined"
+                  value={formData.timeCommitment}
+                  onChange={handleInputChange}
+                />
+              </Grid>
 
               {/* Social Links */}
               <Grid item xs={12} sm={4}>
@@ -816,18 +873,18 @@ export default function MentorTable() {
               </Grid>
 
               <Grid item xs={12}>
-                <FormControl sx={{width:"150px"}}>
-                <InputLabel>Previously Mentored Startup?</InputLabel>
-                <Select
-                  name="prevStupMentor"
-                  value={formData.prevStupMentor}
-                  label="Previously Mentored Startup?"
-                  onChange={handleInputChange}
-                >
-                  <MenuItem value="Yes">Yes</MenuItem>
-                  <MenuItem value="No">No</MenuItem>
-                </Select>
-              </FormControl>
+                <FormControl sx={{ width: "150px" }}>
+                  <InputLabel>Previously Mentored Startup?</InputLabel>
+                  <Select
+                    name="prevStupMentor"
+                    value={formData.prevStupMentor}
+                    label="Previously Mentored Startup?"
+                    onChange={handleInputChange}
+                  >
+                    <MenuItem value="Yes">Yes</MenuItem>
+                    <MenuItem value="No">No</MenuItem>
+                  </Select>
+                </FormControl>
               </Grid>
 
               <Grid item xs={12}>
@@ -850,9 +907,9 @@ export default function MentorTable() {
           {step === 0 ? (
             <>
               <Button onClick={handleClose}>Cancel</Button>
-              <Button 
-                onClick={handleNext} 
-                variant="contained" 
+              <Button
+                onClick={handleNext}
+                variant="contained"
                 endIcon={<FaArrowRight />}
               >
                 Next
@@ -860,14 +917,11 @@ export default function MentorTable() {
             </>
           ) : (
             <>
-              <Button 
-                onClick={handleBack}
-                startIcon={<FaArrowLeft />}
-              >
+              <Button onClick={handleBack} startIcon={<FaArrowLeft />}>
                 Back
               </Button>
-              <Button 
-                onClick={handleSubmit} 
+              <Button
+                onClick={handleSubmit}
                 variant="contained"
                 startIcon={<FaSave />}
               >

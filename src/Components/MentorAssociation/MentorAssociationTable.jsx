@@ -17,7 +17,7 @@ import Swal from "sweetalert2";
 import "./UserAssociationTable.css"; // Reusing existing CSS
 import { IPAdress } from "../Datafetching/IPAdrees";
 import api from "../Datafetching/api";
-import { useWriteAccess } from "../Datafetching/useWriteAccess"; // Import the custom hook
+import { useWriteAccess } from "../Datafetching/UseWriteAccess"; // Import the custom hook
 
 // Material-UI imports
 import {
@@ -59,16 +59,18 @@ export default function MentorAssociationTable() {
   const IP = IPAdress;
 
   // Use the custom hook to check write access
-  const hasWriteAccess = useWriteAccess("/Incubation/Dashboard/MentorAssociation");
+  const hasWriteAccess = useWriteAccess(
+    "/Incubation/Dashboard/MentorAssociation",
+  );
 
   // States
   const [associations, setAssociations] = useState([]); // Stores the links/associations
   const [allMentors, setAllMentors] = useState([]); // Stores the list of all mentors (Role 12)
-  
-  // NOTE: 'incubatees' state variable is used to hold the 'Users' list for selection, 
+
+  // NOTE: 'incubatees' state variable is used to hold the 'Users' list for selection,
   // to maintain consistency with existing column headers and logic.
-  const [incubatees, setIncubatees] = useState([]); 
-  
+  const [incubatees, setIncubatees] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingMentorId, setEditingMentorId] = useState(null);
@@ -99,28 +101,36 @@ export default function MentorAssociationTable() {
   // --- 1. Fetch Mentor Associations (The Links) ---
   const fetchAssociations = async () => {
     try {
-      const response = await api.post("resources/generic/getmentorincassndetails", {
-        userId: parseInt(userId) || 1,
-        userIncId: incUserid,
-        headers: {
-          "X-Module": "Mentor Association",
-          "X-Action": "Fetch Mentor Associations",
+      const response = await api.post(
+        "resources/generic/getmentorincassndetails",
+        {
+          userId: parseInt(userId) || 1,
+          userIncId: incUserid,
+          headers: {
+            "X-Module": "Mentor Association",
+            "X-Action": "Fetch Mentor Associations",
+          },
         },
-      });
+      );
 
       if (response.data.statusCode === 200) {
         const data = Array.isArray(response.data.data)
           ? response.data.data
-          : (response.data.data && Array.isArray(response.data.data))
+          : response.data.data && Array.isArray(response.data.data)
             ? response.data.data
             : [];
         setAssociations(data);
       } else {
-        throw new Error(response.data.message || "Failed to fetch mentor associations");
+        throw new Error(
+          response.data.message || "Failed to fetch mentor associations",
+        );
       }
     } catch (err) {
       console.error("Error fetching mentor associations:", err);
-      const errorMessage = err.response?.data?.message || err.message || "Failed to load mentor associations. Please try again.";
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to load mentor associations. Please try again.";
       setError(errorMessage);
       setAssociations([]);
     }
@@ -141,12 +151,14 @@ export default function MentorAssociationTable() {
       if (response.data.statusCode === 200) {
         const rawData = Array.isArray(response.data.data)
           ? response.data.data
-          : (response.data.data && Array.isArray(response.data.data))
+          : response.data.data && Array.isArray(response.data.data)
             ? response.data.data
             : [];
 
         // FILTER: Keep only users where usersrolesrecid is 12
-        const mentorsOnly = rawData.filter((user) => user.usersrolesrecid === 12);
+        const mentorsOnly = rawData.filter(
+          (user) => user.usersrolesrecid === 12,
+        );
 
         setAllMentors(mentorsOnly);
       } else {
@@ -172,13 +184,15 @@ export default function MentorAssociationTable() {
       if (response.data.statusCode === 200) {
         const rawData = Array.isArray(response.data.data)
           ? response.data.data
-          : (response.data.data && Array.isArray(response.data.data))
+          : response.data.data && Array.isArray(response.data.data)
             ? response.data.data
             : [];
 
         // FILTER: Keep only users where usersrolesrecid is 4, 5, or 6
         const allowedRoles = [4, 5, 6];
-        const filteredUsers = rawData.filter((user) => allowedRoles.includes(user.usersrolesrecid));
+        const filteredUsers = rawData.filter((user) =>
+          allowedRoles.includes(user.usersrolesrecid),
+        );
 
         setIncubatees(filteredUsers);
       } else {
@@ -186,7 +200,10 @@ export default function MentorAssociationTable() {
       }
     } catch (err) {
       console.error("Error fetching users:", err);
-      const errorMessage = err.response?.data?.message || err.message || "Failed to load users. Please try again.";
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to load users. Please try again.";
       Swal.fire("❌ Error", errorMessage, "error");
       setIncubatees([]);
     }
@@ -195,10 +212,13 @@ export default function MentorAssociationTable() {
   useEffect(() => {
     setLoading(true);
     // Fetch all data in parallel
-    Promise.all([fetchAssociations(), fetchAllMentors(), fetchIncubatees()])
-      .finally(() => {
-        setLoading(false);
-      });
+    Promise.all([
+      fetchAssociations(),
+      fetchAllMentors(),
+      fetchIncubatees(),
+    ]).finally(() => {
+      setLoading(false);
+    });
   }, []);
 
   // Normalize Data Logic:
@@ -223,7 +243,7 @@ export default function MentorAssociationTable() {
     associations.forEach((item) => {
       if (item.mentorincassnid) {
         const mentorId = item.mentorincassnuserrecid;
-        
+
         // If mentor exists in our list (should), add the association
         if (mentorMap[mentorId]) {
           mentorMap[mentorId].associations.push({
@@ -249,25 +269,28 @@ export default function MentorAssociationTable() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((mentor) =>
-        mentor.mentorname.toLowerCase().includes(query)
+        mentor.mentorname.toLowerCase().includes(query),
       );
     }
 
     if (columnFilters.mentorname) {
       const nameQuery = columnFilters.mentorname.toLowerCase();
       filtered = filtered.filter((mentor) =>
-        mentor.mentorname.toLowerCase().includes(nameQuery)
+        mentor.mentorname.toLowerCase().includes(nameQuery),
       );
     }
 
     if (columnFilters.mentorcreatedby) {
       const createdByQuery = columnFilters.mentorcreatedby.toLowerCase();
       filtered = filtered.filter((mentor) =>
-        mentor.mentorcreatedby.toLowerCase().includes(createdByQuery)
+        mentor.mentorcreatedby.toLowerCase().includes(createdByQuery),
       );
     }
 
-    if (columnFilters.incubateesname || columnFilters.mentorincassncreatedbyname) {
+    if (
+      columnFilters.incubateesname ||
+      columnFilters.mentorincassncreatedbyname
+    ) {
       filtered = filtered.map((mentor) => {
         const filteredAssociations = mentor.associations.filter((assoc) => {
           let matchesIncubatee = true;
@@ -281,7 +304,8 @@ export default function MentorAssociationTable() {
           }
 
           if (columnFilters.mentorincassncreatedbyname) {
-            const createdByQuery = columnFilters.mentorincassncreatedbyname.toLowerCase();
+            const createdByQuery =
+              columnFilters.mentorincassncreatedbyname.toLowerCase();
             matchesCreatedBy = (assoc.mentorincassncreatedbyname || "N/A")
               .toLowerCase()
               .includes(createdByQuery);
@@ -295,7 +319,7 @@ export default function MentorAssociationTable() {
           associations: filteredAssociations,
         };
       });
-      
+
       // Filter out mentors who have no associations left after the specific incubatee filter
       filtered = filtered.filter((mentor) => mentor.associations.length > 0);
     }
@@ -349,7 +373,7 @@ export default function MentorAssociationTable() {
           exportArray.push({
             "Mentor Name": mentor.mentorname,
             "Created By": mentor.mentorcreatedby,
-            "User": assoc.incubateesname, // Changed from "Incubatee"
+            User: assoc.incubateesname, // Changed from "Incubatee"
             "Associated By": assoc.mentorincassncreatedbyname || "N/A",
             "Association Date": formatDate(assoc.mentorincassncreatedtime),
           });
@@ -358,7 +382,7 @@ export default function MentorAssociationTable() {
         exportArray.push({
           "Mentor Name": mentor.mentorname,
           "Created By": mentor.mentorcreatedby,
-          "User": "No users associated",
+          User: "No users associated",
           "Associated By": "N/A",
           "Association Date": "",
         });
@@ -435,13 +459,17 @@ export default function MentorAssociationTable() {
   // Edit handlers
   const startEditing = (mentor) => {
     if (!hasWriteAccess) {
-      Swal.fire("Access Denied", "You do not have permission to edit associations.", "warning");
+      Swal.fire(
+        "Access Denied",
+        "You do not have permission to edit associations.",
+        "warning",
+      );
       return;
     }
     setEditingMentorId(mentor.mentorrecid);
     // Map associations to get the list of selected usersrecid
     const mentorUsers = mentor.associations.map(
-      (assoc) => assoc.mentorincassnincuserrecid
+      (assoc) => assoc.mentorincassnincuserrecid,
     );
     setSelectedIncubatees(mentorUsers);
   };
@@ -464,28 +492,32 @@ export default function MentorAssociationTable() {
   // Update Associations (Add/Remove Logic)
   const updateAssociations = () => {
     if (!editingMentorId) return;
-    
+
     if (!hasWriteAccess) {
-      Swal.fire("Access Denied", "You do not have permission to modify associations.", "warning");
+      Swal.fire(
+        "Access Denied",
+        "You do not have permission to modify associations.",
+        "warning",
+      );
       return;
     }
 
     setUpdateLoading(true);
 
     const currentMentorAssociations = associations.filter(
-      (assoc) => assoc.mentorincassnuserrecid === editingMentorId
+      (assoc) => assoc.mentorincassnuserrecid === editingMentorId,
     );
 
     const currentIncubateeIds = currentMentorAssociations.map(
-      (assoc) => assoc.mentorincassnincuserrecid
+      (assoc) => assoc.mentorincassnincuserrecid,
     );
 
     const toAdd = selectedIncubatees.filter(
-      (id) => !currentIncubateeIds.includes(id)
+      (id) => !currentIncubateeIds.includes(id),
     );
-    
+
     const toRemove = currentMentorAssociations.filter(
-      (assoc) => !selectedIncubatees.includes(assoc.mentorincassnincuserrecid)
+      (assoc) => !selectedIncubatees.includes(assoc.mentorincassnincuserrecid),
     );
 
     // --- ADD Promises ---
@@ -494,21 +526,22 @@ export default function MentorAssociationTable() {
       const user = incubatees.find((u) => u.usersrecid === usersrecid);
       const incubationId = user ? user.usersincubationsrecid : null;
 
-      return api.post("/addMentorIncAssn", null, {
-        params: {
-          mentorincassnuserrecid: editingMentorId,
-          mentorincassnincuserrecid: usersrecid, // Using usersrecid directly as requested
-          mentorincassnincubationid: incubationId || incUserid,
-          mentorincassnadminstate: 1,
-          mentorincassncreatedby: userId || "1",
-          mentorincassnmodifiedby: userId || "1",
-        },
-        headers: {
-          userid: userId || "1",
-          "X-Module": "DDI Mentor Association",
-          "X-Action": "Add Mentor Association",
-        },
-      })
+      return api
+        .post("/addMentorIncAssn", null, {
+          params: {
+            mentorincassnuserrecid: editingMentorId,
+            mentorincassnincuserrecid: usersrecid, // Using usersrecid directly as requested
+            mentorincassnincubationid: incubationId || incUserid,
+            mentorincassnadminstate: 1,
+            mentorincassncreatedby: userId || "1",
+            mentorincassnmodifiedby: userId || "1",
+          },
+          headers: {
+            userid: userId || "1",
+            "X-Module": "DDI Mentor Association",
+            "X-Action": "Add Mentor Association",
+          },
+        })
         .then((res) => {
           if (res.data.statusCode !== 200) {
             throw new Error(res.data.message || "Failed to add association");
@@ -516,7 +549,10 @@ export default function MentorAssociationTable() {
           return { success: true, usersrecid, action: "add" };
         })
         .catch((error) => {
-          const errorMessage = error.response?.data?.message || error.message || "An unknown error occurred";
+          const errorMessage =
+            error.response?.data?.message ||
+            error.message ||
+            "An unknown error occurred";
           return {
             success: false,
             usersrecid,
@@ -528,17 +564,18 @@ export default function MentorAssociationTable() {
 
     // --- REMOVE Promises ---
     const removePromises = toRemove.map((association) => {
-      return api.post("/deleteMentorIncAssn", null, {
-        params: {
-          mentorincassnid: association.mentorincassnid,
-          mentorincassnmodifiedby: userId || "1",
-        },
-        headers: {
-          userid: userId || "1",
-          "X-Module": "DDI Mentor Association",
-          "X-Action": "Delete Mentor Association",
-        },
-      })
+      return api
+        .post("/deleteMentorIncAssn", null, {
+          params: {
+            mentorincassnid: association.mentorincassnid,
+            mentorincassnmodifiedby: userId || "1",
+          },
+          headers: {
+            userid: userId || "1",
+            "X-Module": "DDI Mentor Association",
+            "X-Action": "Delete Mentor Association",
+          },
+        })
         .then((res) => {
           if (res.data.statusCode !== 200) {
             throw new Error(res.data.message || "Failed to remove association");
@@ -550,7 +587,10 @@ export default function MentorAssociationTable() {
           };
         })
         .catch((error) => {
-          const errorMessage = error.response?.data?.message || error.message || "An unknown error occurred";
+          const errorMessage =
+            error.response?.data?.message ||
+            error.message ||
+            "An unknown error occurred";
           return {
             success: false,
             associationId: association.mentorincassnid,
@@ -571,7 +611,7 @@ export default function MentorAssociationTable() {
           Swal.fire(
             "✅ Success",
             "Mentor associations updated successfully!",
-            "success"
+            "success",
           );
           fetchAssociations();
           cancelEditing();
@@ -623,7 +663,11 @@ export default function MentorAssociationTable() {
   // Delete Association
   const handleDelete = (associationId) => {
     if (!hasWriteAccess) {
-      Swal.fire("Access Denied", "You do not have permission to delete associations.", "warning");
+      Swal.fire(
+        "Access Denied",
+        "You do not have permission to delete associations.",
+        "warning",
+      );
       return;
     }
 
@@ -638,19 +682,22 @@ export default function MentorAssociationTable() {
       preConfirm: () => {
         setIsDeleting(true);
         // Using api.post for consistency
-        return api.post("/deleteMentorIncAssn", null, {
-          params: {
-            mentorincassnmodifiedby: userId || "1",
-            mentorincassnid: associationId,
-          },
-          headers: {
-            "X-Module": "Mentor Association",
-            "X-Action": "Delete Mentor Association",
-          },
-        })
+        return api
+          .post("/deleteMentorIncAssn", null, {
+            params: {
+              mentorincassnmodifiedby: userId || "1",
+              mentorincassnid: associationId,
+            },
+            headers: {
+              "X-Module": "Mentor Association",
+              "X-Action": "Delete Mentor Association",
+            },
+          })
           .then((res) => {
             if (res.data.statusCode !== 200) {
-              throw new Error(res.data.message || "Failed to delete association");
+              throw new Error(
+                res.data.message || "Failed to delete association",
+              );
             }
             return res.data;
           })
@@ -684,12 +731,12 @@ export default function MentorAssociationTable() {
   const paginatedData = useMemo(() => {
     return sortedData.slice(
       page * rowsPerPage,
-      page * rowsPerPage + rowsPerPage
+      page * rowsPerPage + rowsPerPage,
     );
   }, [sortedData, page, rowsPerPage]);
 
   const hasActiveFilters = Object.values(columnFilters).some(
-    (value) => value !== ""
+    (value) => value !== "",
   );
 
   return (
@@ -805,9 +852,13 @@ export default function MentorAssociationTable() {
                       <Tooltip title="Filter">
                         <IconButton
                           size="small"
-                          onClick={(e) => handleFilterClick(e, "mentorcreatedby")}
+                          onClick={(e) =>
+                            handleFilterClick(e, "mentorcreatedby")
+                          }
                           color={
-                            columnFilters.mentorcreatedby ? "primary" : "default"
+                            columnFilters.mentorcreatedby
+                              ? "primary"
+                              : "default"
                           }
                         >
                           <FaFilter size={14} />
@@ -946,7 +997,7 @@ export default function MentorAssociationTable() {
                                   >
                                     {formatDate(
                                       mentor.associations[index]
-                                        .mentorincassncreatedtime
+                                        .mentorincassncreatedtime,
                                     )}
                                   </Typography>
                                 </Box>
@@ -961,7 +1012,8 @@ export default function MentorAssociationTable() {
                                     size="small"
                                     onClick={() =>
                                       handleDelete(
-                                        mentor.associations[index].mentorincassnid
+                                        mentor.associations[index]
+                                          .mentorincassnid,
                                       )
                                     }
                                     disabled={isDeleting || !hasWriteAccess}
@@ -1044,7 +1096,8 @@ export default function MentorAssociationTable() {
                 ${filterColumn === "mentorcreatedby" && "created by"}
                 ${filterColumn === "incubateesname" && "user name"}
                 ${
-                  filterColumn === "mentorincassncreatedbyname" && "associated by"
+                  filterColumn === "mentorincassncreatedbyname" &&
+                  "associated by"
                 }...`}
               value={columnFilters[filterColumn] || ""}
               onChange={(e) => handleFilterChange(filterColumn, e.target.value)}
@@ -1090,15 +1143,15 @@ export default function MentorAssociationTable() {
                 control={
                   <Checkbox
                     checked={selectedIncubatees.includes(
-                      user.usersrecid // Check uses usersrecid
+                      user.usersrecid, // Check uses usersrecid
                     )}
-                    onChange={() =>
-                      handleCheckboxChange(user.usersrecid) // Change uses usersrecid
+                    onChange={
+                      () => handleCheckboxChange(user.usersrecid) // Change uses usersrecid
                     }
                     disabled={updateLoading}
                   />
                 }
-                label={`${user.usersname} (${user.incubateesname})`} 
+                label={`${user.usersname} (${user.incubateesname})`}
               />
             ))}
           </Box>

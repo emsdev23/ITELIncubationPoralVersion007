@@ -1,14 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import {
-  FaEdit,
-  FaTrash,
-  FaChalkboardTeacher,
-  FaPlus,
-} from "react-icons/fa";
+import { FaEdit, FaTrash, FaChalkboardTeacher, FaPlus } from "react-icons/fa";
 import Swal from "sweetalert2";
 import "./MentorClassificationTable.css";
 import api from "../Datafetching/api";
-import { useWriteAccess } from "../Datafetching/useWriteAccess";
+import { useWriteAccess } from "../Datafetching/UseWriteAccess";
 
 // Material-UI imports
 import {
@@ -70,7 +65,7 @@ const formatDate = (dateStr) => {
     const minute = dateStr.substring(10, 12);
     const second = dateStr.substring(12, 14);
     const formattedDate = new Date(
-      `${year}-${month}-${day}T${hour}:${minute}:${second}`
+      `${year}-${month}-${day}T${hour}:${minute}:${second}`,
     );
     return formattedDate.toLocaleString("en-US", {
       year: "numeric",
@@ -91,7 +86,9 @@ export default function MentorClassificationTable() {
   const incUserid = sessionStorage.getItem("incuserid");
 
   // Use the custom hook to check write access
-  const hasWriteAccess = useWriteAccess("/Incubation/Dashboard/MentorManagement");
+  const hasWriteAccess = useWriteAccess(
+    "/Incubation/Dashboard/MentorManagement",
+  );
 
   // States
   const [classifications, setClassifications] = useState([]);
@@ -129,7 +126,7 @@ export default function MentorClassificationTable() {
         {
           userId: parseInt(userId) || 1,
           userIncId: incUserid,
-        }
+        },
       );
 
       if (response.data.statusCode === 200) {
@@ -138,12 +135,16 @@ export default function MentorClassificationTable() {
           : [];
         setClassifications(data);
       } else {
-        throw new Error(response.data.message || "Failed to fetch classifications");
+        throw new Error(
+          response.data.message || "Failed to fetch classifications",
+        );
       }
     } catch (err) {
       console.error("Error fetching classifications:", err);
       const errorMessage =
-        err.response?.data?.message || err.message || "Failed to load classifications.";
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to load classifications.";
       setError(errorMessage);
       setClassifications([]);
     } finally {
@@ -215,7 +216,7 @@ export default function MentorClassificationTable() {
         throw error;
       }
     },
-    [userId]
+    [userId],
   );
 
   // --- HANDLERS ---
@@ -241,7 +242,7 @@ export default function MentorClassificationTable() {
       setFieldErrors(errors);
       return !errors[name];
     },
-    [fieldErrors]
+    [fieldErrors],
   );
 
   const validateForm = useCallback(() => {
@@ -263,12 +264,16 @@ export default function MentorClassificationTable() {
         [name]: finalValue,
       }));
     },
-    [fieldErrors, validateField]
+    [fieldErrors, validateField],
   );
 
   const openAddModal = useCallback(() => {
     if (!hasWriteAccess) {
-      Swal.fire("Access Denied", "You do not have permission to add classifications.", "warning");
+      Swal.fire(
+        "Access Denied",
+        "You do not have permission to add classifications.",
+        "warning",
+      );
       return;
     }
     setDialogType("add");
@@ -281,7 +286,11 @@ export default function MentorClassificationTable() {
   const openEditModal = useCallback(
     (item) => {
       if (!hasWriteAccess) {
-        Swal.fire("Access Denied", "You do not have permission to edit classifications.", "warning");
+        Swal.fire(
+          "Access Denied",
+          "You do not have permission to edit classifications.",
+          "warning",
+        );
         return;
       }
       setDialogType("edit");
@@ -294,7 +303,7 @@ export default function MentorClassificationTable() {
       setFieldErrors({});
       setOpenDialog(true);
     },
-    [hasWriteAccess]
+    [hasWriteAccess],
   );
 
   const handleClose = useCallback(() => {
@@ -304,14 +313,14 @@ export default function MentorClassificationTable() {
   const handleSubmit = useCallback(
     async (e) => {
       if (e) e.preventDefault();
-      
+
       if (!validateForm()) {
         showToast("Please fix errors in the form", "error");
         return;
       }
 
       setIsSaving(true);
-      setOpenDialog(false); 
+      setOpenDialog(false);
 
       try {
         let response;
@@ -324,28 +333,45 @@ export default function MentorClassificationTable() {
         if (response.statusCode === 200) {
           showToast(
             `Classification ${dialogType === "add" ? "added" : "updated"} successfully!`,
-            "success"
+            "success",
           );
           fetchClassifications();
         } else {
           throw new Error(response.message || "Operation failed");
         }
       } catch (err) {
-        console.error(`Error ${dialogType === "add" ? "adding" : "updating"} classification:`, err);
-        const errorMessage = err.response?.data?.message || err.message || "An unknown error occurred";
+        console.error(
+          `Error ${dialogType === "add" ? "adding" : "updating"} classification:`,
+          err,
+        );
+        const errorMessage =
+          err.response?.data?.message ||
+          err.message ||
+          "An unknown error occurred";
         showToast(errorMessage, "error");
         setOpenDialog(true);
       } finally {
         setIsSaving(false);
       }
     },
-    [validateForm, showToast, dialogType, createClassification, updateClassification, fetchClassifications]
+    [
+      validateForm,
+      showToast,
+      dialogType,
+      createClassification,
+      updateClassification,
+      fetchClassifications,
+    ],
   );
 
   const handleDelete = useCallback(
     (item) => {
       if (!hasWriteAccess) {
-        Swal.fire("Access Denied", "You do not have permission to delete classifications.", "warning");
+        Swal.fire(
+          "Access Denied",
+          "You do not have permission to delete classifications.",
+          "warning",
+        );
         return;
       }
 
@@ -358,29 +384,43 @@ export default function MentorClassificationTable() {
         cancelButtonText: "Cancel",
         showLoaderOnConfirm: true,
         preConfirm: async () => {
-          setIsDeleting((prev) => ({ ...prev, [item.mentorclassetrecid]: true }));
+          setIsDeleting((prev) => ({
+            ...prev,
+            [item.mentorclassetrecid]: true,
+          }));
           try {
-            const response = await deleteClassification(item.mentorclassetrecid);
+            const response = await deleteClassification(
+              item.mentorclassetrecid,
+            );
             if (response.statusCode !== 200) {
-              throw new Error(response.message || "Failed to delete classification");
+              throw new Error(
+                response.message || "Failed to delete classification",
+              );
             }
             return response.data;
           } catch (error) {
             Swal.showValidationMessage(`Request failed: ${error.message}`);
             throw error;
           } finally {
-             setIsDeleting((prev) => ({ ...prev, [item.mentorclassetrecid]: false }));
+            setIsDeleting((prev) => ({
+              ...prev,
+              [item.mentorclassetrecid]: false,
+            }));
           }
         },
         allowOutsideClick: () => !Swal.isLoading(),
       }).then((result) => {
         if (result.isConfirmed) {
-          Swal.fire("Deleted!", "Classification deleted successfully!", "success");
+          Swal.fire(
+            "Deleted!",
+            "Classification deleted successfully!",
+            "success",
+          );
           fetchClassifications();
         }
       });
     },
-    [hasWriteAccess, deleteClassification, fetchClassifications]
+    [hasWriteAccess, deleteClassification, fetchClassifications],
   );
 
   // --- DATA GRID CONFIG ---
@@ -470,7 +510,7 @@ export default function MentorClassificationTable() {
           ]
         : []),
     ],
-    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete]
+    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete],
   );
 
   const exportConfig = useMemo(
@@ -478,7 +518,7 @@ export default function MentorClassificationTable() {
       filename: "mentor_classifications",
       sheetName: "Classifications",
     }),
-    []
+    [],
   );
 
   const onExportData = useMemo(
@@ -493,7 +533,7 @@ export default function MentorClassificationTable() {
         "Modified By": item.mentorclassetmodifiedby || "",
         "Modified Time": formatDate(item.mentorclassetmodifiedtime),
       })),
-    []
+    [],
   );
 
   // --- EFFECTS ---
@@ -585,7 +625,7 @@ export default function MentorClassificationTable() {
                   helperText={fieldErrors.name}
                 />
               </Grid>
-              
+
               <Grid item xs={12}>
                 <TextField
                   fullWidth
@@ -601,17 +641,17 @@ export default function MentorClassificationTable() {
               </Grid>
 
               <Grid item xs={12}>
-                 <FormControlLabel
-                    control={
-                      <Switch
-                        checked={formData.adminState}
-                        onChange={handleInputChange}
-                        name="adminState"
-                        color="primary"
-                      />
-                    }
-                    label="Active Status"
-                  />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.adminState}
+                      onChange={handleInputChange}
+                      name="adminState"
+                      color="primary"
+                    />
+                  }
+                  label="Active Status"
+                />
               </Grid>
             </Grid>
           </DialogContent>
@@ -619,13 +659,17 @@ export default function MentorClassificationTable() {
             <Button onClick={handleClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button 
-                type="submit" 
-                variant="contained"
-                disabled={isSaving || Object.keys(fieldErrors).length > 0}
-                startIcon={isSaving ? <CircularProgress size={20} /> : null}
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isSaving || Object.keys(fieldErrors).length > 0}
+              startIcon={isSaving ? <CircularProgress size={20} /> : null}
             >
-              {isSaving ? "Saving..." : dialogType === "add" ? "Add" : "Save Changes"}
+              {isSaving
+                ? "Saving..."
+                : dialogType === "add"
+                  ? "Add"
+                  : "Save Changes"}
             </Button>
           </DialogActions>
         </form>
@@ -658,7 +702,9 @@ export default function MentorClassificationTable() {
         >
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {dialogType === "add" ? "Adding classification..." : "Updating classification..."}
+            {dialogType === "add"
+              ? "Adding classification..."
+              : "Updating classification..."}
           </Typography>
         </Box>
       </StyledBackdrop>
