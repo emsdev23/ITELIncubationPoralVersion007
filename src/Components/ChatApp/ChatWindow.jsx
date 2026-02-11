@@ -1,5 +1,5 @@
 // src/components/ChatWindow.jsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import Message from "./Message";
 import MessageInput from "./MessageInput";
 import "./ChatWindow.css";
@@ -17,11 +17,22 @@ const ChatWindow = ({
   const messagesContainerRef = useRef(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
+  // --- SORTING LOGIC: Sort messages by time (Earliest First) ---
+  const sortedMessages = useMemo(() => {
+    if (!messages) return [];
+    return [...messages].sort((a, b) => {
+      const dateA = new Date(a.chatdetailscreatedtime).getTime();
+      const dateB = new Date(b.chatdetailscreatedtime).getTime();
+      return dateA - dateB; // Ascending order (Oldest -> Newest)
+    });
+  }, [messages]);
+  // -----------------------------------------------------------
+
   useEffect(() => {
     if (shouldAutoScroll) {
       scrollToBottom();
     }
-  }, [messages, shouldAutoScroll]);
+  }, [sortedMessages, shouldAutoScroll]); // Trigger effect when sortedMessages change
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -51,8 +62,8 @@ const ChatWindow = ({
   // --- KEY MODIFICATION: Update Reply Logic ---
   const isBroadcastChat = chat?.chatlistchattypeid === 3;
   const isOriginalSender = currentUser.id === String(chat?.chatlistfrom);
-  console.log("user ids",currentUser.id,chat?.chatlistfrom)
-  console.log("original sender status",isOriginalSender)
+  console.log("user ids", currentUser.id, chat?.chatlistfrom);
+  console.log("original sender status", isOriginalSender);
   const isChatClosed = activeTab === "closed" || chat?.chatlistchatstate === 0;
   const canReply = (!isBroadcastChat || isOriginalSender) && !isChatClosed;
   // --- END OF MODIFICATION ---
@@ -85,11 +96,11 @@ const ChatWindow = ({
       </div>
 
       <div className="messages-container" ref={messagesContainerRef} onScroll={handleScroll}>
-        {messages.length === 0 ? (
+        {sortedMessages.length === 0 ? (
           <div className="no-messages">No messages yet. Start the conversation!</div>
         ) : (
           <>
-            {messages.map((message) => (
+            {sortedMessages.map((message) => (
               <Message
                 key={message.chatdetailsrecid}
                 message={message}
@@ -97,7 +108,7 @@ const ChatWindow = ({
                 onReply={canReply ? handleReply : null}
                 isPublicReplyChat={chat?.chatlistchattypeid === 4}
                 isPrivateReplyChat={chat?.chatlistchattypeid === 5}
-                allMessages={messages}
+                allMessages={sortedMessages}
               />
             ))}
             <div ref={messagesEndRef} />
@@ -108,7 +119,7 @@ const ChatWindow = ({
       {replyTo && (
         <div className="reply-preview">
           <div className="reply-content">
-            <span>Replying to {replyTo.chatdetailsfrom === currentUser.id ? "You" : `User ${replyTo.chatdetailsfrom}`}: </span>
+            <span>Replying to {replyTo.chatdetailsfrom === currentUser.id ? "You" : `User ${replyTo.chatdetailsfromusername}`}: </span>
             <p>{replyTo.chatdetailsmessage}</p>
           </div>
           <button className="cancel-reply-btn" onClick={handleCancelReply}>×</button>

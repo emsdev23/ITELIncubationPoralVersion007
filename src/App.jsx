@@ -28,7 +28,14 @@ import TrainingManagementPage from "./Components/TrainingManagement/TrainingMana
 
 import ResetPassword from "./Components/Login/ResetPassword";
 import IncubateeTable from "./Components/IncubateeManagement/IncubateeTable";
+import MentorDashboard from "./Components/MentorDashboard/MentorDashboard";
 // Create a context for authentication state
+
+import MentorAssociation from "./Components/MentorAssociation/MentorAssociation";
+import MentorManagementPage from "./Components/MentorClassification/MentorManagementPage";
+import TrainingAssignment from "./Components/MentorTrainingAssignment/TrainingAssignment";
+import CoursesPage from "./Components/Courses/CoursesPage";
+
 export const AuthContext = createContext();
 
 function AppContent() {
@@ -72,7 +79,7 @@ function AppContent() {
             <Route
               path="/Incubation/Dashboard"
               element={
-                <ProtectedRoute allowedRoles={[0, 1, 3, 7]}>
+                <ProtectedRoute allowedRoles={[0, 1, 3, 7, 12]}>
                   <MainDashboard />
                 </ProtectedRoute>
               }
@@ -158,12 +165,53 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/Incubation/Dashboard/MentorDashboard"
+              element={
+                <ProtectedRoute>
+                  <MentorDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/Incubation/Dashboard/TrainingAssignment"
+              element={
+                <ProtectedRoute>
+                  <TrainingAssignment />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/Incubation/Dashboard/MentorManagement"
+              element={
+                <ProtectedRoute>
+                  <MentorManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/Incubation/Dashboard/MentorAssociation"
+              element={
+                <ProtectedRoute>
+                  <MentorAssociation />
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="/startup/Dashboard/DocumentAccessManagement"
               element={
                 <ProtectedRoute>
                   <DocumentAccessManagement />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/startup/Dashboard/Courses"
+              element={
+                <ProtectedRoute>
+                  <CoursesPage />
                 </ProtectedRoute>
               }
             />

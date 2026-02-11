@@ -12,7 +12,7 @@ import DDIDocumentUploadModal from "./DDI/DDIDocumentUploadModal ";
 import DDIDocumentsTable from "./DDI/DDIDocumentsTable";
 import { IPAdress } from "./Datafetching/IPAdrees";
 import IncubatorSelectorTable from "./IncubatorSelectorTable";
-
+import MentorDashboard from "./MentorDashboard/MentorDashboard";
 function MainDashboard() {
   const {
     stats,
@@ -31,9 +31,14 @@ function MainDashboard() {
       {/* Main Content */}
       <main className={styles.main}>
         {roleid === "0" ? <IncubatorSelectorTable /> : ""}
+        {roleid === "12" ? <MentorDashboard /> : ""}
 
         <br />
-        {roleid === "7" ? "" : <MetricCardDashboard stats={stats} />}
+        {roleid === "7" || roleid === "12" ? (
+          ""
+        ) : (
+          <MetricCardDashboard stats={stats} />
+        )}
 
         {roleid === "7" ? (
           ""
@@ -58,9 +63,10 @@ function MainDashboard() {
         <br />
         <DDIDocumentUploadModal />
         <br />
-        <DocumentTable />
+        {roleid === "12" ? "" : <DocumentTable />}
+
         <br />
-        {roleid === "0" ? "" : <DDIDocumentsTable />}
+        {roleid === "0" || roleid === "12" ? "" : <DDIDocumentsTable />}
       </main>
     </div>
   );

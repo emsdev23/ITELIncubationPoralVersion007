@@ -29,29 +29,23 @@ const ChatList = ({
     return types[chatTypeId] || "Unknown";
   };
 
-  // =======================================================================
-  // CORRECTED FUNCTION: Handle Group and One-to-One Chats
-  // =======================================================================
   const getChatPartnerName = (chat) => {
     // 1. Handle Group/Broadcast Chats
     if (chat.chatlistisgroup) {
       const recipientCount = chat.chatlistrecipients ? chat.chatlistrecipients.split(',').length : 0;
       if (chat.chatlistfrom == currentUser.id) {
-        // If the current user is the broadcaster
         return `Broadcast to ${recipientCount} recipients`;
       } else {
-        // If the current user is a recipient
         return `Broadcast from ${chat.usersnamefrom || 'Unknown'}`;
       }
     }
     
-    // 2. Handle One-to-One Chats (Original Logic)
+    // 2. Handle One-to-One Chats
     if (chat.chatlistfrom == currentUser.id) {
       return chat.usernameto || "Unknown";
     }
     return chat.usersnamefrom || "Unknown";
   };
-  // =======================================================================
 
   const formatTime = (timeString) => {
     if (!timeString) return "";
@@ -113,8 +107,21 @@ const ChatList = ({
     );
   }
 
-  const activeChats = chatLists.filter((chat) => chat.chatlistchatstate === 1);
-  const closedChats = chatLists.filter((chat) => chat.chatlistchatstate === 0);
+  // UPDATED LOGIC: Filter then Sort by modified time (Descending)
+  const sortChatsByTime = (a, b) => {
+    const dateA = new Date(a.chatlistmodifiedtime).getTime();
+    const dateB = new Date(b.chatlistmodifiedtime).getTime();
+    return dateB - dateA; // Sort Descending (Newest first)
+  };
+
+  const activeChats = chatLists
+    .filter((chat) => chat.chatlistchatstate === 1)
+    .sort(sortChatsByTime);
+
+  const closedChats = chatLists
+    .filter((chat) => chat.chatlistchatstate === 0)
+    .sort(sortChatsByTime);
+
   const chatsToDisplay = activeTab === "active" ? activeChats : closedChats;
   const noChatsMessage = activeTab === "active" ? "No active chats. Start a new conversation!" : "No closed chats.";
 
@@ -136,25 +143,40 @@ const ChatList = ({
         <div className="no-chats">{noChatsMessage}</div>
       ) : (
         <ul className="chat-list-items">
-          {chatsToDisplay.map((chat) => (
-            <li
-              key={chat.chatlistrecid}
-              className={`chat-list-item ${selectedChat?.chatlistrecid === chat.chatlistrecid ? "active" : ""}`}
-              onClick={() => onSelectChat(chat)}
-            >
-              <div className="chat-item-header">
-                <span className="chat-partner">{chat.chatlistsubject}</span>
-                <div className="chat-item-actions">
-                  <span className="chat-time">{formatTime(chat.chatlistmodifiedtime)}</span>
-                  {activeTab === "active" && chat.chatlistfrom == currentUser.id && (
-                    <button className="close-chat-btn" onClick={(e) => handleCloseChat(e, chat)} title="Close this chat">Close</button>
-                  )}
+          {chatsToDisplay.map((chat) => {
+            // UPDATED LOGIC: Check who the user is to determine which read state to check
+            let isUnread = false;
+            
+            if (chat.chatlistfrom == currentUser.id) {
+              // If current user is the sender, check fromreadstate
+              isUnread = chat.chatlistfromreadstate === 1;
+            } else if (chat.chatlistto == currentUser.id) {
+              // If current user is the receiver, check toreadstate
+              isUnread = chat.chatlisttoreadstate === 1;
+            }
+
+            return (
+              <li
+                key={chat.chatlistrecid}
+                className={`chat-list-item 
+                  ${selectedChat?.chatlistrecid === chat.chatlistrecid ? "active" : ""} 
+                  ${isUnread ? "unread" : ""}`}
+                onClick={() => onSelectChat(chat)}
+              >
+                <div className="chat-item-header">
+                  <span className="chat-partner">{chat.chatlistsubject}</span>
+                  <div className="chat-item-actions">
+                    <span className="chat-time">{formatTime(chat.chatlistmodifiedtime)}</span>
+                    {activeTab === "active" && chat.chatlistfrom == currentUser.id && (
+                      <button className="close-chat-btn" onClick={(e) => handleCloseChat(e, chat)} title="Close this chat">Close</button>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="chat-item-subject">{getChatPartnerName(chat)}</div>
-              <div className="chat-type-badge">{getChatTypeLabel(chat.chatlistchattypeid)}</div>
-            </li>
-          ))}
+                <div className="chat-item-subject">{getChatPartnerName(chat)}</div>
+                <div className="chat-type-badge">{getChatTypeLabel(chat.chatlistchattypeid)}</div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

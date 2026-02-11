@@ -78,7 +78,7 @@ export default function DocumentTable() {
 
   // Date Filter States - update to use context values
   const [startDate, setStartDate] = useState(
-    fromYear ? new Date(fromYear) : null
+    fromYear ? new Date(fromYear) : null,
   );
   const [endDate, setEndDate] = useState(toYear ? new Date(toYear) : null);
   const [datesSelected, setDatesSelected] = useState(!!(fromYear && toYear));
@@ -108,10 +108,10 @@ export default function DocumentTable() {
         setEndDate(newValue);
       }
       setDatesSelected(
-        !!(type === "start" ? newValue && endDate : startDate && newValue)
+        !!(type === "start" ? newValue && endDate : startDate && newValue),
       );
     },
-    [startDate, endDate]
+    [startDate, endDate],
   );
 
   // Handle apply date filter
@@ -220,11 +220,11 @@ export default function DocumentTable() {
 
       const now = new Date();
       const timestamp = `${now.getFullYear()}/${String(
-        now.getMonth() + 1
+        now.getMonth() + 1,
       ).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(
-        now.getHours()
+        now.getHours(),
       ).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}-${String(
-        now.getSeconds()
+        now.getSeconds(),
       ).padStart(2, "0")}`;
 
       const newFileName = `${documentName}_${timestamp}.${fileExtension}`;
@@ -267,7 +267,7 @@ export default function DocumentTable() {
             "X-Module": "DDI Documents",
             "X-Action": "DDI Document preview",
           },
-        }
+        },
       );
 
       // if (!response.ok)
@@ -549,7 +549,7 @@ export default function DocumentTable() {
           </Button>
         );
       },
-    }
+    },
   );
 
   // Conditionally add Document column for roleid 7

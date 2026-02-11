@@ -96,14 +96,14 @@ const AuditLogsModal = ({ isOpen, onClose, IPAddress, token, userid }) => {
         {
           startDate: `${start} 00:00:00`,
           endDate: `${end} 23:59:59`,
-          userId: userid.toString(),
+          userId: "ALL",
         },
         {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       const result = response.data;

@@ -1,4 +1,10 @@
-import React, { createContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 import api from "./api";
 
 export const DataContext = createContext();
@@ -18,6 +24,17 @@ export const DataProvider = ({ children }) => {
   // Add new state for admin viewing specific startup
   const [adminViewingStartupId, setAdminViewingStartupId] = useState(null);
   const [adminStartupLoading, setAdminStartupLoading] = useState(false);
+
+  // =================================================================
+  // NEW: State for Chat functionality
+  // =================================================================
+  const [chatList, setChatList] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatResponseStatus, setChatResponseStatus] = useState(0);
+
+  // FIX: Use a ref to track fetching state to avoid race conditions
+  // and prevent useCallback dependencies from changing constantly.
+  const isChatFetching = useRef(false);
 
   // Initialize state from sessionStorage
   const [userid, setUseridState] = useState(
@@ -55,14 +72,21 @@ export const DataProvider = ({ children }) => {
     setroleidState(idString);
   };
 
+  // Updated to handle roleid 0 and 1
   const setincuserid = (id) => {
-    const idString = roleid === "1" ? "ALL" : id ? String(id) : null;
+    let idString;
+    if (roleid === "0") {
+      idString = "ALL";
+    } else if (roleid === "1") {
+      idString = id ? String(id) : "ALL";
+    } else {
+      idString = id ? String(id) : null;
+    }
     sessionStorage.setItem("incuserid", idString);
     setincuseridstate(idString);
   };
 
   // State for date range filtering
-
   const [fromYear, setFromYear] = useState("2025-04-01");
   const [toYear, setToYear] = useState("2026-03-01");
   const [dateFilterLoading, setDateFilterLoading] = useState(false);
@@ -94,27 +118,95 @@ export const DataProvider = ({ children }) => {
     return new Date(date).toISOString().split("T")[0];
   };
 
-  // NEW: Function to fetch documents by date range
+  // =================================================================
+  // NEW: Chat List Functionality
+  // =================================================================
+
+  // Helper to calculate the specific status requested
+  const calculateChatStatus = (data, currentUserId) => {
+    if (!data || !currentUserId) return 0;
+    const hasCondition = data.some(
+      (item) =>
+        String(item.chatlistto) === String(currentUserId) &&
+        item.chatlistreadstate === 1,
+    );
+    return hasCondition ? 1 : 0;
+  };
+
+  // FIX: Updated getChatLists to handle "ALL", invalid IDs, and Ref locking
+  const getChatLists = useCallback(async () => {
+    // 1. Check if User ID is present
+    if (!userid) {
+      return;
+    }
+
+    // 2. Validate IncUserID
+    // If incuserid is "ALL" (Admin view), "null", or empty, we cannot fetch chats.
+    // parseInt("ALL") returns NaN, which causes the API 400 error.
+    if (!incuserid || incuserid === "ALL" || incuserid === "null") {
+      return;
+    }
+
+    // 3. Prevent spamming the API using the Ref lock
+    if (isChatFetching.current) return;
+
+    isChatFetching.current = true;
+    setChatLoading(true);
+
+    try {
+      const response = await api.post("/resources/generic/getchatlist", {
+        userId: parseInt(userid),
+        incUserId: parseInt(incuserid), // Safe to parse now
+      });
+
+      const data = extractData(response, []);
+      setChatList(data);
+
+      const status = calculateChatStatus(data, userid);
+      setChatResponseStatus(status);
+
+      return data;
+    } catch (error) {
+      console.error("Error fetching chat lists:", error);
+      setChatList([]);
+      setChatResponseStatus(0);
+      throw error;
+    } finally {
+      setChatLoading(false);
+      isChatFetching.current = false;
+    }
+    // Note: We removed 'chatLoading' from dependencies to keep this function stable.
+    // We rely on the 'isChatFetching' ref for the lock.
+  }, [userid, incuserid]);
+  // ================================================================
+
   // NEW: Function to fetch documents by date range
   const fetchDocumentsByDateRange = async (startDate, endDate) => {
     setDateFilterLoading(true);
     try {
-      // Determine the correct userId to use for the API call
+      // Determine the correct userId and incUserId to use for the API call
       let targetUserId;
-      if (Number(roleid) === 1) {
-        // If admin is viewing a specific company, use that company's ID.
-        // Otherwise, use "ALL" for the main admin dashboard.
+      let targetIncUserId;
+
+      if (Number(roleid) === 0) {
+        // For roleid 0: userId is "ALL" and incUserId is "ALL"
+        targetUserId = "ALL";
+        targetIncUserId = "ALL";
+      } else if (Number(roleid) === 1) {
+        // For roleid 1: userId is "ALL" and incUserId is from session
         targetUserId = adminViewingStartupId || "ALL";
+        targetIncUserId = incuserid;
       } else {
-        // For non-admin users, use their own ID.
-        targetUserId = userid;
+        // For other roles: use their own ID
+        targetUserId = adminViewingStartupId || userid;
+        targetIncUserId = incuserid;
       }
 
       const response = await api.post(
         "resources/generic/getcollecteddocsdash",
         {
           userId: targetUserId,
-          incUserId: incuserid,
+          incUserId: targetIncUserId,
           startDate: startDate ? formatDateForAPI(startDate) : null,
           endDate: endDate ? formatDateForAPI(endDate) : null,
         },
@@ -218,7 +310,7 @@ export const DataProvider = ({ children }) => {
   const resetIncubationSelection = () => {
     setSelectedIncubation(null);
     setIncubationDetails(null);
-    if (roleid === "1") {
+    if (roleid === "0" || roleid === "1") {
       setincuserid("ALL");
     } else {
       setincuserid(null);
@@ -263,15 +355,28 @@ export const DataProvider = ({ children }) => {
 
   const refreshCompanyDocuments = async () => {
     try {
-      const targetUserId = adminViewingStartupId || userid;
+      let apiUserId;
+      let apiIncUserId;
+
+      if (Number(roleid) === 0) {
+        // For roleid 0: userId is "ALL" and incUserId is "ALL"
+        apiUserId = "ALL";
+        apiIncUserId = "ALL";
+      } else if (Number(roleid) === 1) {
+        // For roleid 1: userId is "ALL" and incUserId is from session
+        apiUserId = adminViewingStartupId || "ALL";
+        apiIncUserId = incuserid;
+      } else {
+        // For other roles: use their own ID
+        apiUserId = adminViewingStartupId || userid;
+        apiIncUserId = incuserid;
+      }
+
       const response = await api.post(
         "resources/generic/getcollecteddocsdash",
         {
-          userId:
-            Number(roleid) === 1 && !adminViewingStartupId
-              ? "ALL"
-              : targetUserId,
-          incUserId: incuserid,
+          userId: apiUserId,
+          incUserId: apiIncUserId,
           startDate: fromYear,
           endDate: toYear,
         },
@@ -293,20 +398,37 @@ export const DataProvider = ({ children }) => {
     setAdminStartupLoading(true);
     setAdminViewingStartupId(userId);
     try {
+      let apiUserId;
+      let apiIncUserId;
+
+      if (Number(roleid) === 0) {
+        // For roleid 0: userId is "ALL" and incUserId is "ALL"
+        apiUserId = "ALL";
+        apiIncUserId = "ALL";
+      } else if (Number(roleid) === 1) {
+        // For roleid 1: userId is "ALL" and incUserId is from session
+        apiUserId = userId;
+        apiIncUserId = incuserid;
+      } else {
+        // For other roles: use their own ID
+        apiUserId = userId;
+        apiIncUserId = incuserid;
+      }
+
       const documentsResponse = await api.post(
         "resources/generic/getcollecteddocsdash",
         {
-          userId: userId,
+          userId: apiUserId,
           startDate: fromYear,
           endDate: toYear,
-          incUserId: incuserid,
+          incUserId: apiIncUserId,
         },
       );
       const incubateesResponse = await api.post(
         "resources/generic/getincubatessdash",
         {
-          userId: userId,
-          incUserId: incuserid,
+          userId: apiUserId,
+          incUserId: apiIncUserId,
         },
       );
       const documentsData = extractData(documentsResponse, []);
@@ -374,7 +496,7 @@ export const DataProvider = ({ children }) => {
       const sessionIncuserid = sessionStorage.getItem("incuserid");
       if (sessionUserid !== userid) setUseridState(sessionUserid);
       if (sessionRoleid !== roleid) setroleidState(sessionRoleid);
-      if (sessionRoleid === "1") {
+      if (sessionRoleid === "0" || sessionRoleid === "1") {
         if (incuserid !== "ALL") setincuseridstate("ALL");
       } else {
         if (sessionIncuserid !== incuserid) setincuseridstate(sessionIncuserid);
@@ -410,12 +532,24 @@ export const DataProvider = ({ children }) => {
       setLoading(true);
       try {
         let userIncId;
-        if (selectedIncubation) {
-          userIncId = selectedIncubation.incubationsrecid.toString();
-        } else if (Number(roleid) === 1) {
+        let apiUserId;
+
+        if (Number(roleid) === 0) {
+          // For roleid 0: userId is "ALL" and incUserId is "ALL"
+          apiUserId = "ALL";
           userIncId = "ALL";
+        } else if (Number(roleid) === 1) {
+          // For roleid 1: userId is "ALL" and incUserId is from session
+          apiUserId = "ALL";
+          userIncId = selectedIncubation
+            ? selectedIncubation.incubationsrecid.toString()
+            : incuserid;
         } else {
-          userIncId = incuserid;
+          // For other roles: use their own ID
+          apiUserId = userid;
+          userIncId = selectedIncubation
+            ? selectedIncubation.incubationsrecid.toString()
+            : incuserid;
         }
 
         // =================================================================
@@ -424,7 +558,7 @@ export const DataProvider = ({ children }) => {
 
         // DEFINE which roles can see STATISTICS. Only add roles to this array.
         // Currently, ONLY Admin (roleid 1) is allowed.
-        const rolesAllowedForStats = [1];
+        const rolesAllowedForStats = [0, 1, 12];
 
         let apiCalls = [];
 
@@ -432,14 +566,14 @@ export const DataProvider = ({ children }) => {
         // If the current user's role is NOT in the list, this block is skipped.
         if (rolesAllowedForStats.includes(Number(roleid))) {
           // This block will ONLY run for roleid 1.
-          // It will be SKIPPED for roleid 4 and roleid 7.
+          // It will be SKIPPED for roleid 0 and roleid 4 and roleid 7.
           apiCalls = [
             ...apiCalls,
             {
               name: "stats",
               call: () =>
                 api.post("resources/generic/getstatscom", {
-                  userId: userid,
+                  userId: apiUserId,
                   userIncId: userIncId,
                 }),
             },
@@ -447,7 +581,7 @@ export const DataProvider = ({ children }) => {
               name: "field",
               call: () =>
                 api.post("resources/generic/getcombyfield", {
-                  userId: userid,
+                  userId: apiUserId,
                   userIncId: userIncId,
                 }),
             },
@@ -455,7 +589,7 @@ export const DataProvider = ({ children }) => {
               name: "stage",
               call: () =>
                 api.post("resources/generic/getcombystage", {
-                  userId: userid,
+                  userId: apiUserId,
                   userIncId: userIncId,
                 }),
             },
@@ -463,8 +597,11 @@ export const DataProvider = ({ children }) => {
         }
 
         // ALWAYS ADD list/document APIs for any logged-in user.
-        // This runs for roleid 1, 4, and 7.
-        const userIdForListApis = Number(roleid) === 1 ? "ALL" : userid;
+        // This runs for roleid 0, 1, 4, and 7.
+        const userIdForListApis =
+          Number(roleid) === 0 || Number(roleid) === 1 || Number(roleid) === 12
+            ? "ALL"
+            : userid;
         apiCalls = [
           ...apiCalls,
           {
@@ -620,6 +757,12 @@ export const DataProvider = ({ children }) => {
         menuItemsFromAPI,
         menuItemsLoading,
         fetchMenuItems,
+
+        /* NEW: Chat values */
+        chatList,
+        getChatLists,
+        chatLoading,
+        chatResponseStatus,
       }}
     >
       {children}

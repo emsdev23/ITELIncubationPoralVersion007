@@ -99,6 +99,10 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
+  // NEW: Add state for preview document details
+  const [previewDocumentName, setPreviewDocumentName] = useState("");
+  const [previewFilepath, setPreviewFilepath] = useState("");
+
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -128,7 +132,7 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
               "X-Module": "DDI Documents",
               "X-Action": "Fetching DDI Documents List",
             },
-          }
+          },
         );
 
         if (response.data?.statusCode === 200) {
@@ -170,7 +174,7 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
   // Unique Companies for filter
   const uniqueCompanies = useMemo(() => {
     return Array.from(
-      new Map(documents.map((doc) => [doc.incubateesname, doc])).values()
+      new Map(documents.map((doc) => [doc.incubateesname, doc])).values(),
     );
   }, [documents]);
 
@@ -306,11 +310,11 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
 
       const now = new Date();
       const timestamp = `${now.getFullYear()}/${String(
-        now.getMonth() + 1
+        now.getMonth() + 1,
       ).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(
-        now.getHours()
+        now.getHours(),
       ).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}-${String(
-        now.getSeconds()
+        now.getSeconds(),
       ).padStart(2, "0")}`;
 
       const newFileName = `${documentName}_${timestamp}.${fileExtension}`;
@@ -353,7 +357,7 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
             "X-Module": "DDI Documents",
             "X-Action": "DDI Document preview",
           },
-        }
+        },
       );
 
       // if (!response.ok)
@@ -366,8 +370,12 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
         const fileExtension = filepath.split(".").pop().toLowerCase();
         const previewable = ["pdf", "png", "jpeg", "jpg"];
 
+        // Store all necessary information for preview and download
+        setPreviewUrl(fileUrl);
+        setPreviewDocumentName(documentName);
+        setPreviewFilepath(filepath);
+
         if (previewable.includes(fileExtension)) {
-          setPreviewUrl(fileUrl);
           setIsPreviewOpen(true);
         } else {
           Swal.fire({
@@ -471,7 +479,7 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
         </Box>
       )}
 
-      {/* Preview Modal */}
+      {/* Preview Modal with Download Button */}
       <Modal
         open={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
@@ -492,18 +500,60 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
             overflow: "auto",
           }}
         >
-          <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
-            <IconButton onClick={() => setIsPreviewOpen(false)}>
-              <span style={{ fontSize: "24px" }}>✖</span>
-            </IconButton>
+          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+            <Typography variant="h6">
+              Document Preview: {previewDocumentName}
+            </Typography>
+            <Box>
+              <Button
+                variant="contained"
+                startIcon={<Download />}
+                onClick={() => {
+                  if (previewUrl && previewDocumentName && previewFilepath) {
+                    downloadFile(
+                      previewUrl,
+                      previewDocumentName,
+                      previewFilepath,
+                    );
+                  }
+                }}
+                sx={{ mr: 2 }}
+              >
+                Download
+              </Button>
+              <IconButton onClick={() => setIsPreviewOpen(false)}>
+                <span style={{ fontSize: "24px" }}>✖</span>
+              </IconButton>
+            </Box>
           </Box>
-          <iframe
-            src={previewUrl}
-            title="Document Preview"
-            width="100%"
-            height="500px"
-            style={{ border: "none" }}
-          />
+          <Box
+            sx={{
+              height: "500px",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            {previewUrl && (
+              <>
+                {previewUrl.endsWith(".pdf") ? (
+                  <iframe
+                    src={previewUrl}
+                    title="Document Preview"
+                    width="100%"
+                    height="100%"
+                    style={{ border: "none" }}
+                  />
+                ) : (
+                  <img
+                    src={previewUrl}
+                    alt={previewDocumentName}
+                    style={{ maxWidth: "100%", maxHeight: "100%" }}
+                  />
+                )}
+              </>
+            )}
+          </Box>
         </Box>
       </Modal>
     </div>

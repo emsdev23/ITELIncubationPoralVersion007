@@ -210,6 +210,10 @@ const StartupDashboard = () => {
   const [initialFromDate, setInitialFromDate] = useState(null);
   const [initialToDate, setInitialToDate] = useState(null);
 
+  // NEW: Add state for preview document details
+  const [previewDocumentName, setPreviewDocumentName] = useState("");
+  const [previewFilepath, setPreviewFilepath] = useState("");
+
   // Date filter states
   const [startDate, setStartDate] = useState(
     fromYear ? new Date(fromYear) : null,
@@ -709,7 +713,45 @@ const StartupDashboard = () => {
     }
   };
 
-  const handleViewDocument = async (filepath) => {
+  // Helper function to download file with proper name
+  const downloadFile = async (fileUrl, documentName, originalFilepath) => {
+    try {
+      const response = await fetch(fileUrl, { mode: "cors" });
+      const blob = await response.blob();
+
+      const fileExtension = originalFilepath.split(".").pop().toLowerCase();
+
+      const now = new Date();
+      const timestamp = `${now.getFullYear()}/${String(
+        now.getMonth() + 1,
+      ).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")} ${String(
+        now.getHours(),
+      ).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}-${String(
+        now.getSeconds(),
+      ).padStart(2, "0")}`;
+
+      const newFileName = `${documentName}_${timestamp}.${fileExtension}`;
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = newFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Error downloading file:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Download Failed",
+        text: "Unable to download file. Please try again.",
+      });
+    }
+  };
+
+  const handleViewDocument = async (filepath, documentName) => {
+    console.log("Viewing document:", filepath, documentName);
     try {
       const token = sessionStorage.getItem("token");
 
@@ -741,8 +783,12 @@ const StartupDashboard = () => {
         const fileExtension = filepath.split(".").pop().toLowerCase();
         const previewable = ["pdf", "png", "jpeg", "jpg"];
 
+        // Store all necessary information for preview and download
+        setPreviewUrl(fileUrl);
+        setPreviewDocumentName(documentName);
+        setPreviewFilepath(filepath);
+
         if (previewable.includes(fileExtension)) {
-          setPreviewUrl(fileUrl);
           setIsPreviewOpen(true);
         } else {
           Swal.fire({
@@ -753,9 +799,9 @@ const StartupDashboard = () => {
             confirmButtonText: "Download",
             cancelButtonText: "Cancel",
           }).then((result) => {
-            // if (result.isConfirmed) {
-            //   downloadFile(fileUrl, documentName, filepath);
-            // }
+            if (result.isConfirmed) {
+              downloadFile(fileUrl, documentName, filepath);
+            }
           });
         }
       } else {
@@ -1234,7 +1280,7 @@ const StartupDashboard = () => {
               onClick={() =>
                 handleViewDocument(
                   params.row.documentsampledoc,
-                  params.row.documentsampledocname || "Sample Document",
+                  params.row.documentname,
                 )
               }
               sx={{
@@ -1288,7 +1334,12 @@ const StartupDashboard = () => {
                 <Button
                   variant="outlined"
                   size="small"
-                  onClick={() => handleViewDocument(params.row.filepath)}
+                  onClick={() =>
+                    handleViewDocument(
+                      params.row.filepath,
+                      params.row.documentname,
+                    )
+                  }
                 >
                   View Doc
                 </Button>
@@ -1310,7 +1361,7 @@ const StartupDashboard = () => {
               )}
 
               {/* Obsolete Button - Only shows when status is "Submitted" */}
-              {params.row.status === "Submitted" && (
+              {params.row.collecteddocobsoletestate === "Not Obsolete" && (
                 <Button
                   variant="outlined"
                   color="error"
@@ -1797,7 +1848,7 @@ const StartupDashboard = () => {
             <ReusableDataGrid
               data={processedDocuments}
               columns={gridColumns}
-              title="Documents"
+              title="Incubatee Documents"
               dropdownFilters={dropdownFilters}
               enableExport={true}
               enableColumnFilters={true}
@@ -1820,7 +1871,7 @@ const StartupDashboard = () => {
             />
           </div>
 
-          {/* Preview Modal */}
+          {/* Preview Modal with Download Button */}
           <Modal
             open={isPreviewOpen}
             onClose={() => setIsPreviewOpen(false)}
@@ -1841,18 +1892,66 @@ const StartupDashboard = () => {
                 overflow: "auto",
               }}
             >
-              <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
-                <IconButton onClick={() => setIsPreviewOpen(false)}>
-                  <CloseIcon />
-                </IconButton>
+              <Box
+                sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}
+              >
+                <Typography variant="h6">
+                  Document Preview: {previewDocumentName}
+                </Typography>
+                <Box>
+                  <Button
+                    variant="contained"
+                    startIcon={<Download />}
+                    onClick={() => {
+                      if (
+                        previewUrl &&
+                        previewDocumentName &&
+                        previewFilepath
+                      ) {
+                        downloadFile(
+                          previewUrl,
+                          previewDocumentName,
+                          previewFilepath,
+                        );
+                      }
+                    }}
+                    sx={{ mr: 2 }}
+                  >
+                    Download
+                  </Button>
+                  <IconButton onClick={() => setIsPreviewOpen(false)}>
+                    <CloseIcon />
+                  </IconButton>
+                </Box>
               </Box>
-              <iframe
-                src={previewUrl}
-                title="Document Preview"
-                width="100%"
-                height="500px"
-                style={{ border: "none" }}
-              />
+              <Box
+                sx={{
+                  height: "500px",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                {previewUrl && (
+                  <>
+                    {previewUrl.endsWith(".pdf") ? (
+                      <iframe
+                        src={previewUrl}
+                        title="Document Preview"
+                        width="100%"
+                        height="100%"
+                        style={{ border: "none" }}
+                      />
+                    ) : (
+                      <img
+                        src={previewUrl}
+                        alt={previewDocumentName}
+                        style={{ maxWidth: "100%", maxHeight: "100%" }}
+                      />
+                    )}
+                  </>
+                )}
+              </Box>
             </Box>
           </Modal>
 

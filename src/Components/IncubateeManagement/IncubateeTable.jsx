@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import Swal from "sweetalert2";
 import { Download } from "lucide-react";
 import { FaTimes } from "react-icons/fa";
@@ -116,7 +122,7 @@ const StyledTextField = styled(TextField)(({ theme }) => ({
 
 const StyledFormControl = styled(FormControl)(({ theme }) => ({
   marginBottom: theme.spacing(2),
-  width: "100%", // Ensure full width
+  width: "100%",
   "& .MuiOutlinedInput-root": {
     borderRadius: 8,
     transition: "all 0.3s ease",
@@ -132,7 +138,6 @@ const StyledFormControl = styled(FormControl)(({ theme }) => ({
     },
   },
   "& .MuiSelect-select": {
-    // Ensure the select field maintains consistent width
     minWidth: "200px",
   },
 }));
@@ -172,34 +177,40 @@ const formatDate = (dateStr) => {
 
 // Validation functions
 const validateGST = (gst) => {
-  // GST validation pattern: 2 characters (state code) + 10 characters (PAN) + 1 character (entity) + 1 character (checksum)
+  if (!gst) return true; // Empty is valid (optional field)
   const gstPattern =
     /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
   return gstPattern.test(gst.toUpperCase());
 };
 
 const validatePAN = (pan) => {
-  // PAN validation pattern: 5 letters (first 4 letters and last letter) + 4 digits + 1 letter
+  if (!pan) return true;
   const panPattern = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
   return panPattern.test(pan.toUpperCase());
 };
 
 const validateCIN = (cin) => {
-  // CIN validation pattern: 21 characters alphanumeric
+  if (!cin) return true;
   const cinPattern = /^[A-Z]{1}[0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/;
   return cinPattern.test(cin.toUpperCase());
 };
 
 const validateUAN = (uan) => {
-  // UAN is a 12-digit number
+  if (!uan) return true;
   const uanPattern = /^[0-9]{12}$/;
   return uanPattern.test(uan);
 };
 
 const validateEmail = (email) => {
-  // Basic email validation
+  if (!email) return false; // Email is required
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailPattern.test(email);
+};
+
+const validateDIN = (din) => {
+  if (!din) return true;
+  const dinPattern = /^[0-9]{8}$/;
+  return dinPattern.test(din);
 };
 
 export default function IncubateeTable() {
@@ -237,7 +248,7 @@ export default function IncubateeTable() {
     incubateesaccountantname: "",
     incubateesauditorname: "",
     incubateessecretaryname: "",
-    incubateesadminstate: 0, // Changed default to 0
+    incubateesadminstate: 0,
     incubateesfoundername: "",
     incubateesdateofincubation: "",
     incubateesdateofincorporation: "",
@@ -262,20 +273,22 @@ export default function IncubateeTable() {
   const [fieldOfWorkOptions, setFieldOfWorkOptions] = useState([]);
   const [stageLevelOptions, setStageLevelOptions] = useState([]);
   const [formErrors, setFormErrors] = useState({});
+  const [checkingDuplicate, setCheckingDuplicate] = useState({});
+
+  // Debounce timeout refs
+  const debounceTimeouts = useRef({});
 
   // Fetch dropdown options
-  const fetchDropdownOptions = () => {
+  const fetchDropdownOptions = useCallback(() => {
     // Fetch field of work options
     api
       .post(
         "/resources/generic/getincfield",
         {
-          // Request body
           userId: parseInt(userId) || 1,
           userIncId: incUserid,
         },
         {
-          // Axios config for headers
           headers: {
             "X-Module": "Incubatee Management",
             "X-Action": "Fetch Field of Work Options",
@@ -296,12 +309,10 @@ export default function IncubateeTable() {
       .post(
         "/resources/generic/getincstage",
         {
-          // Request body
           userId: parseInt(userId) || 1,
           userIncId: incUserid,
         },
         {
-          // Axios config for headers
           headers: {
             "X-Module": "Incubatee Management",
             "X-Action": "Fetch Stage Level Options",
@@ -316,22 +327,20 @@ export default function IncubateeTable() {
       .catch((err) => {
         console.error("Error fetching stage level options:", err);
       });
-  };
+  }, [userId, incUserid]);
 
   // Fetch Incubatees
-  const fetchIncubatees = () => {
+  const fetchIncubatees = useCallback(() => {
     setLoading(true);
     setError(null);
     api
       .post(
         "/resources/generic/getincubatee",
         {
-          // Request body
           userId: parseInt(userId) || 1,
           userIncId: incUserid,
         },
         {
-          // Axios config for headers
           headers: {
             "X-Module": "Incubatee Management",
             "X-Action": "Fetch Incubatees",
@@ -347,14 +356,170 @@ export default function IncubateeTable() {
         setError("Failed to load incubatees. Please try again.");
         setLoading(false);
       });
-  };
+  }, [userId, incUserid]);
 
   useEffect(() => {
     fetchIncubatees();
     fetchDropdownOptions();
+  }, [fetchIncubatees, fetchDropdownOptions]);
+
+  // Check for duplicate entries
+  const checkDuplicate = useCallback(
+    (field, value) => {
+      // Skip if value is empty or if we're editing and the value hasn't changed
+      if (!value || (editIncubatee && editIncubatee[field] === value)) {
+        return;
+      }
+
+      // Clear any existing timeout for this field
+      if (debounceTimeouts.current[field]) {
+        clearTimeout(debounceTimeouts.current[field]);
+      }
+
+      // Set checking state
+      setCheckingDuplicate((prev) => ({ ...prev, [field]: true }));
+
+      // Debounce the API call
+      // ✅ AFTER
+      debounceTimeouts.current[field] = setTimeout(() => {
+        // Map each form field name to the exact API key your endpoint expects
+        const fieldToApiKey = {
+          incubateesemail: "email",
+          incubateesincubatorphone: "incubatorphone",
+          incubateesshortname: "shortname",
+          incubateescin: "cin",
+          incubateesdin: "din",
+          incubateespannumber: "pan",
+          incubateesuan: "uan",
+          incubateesgst: "gst",
+          incubateesdpiitnumber: "dpiit",
+        };
+
+        // Build the body: only the current field gets the value, rest are empty
+        const requestBody = Object.fromEntries(
+          Object.entries(fieldToApiKey).map(([formKey, apiKey]) => [
+            apiKey,
+            formKey === field ? value : "",
+          ]),
+        );
+
+        // Human-readable label for error messages, keyed by form field name
+        const fieldLabels = {
+          incubateesemail: "Email",
+          incubateesincubatorphone: "Incubator Phone",
+          incubateesshortname: "Short Name",
+          incubateescin: "CIN",
+          incubateesdin: "DIN",
+          incubateespannumber: "PAN",
+          incubateesuan: "UAN",
+          incubateesgst: "GST",
+          incubateesdpiitnumber: "DPIIT Number",
+        };
+
+        api
+          .post("/resources/generic/checkincubateeunique", requestBody, {
+            headers: {
+              "X-Module": "Incubatee Management",
+              "X-Action": "Check Duplicate",
+            },
+          })
+          .then((response) => {
+            // 200 = no duplicate — clear any previous duplicate error on this field
+            if (response.data.statusCode === 200) {
+              setFormErrors((prev) => {
+                const newErrors = { ...prev };
+                if (newErrors[field]?.includes("already exists")) {
+                  delete newErrors[field];
+                }
+                return newErrors;
+              });
+            }
+          })
+          .catch((err) => {
+            // 409 = duplicate found — this is the expected duplicate response
+            if (err.response && err.response.status === 409) {
+              const label = fieldLabels[field] || field;
+              setFormErrors((prev) => ({
+                ...prev,
+                [field]: `This ${label} already exists`,
+              }));
+            } else {
+              // Actual network or server error — just log, don't block the user
+              console.error("Error checking duplicate:", err);
+            }
+          })
+          .finally(() => {
+            setCheckingDuplicate((prev) => ({ ...prev, [field]: false }));
+          });
+      }, 800); // 800ms debounce delay
+    },
+    [editIncubatee],
+  );
+
+  // Validate individual field
+  const validateField = useCallback((name, value) => {
+    let error = "";
+
+    switch (name) {
+      case "incubateesname":
+        if (!value?.trim()) {
+          error = "Incubatee name is required";
+        }
+        break;
+
+      case "incubateesemail":
+        if (!value?.trim()) {
+          error = "Email is required";
+        } else if (!validateEmail(value)) {
+          error = "Please enter a valid email address";
+        }
+        break;
+
+      case "incubateesgst":
+        if (value && !validateGST(value)) {
+          error = "Please enter a valid GST number (e.g., 22AAAAA0000A1Z5)";
+        }
+        break;
+
+      case "incubateespannumber":
+        if (value && !validatePAN(value)) {
+          error = "Please enter a valid PAN number (e.g., ABCDE1234F)";
+        }
+        break;
+
+      case "incubateescin":
+        if (value && !validateCIN(value)) {
+          error =
+            "Please enter a valid CIN number (e.g., U74140DL2014PTC272828)";
+        }
+        break;
+
+      case "incubateesdin":
+        if (value && !validateDIN(value)) {
+          error = "Please enter a valid 8-digit DIN number";
+        }
+        break;
+
+      case "incubateesuan":
+        if (value && !validateUAN(value)) {
+          error = "Please enter a valid 12-digit UAN number";
+        }
+        break;
+
+      case "incubateesincubatoremail":
+        if (value && !validateEmail(value)) {
+          error = "Please enter a valid incubator email address";
+        }
+        break;
+
+      default:
+        break;
+    }
+
+    return error;
   }, []);
 
-  const openAddModal = () => {
+  const openAddModal = useCallback(() => {
     setEditIncubatee(null);
     setFormData({
       incubateesfieldofwork: "",
@@ -381,7 +546,7 @@ export default function IncubateeTable() {
       incubateesaccountantname: "",
       incubateesauditorname: "",
       incubateessecretaryname: "",
-      incubateesadminstate: 0, // Changed default to 0
+      incubateesadminstate: 0,
       incubateesfoundername: "",
       incubateesdateofincubation: "",
       incubateesdateofincorporation: "",
@@ -397,91 +562,110 @@ export default function IncubateeTable() {
     setIsModalOpen(true);
     setError(null);
     setFormErrors({});
-  };
+  }, [userId]);
 
-  const openEditModal = (incubatee) => {
-    setEditIncubatee(incubatee);
-    setFormData({
-      incubateesfieldofwork: incubatee.incubateesfieldofwork || "",
-      incubateesstagelevel: incubatee.incubateesstagelevel || "",
-      incubateesname: incubatee.incubateesname || "",
-      incubateesemail: incubatee.incubateesemail || "",
-      incubateesshortname: incubatee.incubateesshortname || "",
-      incubateestotalshare: incubatee.incubateestotalshare || "",
-      incubateesshareperprice: incubatee.incubateesshareperprice || "",
-      incubateescin: incubatee.incubateescin || "",
-      incubateesdin: incubatee.incubateesdin || "",
-      incubateesgst: incubatee.incubateesgst || "",
-      incubateesgstregdate: incubatee.incubateesgstregdate || "",
-      incubateesdpiitnumber: incubatee.incubateesdpiitnumber || "",
-      incubateeslogopath: incubatee.incubateeslogopath || "",
-      incubateesdurationofextension:
-        incubatee.incubateesdurationofextension || "",
-      incubateesaddress: incubatee.incubateesaddress || "",
-      incubateesincubatorname: incubatee.incubateesincubatorname || "",
-      incubateesincubatoremail: incubatee.incubateesincubatoremail || "",
-      incubateesincubatorphone: incubatee.incubateesincubatorphone || "",
-      incubateespannumber: incubatee.incubateespannumber || "",
-      incubateesuan: incubatee.incubateesuan || "",
-      incubateesnooffounders: incubatee.incubateesnooffounders || "",
-      incubateesaccountantname: incubatee.incubateesaccountantname || "",
-      incubateesauditorname: incubatee.incubateesauditorname || "",
-      incubateessecretaryname: incubatee.incubateessecretaryname || "",
-      incubateesadminstate: incubatee.incubateesadminstate || 0, // Default to 0 if not set
-      incubateesfoundername: incubatee.incubateesfoundername || "",
-      incubateesdateofincubation: incubatee.incubateesdateofincubation || "",
-      incubateesdateofincorporation:
-        incubatee.incubateesdateofincorporation || "",
-      incubateesdateofextension: incubatee.incubateesdateofextension || "",
-      incubateeswebsite: incubatee.incubateeswebsite || "",
-      incubateesincrecid: incubatee.incubateesincrecid || "",
-      incubateescreatedtime:
-        incubatee.incubateescreatedtime ||
-        new Date().toISOString().split("T")[0],
-      incubateesmodifiedtime: new Date().toISOString().split("T")[0],
-      incubateescreatedby: incubatee.incubateescreatedby || userId || 1,
-      incubateesmodifiedby: userId || 1,
-    });
-    setTabValue(0);
-    setIsModalOpen(true);
-    setError(null);
-    setFormErrors({});
-  };
+  const openEditModal = useCallback(
+    (incubatee) => {
+      setEditIncubatee(incubatee);
+      setFormData({
+        incubateesfieldofwork: incubatee.incubateesfieldofwork || "",
+        incubateesstagelevel: incubatee.incubateesstagelevel || "",
+        incubateesname: incubatee.incubateesname || "",
+        incubateesemail: incubatee.incubateesemail || "",
+        incubateesshortname: incubatee.incubateesshortname || "",
+        incubateestotalshare: incubatee.incubateestotalshare || "",
+        incubateesshareperprice: incubatee.incubateesshareperprice || "",
+        incubateescin: incubatee.incubateescin || "",
+        incubateesdin: incubatee.incubateesdin || "",
+        incubateesgst: incubatee.incubateesgst || "",
+        incubateesgstregdate: incubatee.incubateesgstregdate || "",
+        incubateesdpiitnumber: incubatee.incubateesdpiitnumber || "",
+        incubateeslogopath: incubatee.incubateeslogopath || "",
+        incubateesdurationofextension:
+          incubatee.incubateesdurationofextension || "",
+        incubateesaddress: incubatee.incubateesaddress || "",
+        incubateesincubatorname: incubatee.incubateesincubatorname || "",
+        incubateesincubatoremail: incubatee.incubateesincubatoremail || "",
+        incubateesincubatorphone: incubatee.incubateesincubatorphone || "",
+        incubateespannumber: incubatee.incubateespannumber || "",
+        incubateesuan: incubatee.incubateesuan || "",
+        incubateesnooffounders: incubatee.incubateesnooffounders || "",
+        incubateesaccountantname: incubatee.incubateesaccountantname || "",
+        incubateesauditorname: incubatee.incubateesauditorname || "",
+        incubateessecretaryname: incubatee.incubateessecretaryname || "",
+        incubateesadminstate: incubatee.incubateesadminstate || 0,
+        incubateesfoundername: incubatee.incubateesfoundername || "",
+        incubateesdateofincubation: incubatee.incubateesdateofincubation || "",
+        incubateesdateofincorporation:
+          incubatee.incubateesdateofincorporation || "",
+        incubateesdateofextension: incubatee.incubateesdateofextension || "",
+        incubateeswebsite: incubatee.incubateeswebsite || "",
+        incubateesincrecid: incubatee.incubateesincrecid || "",
+        incubateescreatedtime:
+          incubatee.incubateescreatedtime ||
+          new Date().toISOString().split("T")[0],
+        incubateesmodifiedtime: new Date().toISOString().split("T")[0],
+        incubateescreatedby: incubatee.incubateescreatedby || userId || 1,
+        incubateesmodifiedby: userId || 1,
+      });
+      setTabValue(0);
+      setIsModalOpen(true);
+      setError(null);
+      setFormErrors({});
+    },
+    [userId],
+  );
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+  // Optimized handleChange with real-time validation
+  const handleChange = useCallback(
+    (e) => {
+      const { name, value, type, checked } = e.target;
+      const newValue = type === "checkbox" ? (checked ? 1 : 0) : value;
 
-    // Handle checkbox/toggle differently
-    if (type === "checkbox") {
-      setFormData({ ...formData, [name]: checked ? 1 : 0 });
-    } else {
-      setFormData({ ...formData, [name]: value });
-    }
+      // Update form data
+      setFormData((prev) => ({ ...prev, [name]: newValue }));
 
-    // Clear error for this field when user starts typing
-    if (formErrors[name]) {
-      setFormErrors({ ...formErrors, [name]: "" });
-    }
-  };
+      // Validate field immediately
+      const error = validateField(name, newValue);
+      setFormErrors((prev) => ({
+        ...prev,
+        [name]: error,
+      }));
 
-  const handleTabChange = (event, newValue) => {
+      // Check for duplicates on specific fields
+      const duplicateCheckFields = [
+        "incubateesemail",
+        "incubateesincubatorphone",
+        "incubateesshortname",
+        "incubateescin",
+        "incubateesdin",
+        "incubateespannumber",
+        "incubateesuan",
+        "incubateesgst", // added
+        "incubateesdpiitnumber", // added
+      ];
+
+      if (duplicateCheckFields.includes(name) && !error) {
+        checkDuplicate(name, newValue);
+      }
+    },
+    [validateField, checkDuplicate],
+  );
+
+  const handleTabChange = useCallback((event, newValue) => {
     setTabValue(newValue);
-  };
+  }, []);
 
-  const handleNextTab = () => {
-    if (tabValue < 3) {
-      setTabValue(tabValue + 1);
-    }
-  };
+  const handleNextTab = useCallback(() => {
+    setTabValue((prev) => (prev < 3 ? prev + 1 : prev));
+  }, []);
 
-  const handlePrevTab = () => {
-    if (tabValue > 0) {
-      setTabValue(tabValue - 1);
-    }
-  };
+  const handlePrevTab = useCallback(() => {
+    setTabValue((prev) => (prev > 0 ? prev - 1 : prev));
+  }, []);
 
-  // Validate form
-  const validateForm = () => {
+  // Validate entire form
+  const validateForm = useCallback(() => {
     const errors = {};
 
     // Required fields
@@ -514,6 +698,10 @@ export default function IncubateeTable() {
         "Please enter a valid CIN number (e.g., U74140DL2014PTC272828)";
     }
 
+    if (formData.incubateesdin && !validateDIN(formData.incubateesdin)) {
+      errors.incubateesdin = "Please enter a valid 8-digit DIN number";
+    }
+
     if (formData.incubateesuan && !validateUAN(formData.incubateesuan)) {
       errors.incubateesuan = "Please enter a valid 12-digit UAN number";
     }
@@ -528,279 +716,348 @@ export default function IncubateeTable() {
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
-  };
+  }, [formData]);
 
   // Handle Delete
-  const handleDelete = (incubateeId) => {
-    Swal.fire({
-      title: "Are you sure?",
-      text: "This incubatee will be deleted permanently.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Yes, delete it!",
-      cancelButtonText: "Cancel",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setIsDeleting((prev) => ({ ...prev, [incubateeId]: true }));
-        Swal.fire({
-          title: "Deleting...",
-          text: "Please wait while we delete the incubatee",
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          showConfirmButton: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
-        api
-          .post(
-            "/deleteIncubatee",
-            {}, // Empty request body
-            {
-              params: {
-                incubateesrecid: incubateeId,
-                incubateesmodifiedby: userId || 1,
-              },
-              headers: {
-                "X-Module": "Incubatee Management",
-                "X-Action": "Delete Incubatee",
-              },
+  const handleDelete = useCallback(
+    (incubateeId) => {
+      Swal.fire({
+        title: "Are you sure?",
+        text: "This incubatee will be deleted permanently.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Yes, delete it!",
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setIsDeleting((prev) => ({ ...prev, [incubateeId]: true }));
+          Swal.fire({
+            title: "Deleting...",
+            text: "Please wait while we delete the incubatee",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => {
+              Swal.showLoading();
             },
-          )
-          .then((response) => {
-            if (response.data.statusCode === 200) {
-              Swal.fire(
-                "Deleted!",
-                "Incubatee deleted successfully!",
-                "success",
-              );
-              fetchIncubatees();
-            } else {
-              throw new Error(
-                response.data.message || "Failed to delete incubatee",
-              );
-            }
-          })
-          .catch((err) => {
-            console.error("Error deleting incubatee:", err);
-            Swal.fire("Error", `Failed to delete: ${err.message}`, "error");
-          })
-          .finally(() => {
-            setIsDeleting((prev) => ({ ...prev, [incubateeId]: false }));
           });
-      }
-    });
-  };
+          api
+            .post(
+              "/deleteIncubatee",
+              {},
+              {
+                params: {
+                  incubateesrecid: incubateeId,
+                  incubateesmodifiedby: userId || 1,
+                },
+                headers: {
+                  "X-Module": "Incubatee Management",
+                  "X-Action": "Delete Incubatee",
+                },
+              },
+            )
+            .then((response) => {
+              if (response.data.statusCode === 200) {
+                Swal.fire(
+                  "Deleted!",
+                  "Incubatee deleted successfully!",
+                  "success",
+                );
+                fetchIncubatees();
+              } else {
+                throw new Error(
+                  response.data.message || "Failed to delete incubatee",
+                );
+              }
+            })
+            .catch((err) => {
+              console.error("Error deleting incubatee:", err);
+              Swal.fire("Error", `Failed to delete: ${err.message}`, "error");
+            })
+            .finally(() => {
+              setIsDeleting((prev) => ({ ...prev, [incubateeId]: false }));
+            });
+        }
+      });
+    },
+    [userId, fetchIncubatees],
+  );
 
   // Handle Admin State Toggle
-  const handleAdminStateToggle = (incubatee) => {
-    const newState = incubatee.incubateesadminstate === 1 ? 0 : 1;
-    const stateText = newState === 1 ? "activate" : "deactivate";
+  const handleAdminStateToggle = useCallback(
+    (incubatee) => {
+      const newState = incubatee.incubateesadminstate === 1 ? 0 : 1;
+      const stateText = newState === 1 ? "activate" : "deactivate";
 
-    Swal.fire({
-      title: "Are you sure?",
-      text: `This incubatee will be ${stateText}d.`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: `Yes, ${stateText} it!`,
-      cancelButtonText: "Cancel",
-    }).then((result) => {
-      if (result.isConfirmed) {
-        Swal.fire({
-          title: "Updating...",
-          text: `Please wait while we ${stateText} the incubatee`,
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          showConfirmButton: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
-
-        api
-          .post(
-            "/updateIncubatee",
-            {}, // Empty request body
-            {
-              params: {
-                incubateesrecid: incubatee.incubateesrecid,
-                incubateesadminstate: newState,
-                incubateesmodifiedby: userId || 1,
-              },
-              headers: {
-                "X-Module": "Incubatee Management",
-                "X-Action": "Update Admin State",
-              },
+      Swal.fire({
+        title: "Are you sure?",
+        text: `This incubatee will be ${stateText}d.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: `Yes, ${stateText} it!`,
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          Swal.fire({
+            title: "Updating...",
+            text: `Please wait while we ${stateText} the incubatee`,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => {
+              Swal.showLoading();
             },
-          )
-          .then((response) => {
-            if (response.data.statusCode === 200) {
-              Swal.fire(
-                "Updated!",
-                `Incubatee ${stateText}d successfully!`,
-                "success",
-              );
-              fetchIncubatees();
-            } else {
-              throw new Error(
-                response.data.message || "Failed to update incubatee",
-              );
-            }
-          })
-          .catch((err) => {
-            console.error("Error updating incubatee:", err);
-            Swal.fire("Error", `Failed to update: ${err.message}`, "error");
           });
-      }
-    });
-  };
+
+          api
+            .post(
+              "/updateIncubatee",
+              {},
+              {
+                params: {
+                  incubateesrecid: incubatee.incubateesrecid,
+                  incubateesadminstate: newState,
+                  incubateesmodifiedby: userId || 1,
+                },
+                headers: {
+                  "X-Module": "Incubatee Management",
+                  "X-Action": "Update Admin State",
+                },
+              },
+            )
+            .then((response) => {
+              if (response.data.statusCode === 200) {
+                Swal.fire(
+                  "Updated!",
+                  `Incubatee ${stateText}d successfully!`,
+                  "success",
+                );
+                fetchIncubatees();
+              } else {
+                throw new Error(
+                  response.data.message || "Failed to update incubatee",
+                );
+              }
+            })
+            .catch((err) => {
+              console.error("Error updating incubatee:", err);
+              Swal.fire("Error", `Failed to update: ${err.message}`, "error");
+            });
+        }
+      });
+    },
+    [userId, fetchIncubatees],
+  );
 
   // Handle Submit (Add/Edit)
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(
+    (e) => {
+      e.preventDefault();
 
-    // Validate form before submission
-    if (!validateForm()) {
-      return;
-    }
+      // Validate form before submission
+      if (!validateForm()) {
+        // Find the first tab with errors
+        const errorFields = Object.keys(formErrors);
+        if (errorFields.length > 0) {
+          const firstErrorField = errorFields[0];
+          // Determine which tab contains the error
+          const tab0Fields = [
+            "incubateesname",
+            "incubateesemail",
+            "incubateesshortname",
+            "incubateesfieldofwork",
+            "incubateesstagelevel",
+            "incubateesfoundername",
+            "incubateesaddress",
+            "incubateeswebsite",
+          ];
+          const tab1Fields = [
+            "incubateescin",
+            "incubateesdin",
+            "incubateesgst",
+            "incubateesgstregdate",
+            "incubateesdpiitnumber",
+            "incubateespannumber",
+            "incubateesuan",
+            "incubateestotalshare",
+            "incubateesshareperprice",
+            "incubateesnooffounders",
+          ];
+          const tab2Fields = [
+            "incubateesdateofincubation",
+            "incubateesdateofincorporation",
+            "incubateesdurationofextension",
+            "incubateesdateofextension",
+            "incubateesincubatorname",
+            "incubateesincubatoremail",
+            "incubateesincubatorphone",
+            "incubateesadminstate",
+          ];
 
-    setIsSaving(true);
-    setError(null);
-    setIsModalOpen(false);
-
-    const isEdit = !!editIncubatee;
-    const endpoint = isEdit ? "/updateIncubatee" : "/addIncubatee";
-    const module = "Incubatee Management";
-    const action = isEdit ? "Update Incubatee" : "Add Incubatee";
-
-    api
-      .post(
-        endpoint,
-        {}, // Empty request body
-        {
-          params: {
-            ...(isEdit && { incubateesrecid: editIncubatee.incubateesrecid }),
-            incubateesfieldofwork: formData.incubateesfieldofwork,
-            incubateesstagelevel: formData.incubateesstagelevel,
-            incubateesname: formData.incubateesname.trim(),
-            incubateesemail: formData.incubateesemail.trim(),
-            incubateesshortname: formData.incubateesshortname.trim(),
-            incubateestotalshare: formData.incubateestotalshare,
-            incubateesshareperprice: formData.incubateesshareperprice,
-            incubateescin: formData.incubateescin.trim(),
-            incubateesdin: formData.incubateesdin.trim(),
-            incubateesgst: formData.incubateesgst.trim(),
-            incubateesgstregdate: formData.incubateesgstregdate,
-            incubateesdpiitnumber: formData.incubateesdpiitnumber.trim(),
-            incubateeslogopath: formData.incubateeslogopath.trim(),
-            incubateesdurationofextension:
-              formData.incubateesdurationofextension,
-            incubateesaddress: formData.incubateesaddress.trim(),
-            incubateesincubatorname: formData.incubateesincubatorname.trim(),
-            incubateesincubatoremail: formData.incubateesincubatoremail.trim(),
-            incubateesincubatorphone: formData.incubateesincubatorphone.trim(),
-            incubateespannumber: formData.incubateespannumber.trim(),
-            incubateesuan: formData.incubateesuan.trim(),
-            incubateesnooffounders: formData.incubateesnooffounders,
-            incubateesaccountantname: formData.incubateesaccountantname.trim(),
-            incubateesauditorname: formData.incubateesauditorname.trim(),
-            incubateessecretaryname: formData.incubateessecretaryname.trim(),
-            incubateesadminstate: formData.incubateesadminstate,
-            incubateesfoundername: formData.incubateesfoundername.trim(),
-            incubateesdateofincubation: formData.incubateesdateofincubation,
-            incubateesdateofincorporation:
-              formData.incubateesdateofincorporation,
-            incubateesdateofextension: formData.incubateesdateofextension,
-            incubateeswebsite: formData.incubateeswebsite,
-            incubateesincrecid: formData.incubateesincrecid,
-            incubateescreatedtime: formData.incubateescreatedtime,
-            incubateesmodifiedtime: formData.incubateesmodifiedtime,
-            incubateescreatedby: formData.incubateescreatedby,
-            incubateesmodifiedby: formData.incubateesmodifiedby,
-          },
-          headers: {
-            "X-Module": module,
-            "X-Action": action,
-          },
-        },
-      )
-      .then((response) => {
-        if (response.data.statusCode === 200) {
-          if (
-            response.data.data &&
-            typeof response.data.data === "string" &&
-            response.data.data.includes("Duplicate entry")
-          ) {
-            setError("Incubatee with this email already exists");
-            Swal.fire(
-              "Duplicate",
-              "Incubatee with this email already exists!",
-              "warning",
-            ).then(() => setIsModalOpen(true));
+          if (tab0Fields.includes(firstErrorField)) {
+            setTabValue(0);
+          } else if (tab1Fields.includes(firstErrorField)) {
+            setTabValue(1);
+          } else if (tab2Fields.includes(firstErrorField)) {
+            setTabValue(2);
           } else {
-            setEditIncubatee(null);
-            setFormData({
-              incubateesfieldofwork: "",
-              incubateesstagelevel: "",
-              incubateesname: "",
-              incubateesemail: "",
-              incubateesshortname: "",
-              incubateestotalshare: "",
-              incubateesshareperprice: "",
-              incubateescin: "",
-              incubateesdin: "",
-              incubateesgst: "",
-              incubateesgstregdate: "",
-              incubateesdpiitnumber: "",
-              incubateeslogopath: "",
-              incubateesdurationofextension: "",
-              incubateesaddress: "",
-              incubateesincubatorname: "",
-              incubateesincubatoremail: "",
-              incubateesincubatorphone: "",
-              incubateespannumber: "",
-              incubateesuan: "",
-              incubateesnooffounders: "",
-              incubateesaccountantname: "",
-              incubateesauditorname: "",
-              incubateessecretaryname: "",
-              incubateesadminstate: 0, // Changed default to 0
-              incubateesfoundername: "",
-              incubateesdateofincubation: "",
-              incubateesdateofincorporation: "",
-              incubateesdateofextension: "",
-              incubateeswebsite: "",
-              incubateesincrecid: "",
-              incubateescreatedtime: "",
-              incubateesmodifiedtime: "",
-              incubateescreatedby: "",
-              incubateesmodifiedby: "",
-            });
-            fetchIncubatees();
-            Swal.fire(
-              "Success",
-              response.data.message || "Incubatee saved successfully!",
-              "success",
+            setTabValue(3);
+          }
+        }
+        return;
+      }
+
+      setIsSaving(true);
+      setError(null);
+      setIsModalOpen(false);
+
+      const isEdit = !!editIncubatee;
+      const endpoint = isEdit ? "/updateIncubatee" : "/addIncubatee";
+      const module = "Incubatee Management";
+      const action = isEdit ? "Update Incubatee" : "Add Incubatee";
+
+      api
+        .post(
+          endpoint,
+          {},
+          {
+            params: {
+              ...(isEdit && {
+                incubateesrecid: editIncubatee.incubateesrecid,
+              }),
+              incubateesfieldofwork: formData.incubateesfieldofwork,
+              incubateesstagelevel: formData.incubateesstagelevel,
+              incubateesname: formData.incubateesname.trim(),
+              incubateesemail: formData.incubateesemail.trim(),
+              incubateesshortname: formData.incubateesshortname.trim(),
+              incubateestotalshare: formData.incubateestotalshare,
+              incubateesshareperprice: formData.incubateesshareperprice,
+              incubateescin: formData.incubateescin.trim(),
+              incubateesdin: formData.incubateesdin.trim(),
+              incubateesgst: formData.incubateesgst.trim(),
+              incubateesgstregdate: formData.incubateesgstregdate,
+              incubateesdpiitnumber: formData.incubateesdpiitnumber.trim(),
+              incubateeslogopath: formData.incubateeslogopath.trim(),
+              incubateesdurationofextension:
+                formData.incubateesdurationofextension,
+              incubateesaddress: formData.incubateesaddress.trim(),
+              incubateesincubatorname: formData.incubateesincubatorname.trim(),
+              incubateesincubatoremail:
+                formData.incubateesincubatoremail.trim(),
+              incubateesincubatorphone:
+                formData.incubateesincubatorphone.trim(),
+              incubateespannumber: formData.incubateespannumber.trim(),
+              incubateesuan: formData.incubateesuan.trim(),
+              incubateesnooffounders: formData.incubateesnooffounders,
+              incubateesaccountantname:
+                formData.incubateesaccountantname.trim(),
+              incubateesauditorname: formData.incubateesauditorname.trim(),
+              incubateessecretaryname: formData.incubateessecretaryname.trim(),
+              incubateesadminstate: formData.incubateesadminstate,
+              incubateesfoundername: formData.incubateesfoundername.trim(),
+              incubateesdateofincubation: formData.incubateesdateofincubation,
+              incubateesdateofincorporation:
+                formData.incubateesdateofincorporation,
+              incubateesdateofextension: formData.incubateesdateofextension,
+              incubateeswebsite: formData.incubateeswebsite,
+              incubateesincrecid: formData.incubateesincrecid,
+              incubateescreatedtime: formData.incubateescreatedtime,
+              incubateesmodifiedtime: formData.incubateesmodifiedtime,
+              incubateescreatedby: formData.incubateescreatedby,
+              incubateesmodifiedby: formData.incubateesmodifiedby,
+            },
+            headers: {
+              "X-Module": module,
+              "X-Action": action,
+            },
+          },
+        )
+        .then((response) => {
+          if (response.data.statusCode === 200) {
+            if (
+              response.data.data &&
+              typeof response.data.data === "string" &&
+              response.data.data.includes("Duplicate entry")
+            ) {
+              setError("Incubatee with this email already exists");
+              Swal.fire(
+                "Duplicate",
+                "Incubatee with this email already exists!",
+                "warning",
+              ).then(() => setIsModalOpen(true));
+            } else {
+              setEditIncubatee(null);
+              setFormData({
+                incubateesfieldofwork: "",
+                incubateesstagelevel: "",
+                incubateesname: "",
+                incubateesemail: "",
+                incubateesshortname: "",
+                incubateestotalshare: "",
+                incubateesshareperprice: "",
+                incubateescin: "",
+                incubateesdin: "",
+                incubateesgst: "",
+                incubateesgstregdate: "",
+                incubateesdpiitnumber: "",
+                incubateeslogopath: "",
+                incubateesdurationofextension: "",
+                incubateesaddress: "",
+                incubateesincubatorname: "",
+                incubateesincubatoremail: "",
+                incubateesincubatorphone: "",
+                incubateespannumber: "",
+                incubateesuan: "",
+                incubateesnooffounders: "",
+                incubateesaccountantname: "",
+                incubateesauditorname: "",
+                incubateessecretaryname: "",
+                incubateesadminstate: 0,
+                incubateesfoundername: "",
+                incubateesdateofincubation: "",
+                incubateesdateofincorporation: "",
+                incubateesdateofextension: "",
+                incubateeswebsite: "",
+                incubateesincrecid: "",
+                incubateescreatedtime: "",
+                incubateesmodifiedtime: "",
+                incubateescreatedby: "",
+                incubateesmodifiedby: "",
+              });
+              fetchIncubatees();
+              Swal.fire(
+                "Success",
+                response.data.message || "Incubatee saved successfully!",
+                "success",
+              );
+            }
+          } else {
+            throw new Error(
+              response.data.message ||
+                `Operation failed with status: ${response.data.statusCode}`,
             );
           }
-        } else {
-          throw new Error(
-            response.data.message ||
-              `Operation failed with status: ${response.data.statusCode}`,
-          );
-        }
-      })
-      .catch((err) => {
-        console.error("Error saving incubatee:", err);
-        setError(`Failed to save: ${err.message}`);
-        Swal.fire(
-          "Error",
-          `Failed to save incubatee: ${err.message}`,
-          "error",
-        ).then(() => setIsModalOpen(true));
-      })
-      .finally(() => setIsSaving(false));
-  };
+        })
+        .catch((err) => {
+          console.error("Error saving incubatee:", err);
+          setError(`Failed to save: ${err.message}`);
+          Swal.fire(
+            "Error",
+            `Failed to save incubatee: ${err.message}`,
+            "error",
+          ).then(() => setIsModalOpen(true));
+        })
+        .finally(() => setIsSaving(false));
+    },
+    [
+      formData,
+      editIncubatee,
+      validateForm,
+      formErrors,
+      userId,
+      fetchIncubatees,
+    ],
+  );
 
   // Memoized values for columns
   const columns = useMemo(
@@ -862,8 +1119,6 @@ export default function IncubateeTable() {
               color={params.value === 1 ? "success" : "default"}
               variant={params.value === 1 ? "filled" : "outlined"}
               size="small"
-              clickable
-              onClick={() => handleAdminStateToggle(params.row)}
             />
           );
         },
@@ -903,7 +1158,7 @@ export default function IncubateeTable() {
         },
       },
     ],
-    [isSaving, isDeleting, openEditModal, handleDelete, handleAdminStateToggle],
+    [isSaving, isDeleting, openEditModal, handleDelete],
   );
 
   const exportConfig = useMemo(
@@ -1089,6 +1344,11 @@ export default function IncubateeTable() {
                         variant="outlined"
                         error={!!formErrors.incubateesemail}
                         helperText={formErrors.incubateesemail}
+                        InputProps={{
+                          endAdornment: checkingDuplicate.incubateesemail && (
+                            <CircularProgress size={20} />
+                          ),
+                        }}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
@@ -1100,6 +1360,14 @@ export default function IncubateeTable() {
                         onChange={handleChange}
                         disabled={isSaving}
                         variant="outlined"
+                        error={!!formErrors.incubateesshortname}
+                        helperText={formErrors.incubateesshortname}
+                        InputProps={{
+                          endAdornment:
+                            checkingDuplicate.incubateesshortname && (
+                              <CircularProgress size={20} />
+                            ),
+                        }}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
@@ -1119,7 +1387,6 @@ export default function IncubateeTable() {
                           onChange={handleChange}
                           label="Field of Work"
                           MenuProps={{
-                            // Ensure menu doesn't affect layout
                             PaperProps: {
                               style: {
                                 maxHeight: 300,
@@ -1152,7 +1419,6 @@ export default function IncubateeTable() {
                           onChange={handleChange}
                           label="Stage Level"
                           MenuProps={{
-                            // Ensure menu doesn't affect layout
                             PaperProps: {
                               style: {
                                 maxHeight: 300,
@@ -1242,6 +1508,11 @@ export default function IncubateeTable() {
                           formErrors.incubateescin ||
                           "Format: U74140DL2014PTC272828"
                         }
+                        InputProps={{
+                          endAdornment: checkingDuplicate.incubateescin && (
+                            <CircularProgress size={20} />
+                          ),
+                        }}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
@@ -1253,6 +1524,15 @@ export default function IncubateeTable() {
                         onChange={handleChange}
                         disabled={isSaving}
                         variant="outlined"
+                        error={!!formErrors.incubateesdin}
+                        helperText={
+                          formErrors.incubateesdin || "8-digit number"
+                        }
+                        InputProps={{
+                          endAdornment: checkingDuplicate.incubateesdin && (
+                            <CircularProgress size={20} />
+                          ),
+                        }}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
@@ -1307,6 +1587,12 @@ export default function IncubateeTable() {
                         helperText={
                           formErrors.incubateespannumber || "Format: ABCDE1234F"
                         }
+                        InputProps={{
+                          endAdornment:
+                            checkingDuplicate.incubateespannumber && (
+                              <CircularProgress size={20} />
+                            ),
+                        }}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
@@ -1322,6 +1608,11 @@ export default function IncubateeTable() {
                         helperText={
                           formErrors.incubateesuan || "12-digit number"
                         }
+                        InputProps={{
+                          endAdornment: checkingDuplicate.incubateesuan && (
+                            <CircularProgress size={20} />
+                          ),
+                        }}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
@@ -1478,6 +1769,14 @@ export default function IncubateeTable() {
                         onChange={handleChange}
                         disabled={isSaving}
                         variant="outlined"
+                        error={!!formErrors.incubateesincubatorphone}
+                        helperText={formErrors.incubateesincubatorphone}
+                        InputProps={{
+                          endAdornment:
+                            checkingDuplicate.incubateesincubatorphone && (
+                              <CircularProgress size={20} />
+                            ),
+                        }}
                       />
                     </Grid>
                     <Grid item xs={12} sm={6}>
@@ -1633,7 +1932,7 @@ export default function IncubateeTable() {
                 <Button
                   type="submit"
                   variant="contained"
-                  disabled={isSaving}
+                  disabled={isSaving || Object.keys(formErrors).length > 0}
                   startIcon={isSaving ? <CircularProgress size={20} /> : null}
                   sx={{ minWidth: 120 }}
                 >

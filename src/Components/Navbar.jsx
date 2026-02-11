@@ -52,7 +52,7 @@ const useNetworkStatus = () => {
         console.log(
           `${status ? "✅" : "❌"} Network: ${
             status ? "ONLINE" : "OFFLINE"
-          } (${source})`
+          } (${source})`,
         );
 
         setIsOnline(status);
@@ -120,7 +120,7 @@ const useNetworkStatus = () => {
 
       if (connection) {
         console.log(
-          `📡 Connection: ${connection.effectiveType}, ${connection.downlink}Mbps`
+          `📡 Connection: ${connection.effectiveType}, ${connection.downlink}Mbps`,
         );
 
         // If connection type changes, immediately check
@@ -224,6 +224,9 @@ const Navbar = () => {
     adminviewData,
     menuItemsFromAPI,
     menuItemsLoading,
+    chatResponseStatus,
+    chatList,
+    getChatLists,
   } = useContext(DataContext);
   const { setIsAuthenticated } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -242,6 +245,7 @@ const Navbar = () => {
   const [isChatDropdownOpen, setIsChatDropdownOpen] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
 
+  console.log("Menu items from API:", getChatLists);
   // --- Refs ---
   const actionsRef = useRef(null);
   const chatDropdownRef = useRef(null);
@@ -268,17 +272,20 @@ const Navbar = () => {
   const isDueDeeligence = Number(roleid) === 7 || Number(sessionRoleid) === 7;
   const SuperAdmin = Number(roleid) === 0 || Number(sessionRoleid) === 0;
   const isIncubatee = Number(roleid) === 4 || Number(sessionRoleid) === 4;
+  const isMentor = Number(roleid) === 12 || Number(sessionRoleid) === 12;
 
   const logedinProfile =
     roleid === "1"
       ? "Incubator"
       : roleid === "3"
-      ? "Incubator Operator"
-      : roleid === "7"
-      ? "Due Deligence Inspector"
-      : roleid === "4"
-      ? "Incubatee"
-      : "Admin";
+        ? "Incubator Operator"
+        : roleid === "7"
+          ? "Due Deligence Inspector"
+          : roleid === "4"
+            ? "Incubatee"
+            : roleid === "12"
+              ? "Mentor"
+              : "Admin";
 
   // --- Functions ---
 
@@ -475,13 +482,13 @@ const Navbar = () => {
   const hasChatAccess = menuItemsFromAPI.some(
     (item) =>
       item.guiappspath === "/Incubation/Dashboard/Chats" &&
-      item.appsreadaccess === 1
+      item.appsreadaccess === 1,
   );
 
   const hasChatHistoryAccess = menuItemsFromAPI.some(
     (item) =>
       item.guiappspath === "/Incubation/Dashboard/ChatHistory" &&
-      item.appsreadaccess === 1
+      item.appsreadaccess === 1,
   );
 
   return (
@@ -513,7 +520,9 @@ const Navbar = () => {
             <p>
               {Number(roleid) === 1
                 ? "Admin Dashboard"
-                : "Startup Management Dashboard"}
+                : Number(roleid) === 12
+                  ? "Mentor Dashboard"
+                  : "Startup Management Dashboard"}
             </p>
           </div>
         </div>

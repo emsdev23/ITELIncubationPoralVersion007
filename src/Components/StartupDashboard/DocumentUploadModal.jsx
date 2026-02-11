@@ -376,7 +376,6 @@ const DocumentUploadModal = ({
       const token = sessionStorage.getItem("token");
       const response = await api.post(
         "/resources/generic/adddocument",
-
         uploadData,
         {
           headers: {
@@ -388,12 +387,7 @@ const DocumentUploadModal = ({
       );
 
       const data = response.data;
-
-      if (data.statusCode !== 200) {
-        const errorMessage =
-          data?.message || `HTTP error! status: ${response.status}`;
-        throw new Error(errorMessage);
-      }
+      console.log(data);
 
       if (data.statusCode === 200) {
         setSuccess(data.message || "Document uploaded successfully!");
@@ -406,11 +400,27 @@ const DocumentUploadModal = ({
           handleClose();
         }, 1500);
       } else {
-        setError("Upload failed: " + (data.message || "Unknown error"));
+        // This is a safety net and unlikely to be hit.
+        throw new Error(
+          data.message || "An unknown error occurred during upload.",
+        );
       }
     } catch (err) {
-      setError("Error uploading file: " + (err.message || "Unknown error"));
       console.error("Upload error:", err);
+
+      // --- SIMPLIFIED ERROR HANDLING ---
+      let errorMessage = "An unexpected error occurred. Please try again.";
+
+      // If the error is from our API, use the specific message it provides.
+      if (err.response && err.response.data && err.response.data.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.request) {
+        // If the request was made but no response was received (network error)
+        errorMessage = "Network error: Could not connect to the server.";
+      }
+
+      // Set the error to just the message string.
+      setError(errorMessage);
     } finally {
       setLoading((prev) => ({ ...prev, uploading: false }));
     }
@@ -614,6 +624,8 @@ const DocumentUploadModal = ({
                 onChange={handleFileSelect}
               />
             </div>
+            {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
           </div>
         )}
 

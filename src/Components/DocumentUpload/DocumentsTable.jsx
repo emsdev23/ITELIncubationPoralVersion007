@@ -207,7 +207,7 @@ const formatDate = (dateStr) => {
 };
 
 // Using forwardRef to allow parent components to access methods
-const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
+const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => {
   const userId = sessionStorage.getItem("userid");
   const token = sessionStorage.getItem("token");
   const roleid = sessionStorage.getItem("roleid");
@@ -294,7 +294,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             "X-Module": "Document Management",
             "X-Action": "fetch All Documents",
           },
-        }
+        },
       );
 
       // Response is already decrypted by interceptor
@@ -320,7 +320,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             "X-Module": "Document Management",
             "X-Action": "Fetch Document SubCategories",
           },
-        }
+        },
       );
 
       // Response is already decrypted by interceptor
@@ -388,7 +388,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           }
 
           const appliedIds = new Set(
-            appliedDocs.map((doc) => doc.incdocapplydocumentid)
+            appliedDocs.map((doc) => doc.incdocapplydocumentid),
           );
           setAppliedDocuments(appliedIds);
 
@@ -438,7 +438,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         return [];
       }
     },
-    [IP, token, userId]
+    [IP, token, userId],
   );
 
   // NEW FUNCTION: Extract category ID from linked document with multiple fallbacks
@@ -489,7 +489,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
               "X-Module": "Document Management",
               "X-Action": "Get File URL",
             },
-          }
+          },
         );
 
         if (
@@ -497,7 +497,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           !fileUrlResponse.data.data
         ) {
           throw new Error(
-            fileUrlResponse.data.message || "Invalid response format"
+            fileUrlResponse.data.message || "Invalid response format",
           );
         }
 
@@ -523,7 +523,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
 
         if (!fileResponse.ok) {
           throw new Error(
-            `Failed to fetch file. Status: ${fileResponse.status}`
+            `Failed to fetch file. Status: ${fileResponse.status}`,
           );
         }
 
@@ -545,7 +545,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         throw error;
       }
     },
-    [IP, token, userId]
+    [IP, token, userId],
   );
 
   const refreshData = useCallback(() => {
@@ -644,7 +644,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       setFieldErrors(errors);
       return !errors[name];
     },
-    [fieldErrors]
+    [fieldErrors],
   );
 
   const validateForm = useCallback(() => {
@@ -655,7 +655,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       validateField("documentsubcatrecid", formData.documentsubcatrecid) &&
       validateField(
         "documentperiodicityrecid",
-        formData.documentperiodicityrecid
+        formData.documentperiodicityrecid,
       ) &&
       validateField("documentapplystatus", formData.documentapplystatus) &&
       validateField("documentreferencelink", formData.documentreferencelink) &&
@@ -698,7 +698,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
               "X-Module": "Document Management",
               "X-Action": "Document Preview Fetch",
             },
-          }
+          },
         );
 
         // Check if the response was successful
@@ -712,7 +712,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         throw error;
       }
     },
-    [IP, token, userId]
+    [IP, token, userId],
   );
 
   const downloadDocument = useCallback(
@@ -738,7 +738,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
               "X-Module": "Document Management",
               "X-Action": "Document Preview Fetch",
             },
-          }
+          },
         );
 
         if (response.data.statusCode === 200 && response.data.data) {
@@ -765,7 +765,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
 
           if (!fileResponse.ok) {
             throw new Error(
-              `Failed to fetch file. Status: ${fileResponse.status}`
+              `Failed to fetch file. Status: ${fileResponse.status}`,
             );
           }
 
@@ -782,7 +782,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           showToast(`Downloaded ${docName}`, "success");
         } else {
           throw new Error(
-            response.data.message || "Failed to get download URL"
+            response.data.message || "Failed to get download URL",
           );
         }
       } catch (error) {
@@ -792,7 +792,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         setIsDownloading(false);
       }
     },
-    [IP, token, userId, showToast]
+    [IP, token, userId, showToast],
   );
 
   const previewDocument = useCallback(
@@ -890,16 +890,16 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         setPreviewContent(content);
       } catch (error) {
         console.error("Error previewing document:", error);
-        showToast(`Failed to preview: ${error.message}`, "error");
+        showToast(`Failed to preview: ${error.response.data.message}`, "error");
         setPreviewContent({
           type: "error",
-          message: `Failed to load preview: ${error.message}`,
+          message: `Failed to load preview: ${error.response.data.message}`,
         });
       } finally {
         setPreviewLoading(false);
       }
     },
-    [getFileUrl, showToast, token]
+    [getFileUrl, showToast, token],
   );
 
   const openAddModal = useCallback(() => {
@@ -956,7 +956,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         const subcategory = subcats.find(
           (sc) =>
             sc.docsubcatname === doc.docsubcatname &&
-            String(sc.docsubcatscatrecid) === String(primaryCategoryId)
+            String(sc.docsubcatscatrecid) === String(primaryCategoryId),
         );
         if (subcategory) {
           primarySubcategoryId = subcategory.docsubcatrecid;
@@ -984,7 +984,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
 
       setIsModalOpen(true);
     },
-    [refreshDropdownData, cats, subcats]
+    [refreshDropdownData, cats, subcats],
   );
 
   const handleChange = useCallback(
@@ -1002,7 +1002,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         setSelectedAdditionalCategories({});
       }
     },
-    [fieldErrors, validateField]
+    [fieldErrors, validateField],
   );
 
   const handleSampleDocChange = useCallback(
@@ -1015,9 +1015,9 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           if (file.size > 10 * 1024 * 1024) {
             showToast(
               `File size ${(file.size / (1024 * 1024)).toFixed(
-                2
+                2,
               )}MB exceeds 10MB limit`,
-              "error"
+              "error",
             );
             e.target.value = "";
             return;
@@ -1034,7 +1034,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           if (!allowedTypes.includes(file.type)) {
             showToast(
               "Invalid file type. Please select PDF, DOC, DOCX, XLS, XLSX, or TXT files.",
-              "error"
+              "error",
             );
             e.target.value = "";
             return;
@@ -1056,7 +1056,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         }
       }
     },
-    [convertFileToBase64, showToast]
+    [convertFileToBase64, showToast],
   );
 
   const handleTemplateDocChange = useCallback(
@@ -1069,9 +1069,9 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           if (file.size > 10 * 1024 * 1024) {
             showToast(
               `File size ${(file.size / (1024 * 1024)).toFixed(
-                2
+                2,
               )}MB exceeds 10MB limit`,
-              "error"
+              "error",
             );
             e.target.value = "";
             return;
@@ -1088,7 +1088,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           if (!allowedTypes.includes(file.type)) {
             showToast(
               "Invalid file type. Please select PDF, DOC, DOCX, XLS, XLSX, or TXT files.",
-              "error"
+              "error",
             );
             e.target.value = "";
             return;
@@ -1110,7 +1110,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         }
       }
     },
-    [convertFileToBase64, showToast]
+    [convertFileToBase64, showToast],
   );
 
   const getFilteredSubcategories = useCallback(() => {
@@ -1165,7 +1165,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         throw error;
       }
     },
-    [IP, token, userId]
+    [IP, token, userId],
   );
 
   const createDocument = useCallback(
@@ -1193,7 +1193,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         throw error;
       }
     },
-    [IP, token, userId]
+    [IP, token, userId],
   );
 
   // NEW FUNCTION: Update document using the specific endpoint
@@ -1222,7 +1222,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         throw error;
       }
     },
-    [token, userId]
+    [token, userId],
   );
 
   const extractDocumentId = useCallback((response) => {
@@ -1248,7 +1248,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     if (!documentId) {
       console.error(
         "Could not extract document ID from response. Full response:",
-        response
+        response,
       );
     }
 
@@ -1261,11 +1261,11 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         (d) =>
           d.documentname === docName &&
           d.documentcatrecid === docCatId &&
-          d.documentsubcatrecid === docSubcatId
+          d.documentsubcatrecid === docSubcatId,
       );
       return doc ? doc.documentsrecid : null;
     },
-    [documents]
+    [documents],
   );
 
   const applyForDocument = useCallback(
@@ -1323,7 +1323,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       showToast,
       fetchDocuments,
       fetchApplicabilityDetails,
-    ]
+    ],
   );
 
   const handleApplyForDocument = useCallback(
@@ -1350,7 +1350,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         }
       });
     },
-    [applyForDocument]
+    [applyForDocument],
   );
 
   const unmarkDocument = useCallback(
@@ -1420,7 +1420,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       fetchDocuments,
       fetchApplicabilityDetails,
       appliedDocumentDetails,
-    ]
+    ],
   );
 
   const handleUnmarkDocument = useCallback(
@@ -1439,7 +1439,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         }
       });
     },
-    [unmarkDocument]
+    [unmarkDocument],
   );
 
   // =======================================================================
@@ -1515,7 +1515,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
               const successfulDeletes = results.filter(
                 (result) =>
                   result.status === "fulfilled" &&
-                  result.value.statusCode === 200
+                  result.value.statusCode === 200,
               ).length;
 
               const failedDeletes = results.length - successfulDeletes;
@@ -1527,21 +1527,21 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
                   isMultipleDelete
                     ? `${deleteCount} documents deleted successfully!`
                     : "Document deleted successfully!",
-                  "success"
+                  "success",
                 );
               } else if (successfulDeletes > 0) {
                 // Some deletions successful
                 Swal.fire(
                   "Partial Success",
                   `${successfulDeletes} of ${deleteCount} documents deleted successfully. ${failedDeletes} failed.`,
-                  "warning"
+                  "warning",
                 );
               } else {
                 // All deletions failed
                 Swal.fire(
                   "Error",
                   "Failed to delete documents. Please try again.",
-                  "error"
+                  "error",
                 );
               }
 
@@ -1563,7 +1563,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         }
       });
     },
-    [IP, token, userId, refreshData, showToast]
+    [IP, token, userId, refreshData, showToast],
   );
   // =======================================================================
   // END: UPDATED handleDelete FUNCTION
@@ -1591,7 +1591,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
 
         if (isNaN(formData.documentsubcatrecid)) {
           const subcatByName = subcats.find(
-            (sc) => sc.docsubcatname === formData.documentsubcatrecid
+            (sc) => sc.docsubcatname === formData.documentsubcatrecid,
           );
           if (subcatByName) {
             subcatId = subcatByName.docsubcatrecid;
@@ -1620,7 +1620,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             doccatid: parseInt(formData.documentcatrecid),
             docsubcatid: subcatId,
             documentperiodicityrecid: parseInt(
-              formData.documentperiodicityrecid
+              formData.documentperiodicityrecid,
             ),
             documentname: formData.documentname.trim(),
             documentdescription: formData.documentdescription.trim(),
@@ -1651,7 +1651,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
               editDoc.documentsampledoc
             ) {
               updateDocumentData.sampleDocBase64 = await getFileBase64(
-                editDoc.documentsampledoc
+                editDoc.documentsampledoc,
               );
             } else if (subcatId && formData.sampleDocBase64) {
               // If a new file was uploaded, use its base64 data
@@ -1665,7 +1665,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
               editDoc.documenttemplatedoc
             ) {
               updateDocumentData.templateDocBase64 = await getFileBase64(
-                editDoc.documenttemplatedoc
+                editDoc.documenttemplatedoc,
               );
             } else if (subcatId && formData.templateDocBase64) {
               // If a new file was uploaded, use its base64 data
@@ -1675,7 +1675,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             console.error("Error fetching file base64 data:", error);
             showToast(
               "Warning: Could not retrieve existing file data. Update may not include all files.",
-              "warning"
+              "warning",
             );
           }
 
@@ -1687,7 +1687,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             Swal.fire(
               "Success",
               response.message || "Document updated successfully!",
-              "success"
+              "success",
             );
           } else {
             throw new Error(response.message || "Operation failed");
@@ -1699,7 +1699,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             doccatid: parseInt(formData.documentcatrecid),
             docsubcatid: subcatId,
             documentperiodicityrecid: parseInt(
-              formData.documentperiodicityrecid
+              formData.documentperiodicityrecid,
             ),
             documentname: formData.documentname.trim(),
             documentdescription: formData.documentdescription.trim(),
@@ -1776,13 +1776,13 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
                   };
                 } else {
                   throw new Error(
-                    result.message || "Failed to create document"
+                    result.message || "Failed to create document",
                   );
                 }
               } catch (error) {
                 console.error(
                   `Error creating document for category ${catInfo.catId}:`,
-                  error
+                  error,
                 );
                 return {
                   success: false,
@@ -1791,7 +1791,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
                   subcatId: catInfo.subcatId,
                 };
               }
-            }
+            },
           );
 
           const results = await Promise.allSettled(documentCreationPromises);
@@ -1812,7 +1812,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
 
           // Only create links between documents that have valid subcategories
           const documentsWithSubcategories = successfulDocuments.filter(
-            (doc) => doc.subcatId !== null
+            (doc) => doc.subcatId !== null,
           );
 
           if (documentsWithSubcategories.length > 1) {
@@ -1822,8 +1822,8 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
               linkPromises.push(
                 addLinkedDocument(
                   documentsWithSubcategories[i].documentId,
-                  documentsWithSubcategories[0].subcatId
-                )
+                  documentsWithSubcategories[0].subcatId,
+                ),
               );
             }
 
@@ -1831,8 +1831,8 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
               linkPromises.push(
                 addLinkedDocument(
                   documentsWithSubcategories[0].documentId,
-                  documentsWithSubcategories[i].subcatId
-                )
+                  documentsWithSubcategories[i].subcatId,
+                ),
               );
             }
 
@@ -1850,7 +1850,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           if (successfulDocuments.length > 0) {
             showToast(
               `Operation completed: ${successfulDocuments.length} documents created`,
-              "success"
+              "success",
             );
           } else {
             showToast("Failed to create any documents", "error");
@@ -1861,7 +1861,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           Swal.fire(
             "Operation Complete",
             summaryMessage || "Operation completed",
-            successfulDocuments.length > 0 ? "success" : "error"
+            successfulDocuments.length > 0 ? "success" : "error",
           );
         }
       } catch (err) {
@@ -1891,7 +1891,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       extractDocumentId,
       addLinkedDocument,
       getFileBase64, // Added the new getFileBase64 function
-    ]
+    ],
   );
 
   const isFormValid = useCallback(() => {
@@ -2157,7 +2157,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           width: 180,
           sortable: true,
           type: "date",
-        }
+        },
       );
     }
 
@@ -2267,8 +2267,8 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
                   {isApplying[params.row.documentsrecid]
                     ? "Applying..."
                     : isMandatory
-                    ? "Mandatory"
-                    : "Mark (N/A)"}
+                      ? "Mandatory"
+                      : "Mark (N/A)"}
                 </ApplyButton>
               )}
             </Box>
@@ -2297,7 +2297,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       filename: "documents",
       sheetName: "Documents",
     }),
-    []
+    [],
   );
 
   const onExportData = useMemo(
@@ -2313,8 +2313,8 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           doc.documentapplystatus === 1
             ? "Mandatory"
             : doc.documentapplystatus === 0
-            ? "Selective"
-            : "",
+              ? "Selective"
+              : "",
         "Reference Link": doc.documentreferencelink || "",
         "Note for Applicability": doc.documentapplicability || "",
         Remarks: doc.documentremarks || "",
@@ -2330,7 +2330,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         "Modified Time": formatDate(doc.documentmodifiedtime),
       }));
     },
-    []
+    [],
   );
 
   // EFFECTS
@@ -2364,7 +2364,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       <ReusableDataGrid
         data={documents}
         columns={columns}
-        title="Documents"
+        title=""
         enableExport={true}
         enableColumnFilters={true}
         searchPlaceholder="Search documents..."
@@ -2778,7 +2778,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
                                     onChange={(e) =>
                                       handleCategoryCheckboxChange(
                                         catId,
-                                        e.target.checked
+                                        e.target.checked,
                                       )
                                     }
                                     disabled={isPrimaryCategory || isSaving}
@@ -2851,7 +2851,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
                           onClick={() =>
                             previewDocument(
                               editDoc.documentsampledoc,
-                              editDoc.documentsampledocname
+                              editDoc.documentsampledocname,
                             )
                           }
                         >
@@ -2883,7 +2883,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
                           onClick={() =>
                             previewDocument(
                               editDoc.documenttemplatedoc,
-                              editDoc.documenttemplatedocname
+                              editDoc.documenttemplatedocname,
                             )
                           }
                         >

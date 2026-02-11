@@ -167,7 +167,7 @@ export default function UserTable() {
     // Apply search query filter
     if (searchQuery.trim() !== "") {
       result = result.filter((user) =>
-        user.usersname.toLowerCase().includes(searchQuery.toLowerCase())
+        user.usersname.toLowerCase().includes(searchQuery.toLowerCase()),
       );
     }
 
@@ -273,7 +273,7 @@ export default function UserTable() {
               ? `"${value}"`
               : value;
           })
-          .join(",")
+          .join(","),
       ),
     ].join("\n");
 
@@ -284,7 +284,7 @@ export default function UserTable() {
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `users_${new Date().toISOString().slice(0, 10)}.csv`
+      `users_${new Date().toISOString().slice(0, 10)}.csv`,
     );
     link.style.visibility = "hidden";
     document.body.appendChild(link);
@@ -578,7 +578,7 @@ export default function UserTable() {
         },
       },
     ],
-    [isUpdating, isDeleting, columnFilters, getRoleName]
+    [isUpdating, isDeleting, columnFilters, getRoleName],
   );
 
   // Add unique ID to each row if not present
@@ -630,7 +630,7 @@ export default function UserTable() {
 
   // Check if any column has an active filter
   const hasActiveFilters = Object.values(columnFilters).some(
-    (value) => value !== ""
+    (value) => value !== "",
   );
 
   // Fetch all users
@@ -827,7 +827,7 @@ export default function UserTable() {
               Swal.fire(
                 "Deleted!",
                 `${user.usersname} has been deleted successfully.`,
-                "success"
+                "success",
               );
               fetchUsers(); // Refresh user list
             } else {
@@ -839,7 +839,7 @@ export default function UserTable() {
             Swal.fire(
               "Error",
               `Failed to delete ${user.usersname}: ${err.message}`,
-              "error"
+              "error",
             );
           })
           .finally(() => {
@@ -889,7 +889,7 @@ export default function UserTable() {
           `<option value="" disabled selected>Select incubation</option>`,
           ...incubations.map(
             (incubation) =>
-              `<option value="${incubation.incubationsrecid}">${incubation.incubationshortname}</option>`
+              `<option value="${incubation.incubationsrecid}">${incubation.incubationshortname}</option>`,
           ),
         ].join("")
       : "";
@@ -897,7 +897,7 @@ export default function UserTable() {
       `<option value="" disabled selected>Select incubatee</option>`,
       ...incubatees.map(
         (incubatee) =>
-          `<option value="${incubatee.incubateesrecid}">${incubatee.incubateesname}</option>`
+          `<option value="${incubatee.incubateesrecid}">${incubatee.incubateesname}</option>`,
       ),
     ].join("");
 
@@ -985,8 +985,8 @@ export default function UserTable() {
           usersincubationsrecid: canSelectIncubation
             ? incubation.value
             : selectedIncubation
-            ? selectedIncubation.incubationsrecid
-            : incUserid,
+              ? selectedIncubation.incubationsrecid
+              : incUserid,
           usersincubateesrecid: incubatee.value || null,
         };
       },
@@ -1014,7 +1014,7 @@ export default function UserTable() {
             '<option value="" disabled>Loading...</option>';
           try {
             // Corrected URL path from "/resources/generic/getinclist" to "/generic/getinclist"
-            const response = await api.post("/generic/getinclist", {
+            const response = await api.post("/resources/generic/getinclist", {
               userId: userId || null,
               incUserId: incubationId,
             });
@@ -1023,7 +1023,7 @@ export default function UserTable() {
                 '<option value="" disabled selected>Select incubatee</option>',
                 ...(response.data.data || []).map(
                   (incubatee) =>
-                    `<option value="${incubatee.incubateesrecid}">${incubatee.incubateesname}</option>`
+                    `<option value="${incubatee.incubateesrecid}">${incubatee.incubateesname}</option>`,
                 ),
               ].join("");
               incubateeSelect.innerHTML = options;
@@ -1104,7 +1104,7 @@ export default function UserTable() {
           Swal.fire(
             "❌ Error",
             response.data.message || "Failed to add user",
-            "error"
+            "error",
           );
         }
       } catch (err) {
@@ -1156,7 +1156,7 @@ export default function UserTable() {
         (role) =>
           `<option value="${role.value}" ${
             user.usersrolesrecid == role.value ? "selected" : ""
-          }>${role.text}</option>`
+          }>${role.text}</option>`,
       )
       .join("");
     const incubationOptions = canSelectIncubation
@@ -1170,7 +1170,7 @@ export default function UserTable() {
                 user.usersincubationsrecid == incubation.incubationsrecid
                   ? "selected"
                   : ""
-              }>${incubation.incubationshortname}</option>`
+              }>${incubation.incubationshortname}</option>`,
           ),
         ].join("")
       : "";
@@ -1184,7 +1184,7 @@ export default function UserTable() {
             user.usersincubateesrecid == incubatee.incubateesrecid
               ? "selected"
               : ""
-          }>${incubatee.incubateesname}</option>`
+          }>${incubatee.incubateesname}</option>`,
       ),
     ].join("");
 
@@ -1268,8 +1268,8 @@ export default function UserTable() {
           usersincubationsrecid: canSelectIncubation
             ? incubation.value
             : selectedIncubation
-            ? selectedIncubation.incubationsrecid
-            : incUserid,
+              ? selectedIncubation.incubationsrecid
+              : incUserid,
           usersincubateesrecid: incubatee.value || null,
         };
       },
@@ -1304,7 +1304,7 @@ export default function UserTable() {
           incubateeSelect.disabled = true;
           try {
             // Corrected URL path from "/resources/generic/getinclist" to "/generic/getinclist"
-            const response = await api.post("/generic/getinclist", {
+            const response = await api.post("/resources/generic/getinclist", {
               userId: userId || null,
               incUserId: incubationId,
             });
@@ -1313,7 +1313,7 @@ export default function UserTable() {
                 '<option value="" disabled selected>Select incubatee</option>',
                 ...(response.data.data || []).map(
                   (incubatee) =>
-                    `<option value="${incubatee.incubateesrecid}">${incubatee.incubateesname}</option>`
+                    `<option value="${incubatee.incubateesrecid}">${incubatee.incubateesname}</option>`,
                 ),
               ].join("");
               incubateeSelect.innerHTML = options;
@@ -1377,6 +1377,7 @@ export default function UserTable() {
           usersmodifiedby: userId,
           usersrecid: user.usersrecid, // The ID of the user to update
           usersincubationsrecid: formData.usersincubationsrecid,
+          usersmentorid: formData.usersmentorid || null,
         };
 
         // Only add incubateesrecid if it's not null or empty
@@ -1394,7 +1395,7 @@ export default function UserTable() {
           Swal.fire(
             "❌ Error",
             response.data.message || "Failed to update user",
-            "error"
+            "error",
           );
         }
       } catch (err) {
@@ -1490,7 +1491,7 @@ export default function UserTable() {
         Showing {paginationModel.page * paginationModel.pageSize + 1} to{" "}
         {Math.min(
           (paginationModel.page + 1) * paginationModel.pageSize,
-          filteredData.length
+          filteredData.length,
         )}{" "}
         of {filteredData.length} entries
       </Box>
@@ -1600,8 +1601,8 @@ export default function UserTable() {
             {isAdding
               ? "Adding user..."
               : isUpdating !== null
-              ? "Updating user..."
-              : "Deleting user..."}
+                ? "Updating user..."
+                : "Deleting user..."}
           </Typography>
         </Box>
       </StyledBackdrop>

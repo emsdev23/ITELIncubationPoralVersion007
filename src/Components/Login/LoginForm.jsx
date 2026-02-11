@@ -118,6 +118,15 @@ const LoginForm = () => {
           showConfirmButton: false,
         });
         setTimeout(() => navigate("/startup/Dashboard"), 1000);
+      } else if (roleid === "12") {
+        Swal.fire({
+          icon: "success",
+          title: "Welcome Mentor!",
+          text: "Redirecting...",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+        setTimeout(() => navigate("/Incubation/Dashboard"), 1000);
       } else {
         Swal.fire({
           icon: "error",

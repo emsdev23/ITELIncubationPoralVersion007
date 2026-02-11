@@ -32,12 +32,23 @@ const ChatApp = () => {
   const messageIdsRef = useRef(new Map());
   const [newChatId, setNewChatId] = useState(null);
 
+  // Helper function to sort chats by time (most recent first)
+  const sortChatsByTime = (chats) => {
+    return [...chats].sort((a, b) => {
+      const dateA = new Date(a.chatlistmodifiedtime || a.chatlistcreatedtime).getTime();
+      const dateB = new Date(b.chatlistmodifiedtime || b.chatlistcreatedtime).getTime();
+      return dateB - dateA;
+    });
+  };
+
   // Fetch chat lists
   const fetchChatLists = useCallback(async () => {
     try {
       const data = await getChatLists(currentUser.id, currentUser.incUserid);
-      setChatLists(data);
-      return data;
+      // Sort chats immediately after fetching
+      const sortedData = sortChatsByTime(data);
+      setChatLists(sortedData);
+      return sortedData;
     } catch (error) {
       console.error("Error fetching chat lists:", error);
       return [];
@@ -126,8 +137,10 @@ const ChatApp = () => {
           }));
 
           const latestMessage = newMessages[newMessages.length - 1];
-          setChatLists((prev) =>
-            prev.map((chat) =>
+          
+          // Update the chat list and sort it so the updated chat moves to the top
+          setChatLists((prev) => {
+            const updatedList = prev.map((chat) =>
               chat.chatlistrecid === chatId
                 ? {
                     ...chat,
@@ -135,8 +148,9 @@ const ChatApp = () => {
                     lastMessage: latestMessage.chatdetailsmessage,
                   }
                 : chat
-            )
-          );
+            );
+            return sortChatsByTime(updatedList);
+          });
         }
       } catch (error) {
         console.error("Error checking for new messages:", error);
@@ -299,8 +313,9 @@ const ChatApp = () => {
       currentIds.add(newMessage.chatdetailsrecid);
       messageIdsRef.current.set(selectedChat.chatlistrecid, currentIds);
 
-      setChatLists((prev) =>
-        prev.map((chat) =>
+      // Update chat list and sort to move this chat to the top
+      setChatLists((prev) => {
+        const updatedList = prev.map((chat) =>
           chat.chatlistrecid === selectedChat.chatlistrecid
             ? {
                 ...chat,
@@ -308,8 +323,9 @@ const ChatApp = () => {
                 lastMessage: newMessage.chatdetailsmessage,
               }
             : chat
-        )
-      );
+        );
+        return sortChatsByTime(updatedList);
+      });
 
       // Optional: Refetch messages after a short delay to ensure the latest state
       setTimeout(() => {
