@@ -140,7 +140,9 @@ const LoginForm = () => {
       Swal.fire({
         icon: "error",
         title: "Login Failed",
-        text: "Invalid username or password",
+        text:
+          error.response?.data?.message ||
+          "An error occurred during login. Please try again.",
       });
     }
   };

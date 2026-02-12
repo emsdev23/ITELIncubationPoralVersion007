@@ -497,8 +497,8 @@ const DocumentUploadModal = ({
           </button>
         </div>
 
-        {error && <div className="error-message">{error}</div>}
-        {success && <div className="success-message">{success}</div>}
+        {/* {error && <div className="error-message">{error}</div>}
+        {success && <div className="success-message">{success}</div>} */}
 
         {/* Document Category */}
         <div className="form-section">

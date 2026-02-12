@@ -7,7 +7,6 @@ import React, {
   useCallback,
 } from "react";
 import Swal from "sweetalert2";
-import { IPAdress } from "../Datafetching/IPAdrees";
 import * as XLSX from "xlsx";
 import { Download } from "lucide-react";
 import { FaTimes } from "react-icons/fa";
@@ -61,10 +60,11 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HowToRegIcon from "@mui/icons-material/HowToReg";
 import UndoIcon from "@mui/icons-material/Undo";
-import api from "../Datafetching/api";
 
-// Import your reusable component
+// Import your reusable component and API instance
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
+import api from "../Datafetching/api";
+import { useWriteAccess } from "../Datafetching/useWriteAccess";
 
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
@@ -148,7 +148,6 @@ const formatDate = (dateStr) => {
   if (!dateStr) return "-";
 
   try {
-    // Handle array format [year, month, day, hour, minute, second]
     if (Array.isArray(dateStr) && dateStr.length >= 6) {
       const [year, month, day, hour, minute, second] = dateStr;
       const date = new Date(year, month - 1, day, hour, minute, second);
@@ -162,7 +161,6 @@ const formatDate = (dateStr) => {
       });
     }
 
-    // Handle YYYYMMDDHHMMSS format (e.g., "2025919124643")
     if (
       typeof dateStr === "string" &&
       dateStr.length === 14 &&
@@ -187,7 +185,6 @@ const formatDate = (dateStr) => {
       });
     }
 
-    // Handle date strings with question mark (e.g., "Sep 19, 2025, 12:46:43?PM")
     const normalizedDate = dateStr.replace("?", " ");
     const date = new Date(normalizedDate);
 
@@ -207,13 +204,15 @@ const formatDate = (dateStr) => {
 };
 
 // Using forwardRef to allow parent components to access methods
-const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => {
+const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
+  const hasWriteAccess = useWriteAccess("/Incubation/Dashboard/AddDocuments");
+
   const userId = sessionStorage.getItem("userid");
   const token = sessionStorage.getItem("token");
   const roleid = sessionStorage.getItem("roleid");
   const incUserid = sessionStorage.getItem("incuserid");
   const incubateeId = sessionStorage.getItem("incubateeId");
-  const IP = IPAdress;
+  // IP is retained for context but removed from API calls in favor of the api instance
 
   // STATE DECLARATIONS
   const [documents, setDocuments] = useState([]);
@@ -266,16 +265,13 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
   });
   const [error, setError] = useState(null);
 
-  // New state for additional categories only (no subcategories)
   const [showAdditionalCategories, setShowAdditionalCategories] =
     useState(false);
   const [selectedAdditionalCategories, setSelectedAdditionalCategories] =
     useState({});
 
-  // Check if XLSX is available
   const isXLSXAvailable = !!XLSX;
 
-  // Expose the openAddModal function to parent components
   useImperativeHandle(ref, () => ({
     openAddModal,
   }));
@@ -286,7 +282,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     setError(null);
 
     try {
-      // Use api.get for GET request with encryption
       const response = await api.get(
         `/api/documents/getDocumentsAll?incuserid=${incUserid}`,
         {
@@ -296,8 +291,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
           },
         },
       );
-
-      // Response is already decrypted by interceptor
       setDocuments(response.data.data || []);
     } catch (err) {
       console.error("Error fetching documents:", err);
@@ -305,14 +298,13 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     } finally {
       setLoading(false);
     }
-  }, [IP, incUserid, userId]);
+  }, [incUserid]);
 
   const fetchSubCategories = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Use api.get for GET request with encryption
       const response = await api.get(
         `/getDocsubcatAll?incuserid=${encodeURIComponent(incUserid)}`,
         {
@@ -322,8 +314,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
           },
         },
       );
-
-      // Response is already decrypted by interceptor
       setSubcats(response.data.data || []);
     } catch (err) {
       console.error("Error fetching subcategories:", err);
@@ -331,22 +321,19 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     } finally {
       setLoading(false);
     }
-  }, [IP, incUserid, userId]);
+  }, [incUserid]);
 
   const fetchCategories = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Use api.get for GET request with encryption
       const response = await api.get(`/getDoccatAll?incuserid=${incUserid}`, {
         headers: {
           "X-Module": "Document Management",
           "X-Action": "Fetch Document Categories",
         },
       });
-
-      // Response is already decrypted by interceptor
       setCats(response.data.data || []);
     } catch (err) {
       console.error("Error fetching categories:", err);
@@ -356,29 +343,26 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     }
   }, [incUserid]);
 
+  // UPDATED: fetchApplicabilityDetails
   const fetchApplicabilityDetails = useCallback(() => {
     if (Number(roleid) !== 4) return;
 
-    const url = `${IP}/itelinc/resources/generic/getapplicabilitydetails`;
-    const requestBody = {
-      userId: incubateeId,
-      roleId: roleid,
-    };
-
-    fetch(url, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        userid: userId || "1",
-        "X-Module": "Document Management",
-        "X-Action": "fetch Applicability Details",
-      },
-      body: JSON.stringify(requestBody),
-    })
-      .then((res) => res.json())
-      .then((data) => {
+    api
+      .post(
+        "/resources/generic/getapplicabilitydetails",
+        {
+          userId: userId,
+          roleId: roleid,
+        },
+        {
+          headers: {
+            "X-Module": "Document Management",
+            "X-Action": "fetch Applicability Details",
+          },
+        },
+      )
+      .then((response) => {
+        const data = response.data;
         if (data.statusCode === 200 && data.data) {
           let appliedDocs = [];
           if (Array.isArray(data.data)) {
@@ -402,48 +386,38 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
       .catch((err) => {
         console.error("Error fetching applicability details:", err);
       });
-  }, [IP, incubateeId, roleid, token, userId]);
+  }, [userId, roleid]);
 
-  // ENHANCED: Fetch linked documents for a given document
-  const fetchLinkedDocuments = useCallback(
-    async (documentId) => {
-      try {
-        const url = `${IP}/itelinc/getLinkedDocuments`;
-        const params = new URLSearchParams({
+  // UPDATED: fetchLinkedDocuments
+  const fetchLinkedDocuments = useCallback(async (documentId) => {
+    try {
+      const response = await api.post(
+        "/getLinkedDocuments",
+        {
           documentid: documentId,
-        });
-
-        const response = await fetch(`${url}?${params.toString()}`, {
-          method: "GET",
-          mode: "cors",
+        },
+        {
           headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            userid: userId || "1",
             "X-Module": "Document Management",
             "X-Action": "Fetch Linked Documents",
           },
-        });
+        },
+      );
 
-        const data = await response.json();
-        console.log("Linked documents response:", data); // Debug log
+      const data = response.data;
+      console.log("Linked documents response:", data);
 
-        if (data.statusCode === 200 && data.data) {
-          // Ensure we always return an array
-          return Array.isArray(data.data) ? data.data : [data.data];
-        }
-        return [];
-      } catch (error) {
-        console.error("Error fetching linked documents:", error);
-        return [];
+      if (data.statusCode === 200 && data.data) {
+        return Array.isArray(data.data) ? data.data : [data.data];
       }
-    },
-    [IP, token, userId],
-  );
+      return [];
+    } catch (error) {
+      console.error("Error fetching linked documents:", error);
+      return [];
+    }
+  }, []);
 
-  // NEW FUNCTION: Extract category ID from linked document with multiple fallbacks
   const extractCategoryIdFromLinkedDoc = useCallback((linkedDoc) => {
-    // Try all possible field names in order of preference
     const possibleFields = [
       "docsubcatscatrecid",
       "doccatid",
@@ -460,7 +434,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
       }
     }
 
-    // If no direct field, try nested objects
     if (linkedDoc.category && linkedDoc.category.id) {
       return String(linkedDoc.category.id);
     }
@@ -471,13 +444,14 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     return null;
   }, []);
 
-  // NEW FUNCTION: Fetch file as base64
+  // NOTE: We keep native fetch for actual file downloads (blobs) from S3/Cloud URLs
+  // because those requests go to external storage providers, not our API.
+  // The request to GET the secure URL is encrypted via api.post above.
   const getFileBase64 = useCallback(
     async (filePath) => {
       if (!filePath) return null;
 
       try {
-        // Use api.post for encryption to get the file URL
         const fileUrlResponse = await api.post(
           "/resources/generic/getfileurl",
           {
@@ -503,11 +477,8 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
 
         const fileUrl = fileUrlResponse.data.data;
 
-        // Fetch the actual file - DO NOT encrypt this part
         let fileResponse;
-
         try {
-          // First, try with the auth token
           fileResponse = await fetch(fileUrl, {
             method: "GET",
             headers: {
@@ -515,7 +486,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
             },
           });
         } catch (error) {
-          // If that fails, try without the auth token
           fileResponse = await fetch(fileUrl, {
             method: "GET",
           });
@@ -529,7 +499,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
 
         const blob = await fileResponse.blob();
 
-        // Convert blob to base64
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => {
@@ -545,7 +514,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
         throw error;
       }
     },
-    [IP, token, userId],
+    [token, userId],
   );
 
   const refreshData = useCallback(() => {
@@ -621,9 +590,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
           } else {
             delete errors[name];
           }
-          ///home/tenet/Documents/itelIncubationV5/src/Components/DocumentUpload/DocumentsTable.jsx
-
-          file: break;
+          break;
         case "documentreferencelink":
           if (value && !/^https?:\/\/.+/i.test(value)) {
             errors[name] = "Please enter a valid URL (http:// or https://)";
@@ -664,9 +631,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     return isValid;
   }, [formData, validateField]);
 
-  // Simplified validation for additional categories (no subcategories)
   const validateAdditionalCategories = useCallback(() => {
-    // No validation needed for additional categories since we're only selecting categories
     return true;
   }, []);
 
@@ -686,7 +651,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
   const getFileUrl = useCallback(
     async (path) => {
       try {
-        // Use api.post for encryption
         const response = await api.post(
           "/resources/generic/getfileurl",
           {
@@ -701,7 +665,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
           },
         );
 
-        // Check if the response was successful
         if (response.data.statusCode === 200 && response.data.data) {
           return response.data.data;
         } else {
@@ -712,7 +675,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
         throw error;
       }
     },
-    [IP, token, userId],
+    [userId],
   );
 
   const downloadDocument = useCallback(
@@ -726,7 +689,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
       showToast(`Preparing download for ${docName}...`, "info");
 
       try {
-        // Use api.post for encryption to get the file URL
         const response = await api.post(
           "/resources/generic/getfileurl",
           {
@@ -744,12 +706,9 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
         if (response.data.statusCode === 200 && response.data.data) {
           const fileUrl = response.data.data;
 
-          // Fetch the actual file using the URL - DO NOT encrypt this part
-          // This is a direct download from a file URL (like S3), not our API
           let fileResponse;
 
           try {
-            // First, try with the auth token
             fileResponse = await fetch(fileUrl, {
               method: "GET",
               headers: {
@@ -757,7 +716,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
               },
             });
           } catch (error) {
-            // If that fails, try without the auth token
             fileResponse = await fetch(fileUrl, {
               method: "GET",
             });
@@ -787,12 +745,15 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
         }
       } catch (error) {
         console.error("Error downloading document:", error);
-        showToast(`Failed to download: ${error.message}`, "error");
+        showToast(
+          `Failed to download: ${error.response.data.message}`,
+          "error",
+        );
       } finally {
         setIsDownloading(false);
       }
     },
-    [IP, token, userId, showToast],
+    [userId, token, showToast],
   );
 
   const previewDocument = useCallback(
@@ -929,10 +890,8 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     });
   }, [refreshDropdownData]);
 
-  // SIMPLIFIED openEditModal - Removed linked documents and additional categories logic
   const openEditModal = useCallback(
     async (doc) => {
-      // First fetch categories and subcategories to ensure they're loaded
       await refreshDropdownData();
 
       setEditDoc(doc);
@@ -941,7 +900,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
         template: doc.documenttemplatedocname || "",
       });
 
-      // Find category ID by name from categories data
       let primaryCategoryId = "";
       if (doc.doccatname) {
         const category = cats.find((cat) => cat.doccatname === doc.doccatname);
@@ -950,7 +908,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
         }
       }
 
-      // Find subcategory ID by name from subcategories data
       let primarySubcategoryId = "";
       if (doc.docsubcatname && primaryCategoryId) {
         const subcategory = subcats.find(
@@ -1126,7 +1083,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     return filtered;
   }, [formData.documentcatrecid, subcats]);
 
-  // Simplified handler for additional categories (no subcategories)
   const handleCategoryCheckboxChange = useCallback((categoryId, isChecked) => {
     setSelectedAdditionalCategories((prev) => ({
       ...prev,
@@ -1134,96 +1090,77 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     }));
   }, []);
 
+  // UPDATED: addLinkedDocument to use api.post
   const addLinkedDocument = useCallback(
     async (documentId, subcategoryId) => {
       try {
-        const url = `${IP}/itelinc/addLinkedDocument`;
-        const params = new URLSearchParams({
-          linkeddocdocumentid: documentId,
-          linkeddocdocsubcatid: subcategoryId,
-          linkeddocadminstate: 1,
-          linkeddoccreatedby: parseInt(userId) || 1,
-          linkeddocmodifiedby: parseInt(userId) || 1,
-        });
-
-        const response = await fetch(`${url}?${params.toString()}`, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            userid: userId || "1",
-            "X-Module": "Document Management",
-            "X-Action": "Add Linked Document",
+        const response = await api.post(
+          "/addLinkedDocument",
+          {
+            linkeddocdocumentid: documentId,
+            linkeddocdocsubcatid: subcategoryId,
+            linkeddocadminstate: 1,
+            linkeddoccreatedby: parseInt(userId) || 1,
+            linkeddocmodifiedby: parseInt(userId) || 1,
           },
-        });
+          {
+            headers: {
+              "X-Module": "Document Management",
+              "X-Action": "Add Linked Document",
+            },
+          },
+        );
 
-        const data = await response.json();
-        return data;
+        return response.data;
       } catch (error) {
         console.error("Error adding linked document:", error);
         throw error;
       }
     },
-    [IP, token, userId],
+    [userId],
   );
 
-  const createDocument = useCallback(
-    async (documentData) => {
-      try {
-        const url = `${IP}/itelinc/api/documents/addDocumentDetails`;
-
-        const response = await fetch(url, {
-          method: "POST",
-          mode: "cors",
+  // UPDATED: createDocument to use api.post
+  const createDocument = useCallback(async (documentData) => {
+    try {
+      const response = await api.post(
+        "/api/documents/addDocumentDetails",
+        documentData,
+        {
           headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            userid: userId || "1",
             "X-Module": "Document Management",
             "X-Action": "Add Document",
           },
-          body: JSON.stringify(documentData),
-        });
+        },
+      );
 
-        const data = await response.json();
-        return data;
-      } catch (error) {
-        console.error("Error creating document:", error);
-        throw error;
-      }
-    },
-    [IP, token, userId],
-  );
+      return response.data;
+    } catch (error) {
+      console.error("Error creating document:", error);
+      throw error;
+    }
+  }, []);
 
-  // NEW FUNCTION: Update document using the specific endpoint
-  const updateDocument = useCallback(
-    async (documentData) => {
-      try {
-        const url = `http://121.242.232.213:8089/itelinc/api/documents/updateDocumentDetails`;
-
-        const response = await fetch(url, {
-          method: "POST",
-          mode: "cors",
+  // UPDATED: updateDocument to use api.post
+  const updateDocument = useCallback(async (documentData) => {
+    try {
+      const response = await api.post(
+        "/api/documents/updateDocumentDetails",
+        documentData,
+        {
           headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            userid: userId || "1",
             "X-Module": "Document Management",
             "X-Action": "Update Document",
           },
-          body: JSON.stringify(documentData),
-        });
+        },
+      );
 
-        const data = await response.json();
-        return data;
-      } catch (error) {
-        console.error("Error updating document:", error);
-        throw error;
-      }
-    },
-    [token, userId],
-  );
+      return response.data;
+    } catch (error) {
+      console.error("Error updating document:", error);
+      throw error;
+    }
+  }, []);
 
   const extractDocumentId = useCallback((response) => {
     let documentId = null;
@@ -1268,62 +1205,51 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     [documents],
   );
 
+  // UPDATED: applyForDocument to use api.post
   const applyForDocument = useCallback(
     async (documentId, reason) => {
       setIsApplying((prev) => ({ ...prev, [documentId]: true }));
 
       try {
-        const url = `${IP}/itelinc/addIncubateeApplicability`;
-        const params = new URLSearchParams({
-          incdocapplyincubateeid: incubateeId,
-          incdocapplydocumentid: documentId,
-          incdocapplyadminstate: 1,
-          incdocapplycreatedby: userId,
-          incdocapplymodifiedby: userId,
-          incdocapplyreason: reason,
-        });
-
-        const response = await fetch(`${url}?${params.toString()}`, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            userid: userId || "1",
-            "X-Module": "Document Management",
-            "X-Action": "Apply for Document",
+        const response = await api.post(
+          "/addIncubateeApplicability",
+          {
+            incdocapplyincubateeid: incubateeId,
+            incdocapplydocumentid: documentId,
+            incdocapplyadminstate: 1,
+            incdocapplycreatedby: userId,
+            incdocapplymodifiedby: userId,
+            incdocapplyreason: reason,
           },
-        });
+          {
+            headers: {
+              "X-Module": "Document Management",
+              "X-Action": "Apply for Document",
+            },
+          },
+        );
 
-        const data = await response.json();
+        const data = response.data;
 
         if (data.statusCode === 200) {
           showToast("Application submitted successfully!", "success");
           setAppliedDocuments((prev) => new Set([...prev, documentId]));
 
-          // Fetch updated applicability details to get the incdocapplyrecid
           await fetchApplicabilityDetails();
-
           fetchDocuments();
         } else {
-          throw new Error(data.message || "Failed to apply for document");
+          throw new Error(
+            data.response.data.message || "Failed to apply for document",
+          );
         }
       } catch (error) {
         console.error("Error applying for document:", error);
-        showToast(`Failed to apply: ${error.message}`, "error");
+        showToast(`Failed to apply: ${error.response.data.message}`, "error");
       } finally {
         setIsApplying((prev) => ({ ...prev, [documentId]: false }));
       }
     },
-    [
-      IP,
-      incubateeId,
-      userId,
-      token,
-      showToast,
-      fetchDocuments,
-      fetchApplicabilityDetails,
-    ],
+    [incubateeId, userId, showToast, fetchDocuments, fetchApplicabilityDetails],
   );
 
   const handleApplyForDocument = useCallback(
@@ -1353,6 +1279,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     [applyForDocument],
   );
 
+  // UPDATED: unmarkDocument to use api.post
   const unmarkDocument = useCallback(
     async (documentId) => {
       setIsUnmarking((prev) => ({ ...prev, [documentId]: true }));
@@ -1364,25 +1291,21 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
           throw new Error("Applicability record ID not found");
         }
 
-        const url = `${IP}/itelinc/deleteIncubateeApplicability`;
-        const params = new URLSearchParams({
-          incdocapplyrecid: applicabilityRecordId,
-          incdocapplymodifiedby: userId,
-        });
-
-        const response = await fetch(`${url}?${params.toString()}`, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            userid: userId || "1",
-            "X-Module": "Document Management",
-            "X-Action": "Unmark Document",
+        const response = await api.post(
+          "/deleteIncubateeApplicability",
+          {
+            incdocapplyrecid: applicabilityRecordId,
+            incdocapplymodifiedby: userId,
           },
-        });
+          {
+            headers: {
+              "X-Module": "Document Management",
+              "X-Action": "Unmark Document",
+            },
+          },
+        );
 
-        const data = await response.json();
+        const data = response.data;
 
         if (data.statusCode === 200) {
           showToast("Document unmarked successfully!", "success");
@@ -1398,24 +1321,22 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
             return newDetails;
           });
 
-          // Fetch updated applicability details to refresh the incdocapplyrecid
           await fetchApplicabilityDetails();
-
           fetchDocuments();
         } else {
-          throw new Error(data.message || "Failed to unmark document");
+          throw new Error(
+            data.response.data.message || "Failed to unmark document",
+          );
         }
       } catch (error) {
         console.error("Error unmarking document:", error);
-        showToast(`Failed to unmark: ${error.message}`, "error");
+        showToast(`Failed to unmark: ${error.response.data.message}`, "error");
       } finally {
         setIsUnmarking((prev) => ({ ...prev, [documentId]: false }));
       }
     },
     [
-      IP,
       userId,
-      token,
       showToast,
       fetchDocuments,
       fetchApplicabilityDetails,
@@ -1447,10 +1368,9 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
   // =======================================================================
   const handleDelete = useCallback(
     (doc) => {
-      // Extract all document IDs to be deleted from the 'all_documentsrecids' field
       const documentIdsToDelete = doc.all_documentsrecids
-        .split(",")
-        .map((id) => parseInt(id.trim()));
+        ? doc.all_documentsrecids.split(",").map((id) => parseInt(id.trim()))
+        : [doc.documentsrecid];
 
       const isMultipleDelete = documentIdsToDelete.length > 1;
       const deleteCount = documentIdsToDelete.length;
@@ -1466,7 +1386,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
         cancelButtonText: "Cancel",
       }).then((result) => {
         if (result.isConfirmed) {
-          // Set loading state for all documents being deleted
           const newDeletingState = {};
           documentIdsToDelete.forEach((id) => {
             newDeletingState[id] = true;
@@ -1477,7 +1396,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
             title: "Deleting...",
             text: isMultipleDelete
               ? `Please wait while we delete ${deleteCount} documents.`
-              : "Please wait while we delete the document.",
+              : "Please wait while we delete document.",
             allowOutsideClick: false,
             allowEscapeKey: false,
             showConfirmButton: false,
@@ -1486,30 +1405,23 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
             },
           });
 
-          const url = `${IP}/itelinc/api/documents/deleteDocumentDetails`;
-
-          // Create an array of promises for individual delete calls
+          // UPDATED: Use api.post for deletion
           const deletePromises = documentIdsToDelete.map((documentId) => {
             const requestBody = {
-              documentsrecid: documentId, // Single document ID for each call
+              documentsrecid: documentId,
               documentmodifiedby: parseInt(userId) || 39,
-              userid: userId || "1",
-              "X-Module": "Document Management",
-              "X-Action": "Delete Document",
             };
 
-            return fetch(url, {
-              method: "POST",
-              mode: "cors",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(requestBody),
-            }).then((res) => res.json());
+            return api
+              .post("/api/documents/deleteDocumentDetails", requestBody, {
+                headers: {
+                  "X-Module": "Document Management",
+                  "X-Action": "Delete Document",
+                },
+              })
+              .then((res) => res.data);
           });
 
-          // Execute all delete promises
           Promise.allSettled(deletePromises)
             .then((results) => {
               const successfulDeletes = results.filter(
@@ -1521,7 +1433,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
               const failedDeletes = results.length - successfulDeletes;
 
               if (successfulDeletes === documentIdsToDelete.length) {
-                // All deletions successful
                 Swal.fire(
                   "Deleted!",
                   isMultipleDelete
@@ -1530,14 +1441,12 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
                   "success",
                 );
               } else if (successfulDeletes > 0) {
-                // Some deletions successful
                 Swal.fire(
                   "Partial Success",
                   `${successfulDeletes} of ${deleteCount} documents deleted successfully. ${failedDeletes} failed.`,
                   "warning",
                 );
               } else {
-                // All deletions failed
                 Swal.fire(
                   "Error",
                   "Failed to delete documents. Please try again.",
@@ -1553,7 +1462,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
               Swal.close();
             })
             .finally(() => {
-              // Reset loading state for all affected document IDs
               const resetDeletingState = {};
               documentIdsToDelete.forEach((id) => {
                 resetDeletingState[id] = false;
@@ -1563,7 +1471,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
         }
       });
     },
-    [IP, token, userId, refreshData, showToast],
+    [userId, refreshData, showToast],
   );
   // =======================================================================
   // END: UPDATED handleDelete FUNCTION
@@ -1613,7 +1521,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
         }
 
         if (editDoc) {
-          // For editing, use the updateDocument function with the correct endpoint
           const updateDocumentData = {
             userid: parseInt(userId) || 39,
             documentsrecid: editDoc.documentsrecid,
@@ -1642,9 +1549,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
             documentapplicability: formData.documentapplicability,
           };
 
-          // NEW: Fetch base64 data for existing files if not being replaced
           try {
-            // If sample document is not being replaced, fetch its base64 data
             if (
               subcatId &&
               !formData.sampleDocBase64 &&
@@ -1654,11 +1559,9 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
                 editDoc.documentsampledoc,
               );
             } else if (subcatId && formData.sampleDocBase64) {
-              // If a new file was uploaded, use its base64 data
               updateDocumentData.sampleDocBase64 = formData.sampleDocBase64;
             }
 
-            // If template document is not being replaced, fetch its base64 data
             if (
               subcatId &&
               !formData.templateDocBase64 &&
@@ -1668,7 +1571,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
                 editDoc.documenttemplatedoc,
               );
             } else if (subcatId && formData.templateDocBase64) {
-              // If a new file was uploaded, use its base64 data
               updateDocumentData.templateDocBase64 = formData.templateDocBase64;
             }
           } catch (error) {
@@ -1693,7 +1595,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
             throw new Error(response.message || "Operation failed");
           }
         } else {
-          // For creating new documents
           const baseDocumentData = {
             userid: parseInt(userId) || 39,
             doccatid: parseInt(formData.documentcatrecid),
@@ -1727,13 +1628,11 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
 
           const allCategories = [];
 
-          // Add primary category
           allCategories.push({
             catId: parseInt(formData.documentcatrecid),
             subcatId: subcatId,
           });
 
-          // Add additional categories with null subcategory
           Object.keys(selectedAdditionalCategories).forEach((catId) => {
             if (
               selectedAdditionalCategories[catId] &&
@@ -1741,7 +1640,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
             ) {
               allCategories.push({
                 catId: parseInt(catId),
-                subcatId: null, // Send null for subcategory
+                subcatId: null,
               });
             }
           });
@@ -1754,7 +1653,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
                 docsubcatid: catInfo.subcatId,
               };
 
-              // If subcatId is null, set file-related fields to null
               if (!catInfo.subcatId) {
                 documentData.sampleDocBase64 = null;
                 documentData.templateDocBase64 = null;
@@ -1810,7 +1708,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
           await refreshData();
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
-          // Only create links between documents that have valid subcategories
           const documentsWithSubcategories = successfulDocuments.filter(
             (doc) => doc.subcatId !== null,
           );
@@ -1878,8 +1775,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
       editDoc,
       originalFileNames,
       subcats,
-      IP,
-      token,
       userId,
       refreshData,
       showToast,
@@ -1887,10 +1782,10 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
       validateAdditionalCategories,
       selectedAdditionalCategories,
       createDocument,
-      updateDocument, // Added the new updateDocument function
+      updateDocument,
       extractDocumentId,
       addLinkedDocument,
-      getFileBase64, // Added the new getFileBase64 function
+      getFileBase64,
     ],
   );
 
@@ -2069,7 +1964,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
           const docPath = params.row.documentsampledoc;
           return docName ? (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {/* <FileIcon fileName={docName} /> */}
               <Tooltip title={`Click to preview ${docName}`} arrow>
                 <Button
                   size="small"
@@ -2098,7 +1992,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
           const docPath = params.row.documenttemplatedoc;
           return docName ? (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {/* <FileIcon fileName={docName} /> */}
               <Tooltip title={`Click to preview ${docName}`} arrow>
                 <Button
                   size="small"
@@ -2161,7 +2054,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
       );
     }
 
-    if (Number(roleid) === 1) {
+    if (hasWriteAccess) {
       baseColumns.push({
         field: "actions",
         headerName: "Actions",
@@ -2183,7 +2076,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
               </ActionButton>
               <ActionButton
                 color="delete"
-                // UPDATED: Pass the entire row object to handleDelete
                 onClick={() => handleDelete(params.row)}
                 disabled={isSaving || isDeleting[params.row.documentsrecid]}
                 title="Delete"
@@ -2280,6 +2172,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
     return baseColumns;
   }, [
     roleid,
+    hasWriteAccess,
     isSaving,
     isDeleting,
     isApplying,
@@ -2350,7 +2243,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
         }}
       >
         <Typography variant="h4">{title}</Typography>
-        {Number(roleid) === 1 && (
+        {hasWriteAccess && (
           <Button
             variant="contained"
             onClick={openAddModal}
@@ -2364,7 +2257,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
       <ReusableDataGrid
         data={documents}
         columns={columns}
-        title=""
+        title="Documents"
         enableExport={true}
         enableColumnFilters={true}
         searchPlaceholder="Search documents..."
@@ -2437,7 +2330,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
                     variant="caption"
                     sx={{ mt: 1, display: "block", color: "text.secondary" }}
                   >
-                    This will be the primary category for the document
+                    This will be primary category for document
                   </Typography>
                 </FormControl>
               </Grid>
@@ -2486,7 +2379,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
                     variant="caption"
                     sx={{ mt: 1, display: "block", color: "text.secondary" }}
                   >
-                    This will be the primary subcategory for the document
+                    This will be primary subcategory for document
                   </Typography>
                 </FormControl>
               </Grid>
@@ -2566,7 +2459,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
                 </FormControl>
               </Grid>
 
-              {/* Note for Applicability - Only show when applicability is selective (value 0) */}
               {formData.documentapplystatus === 0 && (
                 <Grid item xs={12}>
                   <TextField
@@ -2732,7 +2624,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
                 </Typography>
               </Grid>
 
-              {/* Additional Categories Section - Only show for Add mode, not Edit */}
               {!editDoc && (
                 <Grid item xs={12}>
                   <Box sx={{ mt: 2, mb: 1 }}>
@@ -2995,7 +2886,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Sample Documents" }, ref) => 
                     Preview not available for this file type.
                   </Typography>
                   <Typography>
-                    Click the download button to view this file.
+                    Click download button to view this file.
                   </Typography>
                 </Box>
               )}

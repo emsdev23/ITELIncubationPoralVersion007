@@ -44,7 +44,7 @@ import ArticleIcon from "@mui/icons-material/Article";
 // Import your reusable component
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
 import api from "../Datafetching/api";
-import { useWriteAccess } from "../Datafetching/UseWriteAccess";
+import { useWriteAccess } from "../Datafetching/useWriteAccess";
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,

@@ -10,7 +10,7 @@ import { FaEdit, FaTrash, FaLayerGroup } from "react-icons/fa";
 import Swal from "sweetalert2";
 import "./TrainingAssociationTable.css";
 import api from "../Datafetching/api";
-import { useWriteAccess } from "../Datafetching/UseWriteAccess";
+import { useWriteAccess } from "../Datafetching/useWriteAccess";
 
 // Material-UI imports
 import {

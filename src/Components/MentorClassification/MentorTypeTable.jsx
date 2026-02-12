@@ -6,7 +6,7 @@ import {
   FaPlus,
 } from "react-icons/fa";
 import Swal from "sweetalert2";
-import "./MentorClassificationTable.css";
+import "./MentorClassificationTable.css"; // Reusing existing CSS or rename if needed
 import api from "../Datafetching/api";
 import { useWriteAccess } from "../Datafetching/useWriteAccess";
 
@@ -52,23 +52,38 @@ const ActionButton = styled(IconButton)(({ theme, color }) => ({
   },
 }));
 
-// Common date formatting function (Taken from reference code)
+// Date formatting function updated to handle both legacy timestamp and ISO strings
 const formatDate = (dateStr) => {
   if (!dateStr) return "-";
   try {
-    // Handle timestamp format from API
+    // Handle standard ISO strings or Date objects (from the new Mentor Type API response example)
+    if (typeof dateStr === "string" && dateStr.includes("T")) {
+      const date = new Date(dateStr);
+      return date.toLocaleString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    }
+    
+    // Handle legacy timestamp format from API (Existing logic)
     if (Array.isArray(dateStr)) {
       dateStr = dateStr.map((num) => num.toString().padStart(2, "0")).join("");
     } else {
       dateStr = String(dateStr).replace(/,/g, "");
     }
     if (dateStr.length < 14) dateStr = dateStr.padEnd(14, "0");
+    
     const year = dateStr.substring(0, 4);
     const month = dateStr.substring(4, 6);
     const day = dateStr.substring(6, 8);
     const hour = dateStr.substring(8, 10);
     const minute = dateStr.substring(10, 12);
     const second = dateStr.substring(12, 14);
+    
     const formattedDate = new Date(
       `${year}-${month}-${day}T${hour}:${minute}:${second}`
     );
@@ -86,15 +101,16 @@ const formatDate = (dateStr) => {
   }
 };
 
-export default function MentorClassificationTable() {
+export default function MentorTypeTable() {
   const userId = sessionStorage.getItem("userid");
   const incUserid = sessionStorage.getItem("incuserid");
 
   // Use the custom hook to check write access
+  // Adjust the path string if permissions are different for Mentor Types
   const hasWriteAccess = useWriteAccess("/Incubation/Dashboard/MentorManagement");
 
   // States
-  const [classifications, setClassifications] = useState([]);
+  const [mentorTypes, setMentorTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
@@ -120,15 +136,16 @@ export default function MentorClassificationTable() {
 
   // --- API CALLS ---
 
-  const fetchClassifications = useCallback(async () => {
+  const fetchMentorTypes = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      // Payload as requested: userId "ALL" and userIncId "1"
       const response = await api.post(
-        "resources/generic/getmentorclassificationdetails",
+        "resources/generic/getmentortypedetails",
         {
-          userId: parseInt(userId) || 1,
-          userIncId: incUserid,
+          userId: "ALL",
+          userIncId: "1",
         }
       );
 
@@ -136,35 +153,35 @@ export default function MentorClassificationTable() {
         const data = Array.isArray(response.data.data)
           ? response.data.data
           : [];
-        setClassifications(data);
+        setMentorTypes(data);
       } else {
-        throw new Error(response.data.message || "Failed to fetch classifications");
+        throw new Error(response.data.message || "Failed to fetch mentor types");
       }
     } catch (err) {
-      console.error("Error fetching classifications:", err);
+      console.error("Error fetching mentor types:", err);
       const errorMessage =
-        err.response?.data?.message || err.message || "Failed to load classifications.";
+        err.response?.data?.message || err.message || "Failed to load mentor types.";
       setError(errorMessage);
-      setClassifications([]);
+      setMentorTypes([]);
     } finally {
       setLoading(false);
     }
-  }, [userId, incUserid]);
+  }, []); // Removed dependencies as payload is static per requirement
 
-  const createClassification = useCallback(async () => {
+  const createMentorType = useCallback(async () => {
     try {
       const payload = {
-        mentorclassetname: formData.name,
-        mentorclassetdesc: formData.description,
-        mentorclassetadminstate: formData.adminState ? 1 : 0,
-        mentorclassetcreatedby: userId || "1",
-        mentorclassetmodifiedby: userId || "1",
+        mentortypename: formData.name,
+        mentortypedescription: formData.description,
+        mentortypeadminstate: formData.adminState ? 1 : 0,
+        mentortypecreatedby: userId || "1",
+        mentortypemodifiedby: userId || "1",
       };
 
-      const response = await api.post("/addMentorClassification", null, {
+      const response = await api.post("/addMentorType", null, {
         params: payload,
         headers: {
-          "X-Module": "Mentor Classification",
+          "X-Module": "Mentor Type",
           "X-Action": "Add",
         },
       });
@@ -174,20 +191,20 @@ export default function MentorClassificationTable() {
     }
   }, [formData, userId]);
 
-  const updateClassification = useCallback(async () => {
+  const updateMentorType = useCallback(async () => {
     try {
       const payload = {
-        mentorclassetrecid: editingId,
-        mentorclassetname: formData.name,
-        mentorclassetdesc: formData.description,
-        mentorclassetadminstate: formData.adminState ? 1 : 0,
-        mentorclassetmodifiedby: userId || "1",
+        mentortypeid: editingId,
+        mentortypename: formData.name,
+        mentortypedescription: formData.description,
+        mentortypeadminstate: 1,
+        mentortypemodifiedby: userId || "1",
       };
 
-      const response = await api.post("/updateMentorClassification", null, {
+      const response = await api.post("/updateMentorType", null, {
         params: payload,
         headers: {
-          "X-Module": "Mentor Classification",
+          "X-Module": "Mentor Type",
           "X-Action": "Update",
         },
       });
@@ -197,16 +214,16 @@ export default function MentorClassificationTable() {
     }
   }, [formData, editingId, userId]);
 
-  const deleteClassification = useCallback(
+  const deleteMentorType = useCallback(
     async (id) => {
       try {
-        const response = await api.post("/deleteMentorClassification", null, {
+        const response = await api.post("/deleteMentorType", null, {
           params: {
-            mentorclassetrecid: id,
-            mentorclassetmodifiedby: userId || "1",
+            mentortypeid: id,
+            mentortypemodifiedby: userId || "1",
           },
           headers: {
-            "X-Module": "Mentor Classification",
+            "X-Module": "Mentor Type",
             "X-Action": "Delete",
           },
         });
@@ -230,7 +247,7 @@ export default function MentorClassificationTable() {
       switch (name) {
         case "name":
           if (!value || value.trim() === "") {
-            errors[name] = "Classification Name is required";
+            errors[name] = "Mentor Type Name is required";
           } else {
             delete errors[name];
           }
@@ -268,7 +285,7 @@ export default function MentorClassificationTable() {
 
   const openAddModal = useCallback(() => {
     if (!hasWriteAccess) {
-      Swal.fire("Access Denied", "You do not have permission to add classifications.", "warning");
+      Swal.fire("Access Denied", "You do not have permission to add mentor types.", "warning");
       return;
     }
     setDialogType("add");
@@ -281,15 +298,15 @@ export default function MentorClassificationTable() {
   const openEditModal = useCallback(
     (item) => {
       if (!hasWriteAccess) {
-        Swal.fire("Access Denied", "You do not have permission to edit classifications.", "warning");
+        Swal.fire("Access Denied", "You do not have permission to edit mentor types.", "warning");
         return;
       }
       setDialogType("edit");
-      setEditingId(item.mentorclassetrecid);
+      setEditingId(item.mentortypeid);
       setFormData({
-        name: item.mentorclassetname || "",
-        description: item.mentorclassetdesc || "",
-        adminState: item.mentorclassetadminstate === 1,
+        name: item.mentortypename || "",
+        description: item.mentortypedescription || "",
+        adminState: item.mentortypeadminstate === 1, // Default to true if missing
       });
       setFieldErrors({});
       setOpenDialog(true);
@@ -316,22 +333,22 @@ export default function MentorClassificationTable() {
       try {
         let response;
         if (dialogType === "add") {
-          response = await createClassification();
+          response = await createMentorType();
         } else {
-          response = await updateClassification();
+          response = await updateMentorType();
         }
 
         if (response.statusCode === 200) {
           showToast(
-            `Classification ${dialogType === "add" ? "added" : "updated"} successfully!`,
+            `Mentor Type ${dialogType === "add" ? "added" : "updated"} successfully!`,
             "success"
           );
-          fetchClassifications();
+          fetchMentorTypes();
         } else {
           throw new Error(response.message || "Operation failed");
         }
       } catch (err) {
-        console.error(`Error ${dialogType === "add" ? "adding" : "updating"} classification:`, err);
+        console.error(`Error ${dialogType === "add" ? "adding" : "updating"} mentor type:`, err);
         const errorMessage = err.response?.data?.message || err.message || "An unknown error occurred";
         showToast(errorMessage, "error");
         setOpenDialog(true);
@@ -339,48 +356,48 @@ export default function MentorClassificationTable() {
         setIsSaving(false);
       }
     },
-    [validateForm, showToast, dialogType, createClassification, updateClassification, fetchClassifications]
+    [validateForm, showToast, dialogType, createMentorType, updateMentorType, fetchMentorTypes]
   );
 
   const handleDelete = useCallback(
     (item) => {
       if (!hasWriteAccess) {
-        Swal.fire("Access Denied", "You do not have permission to delete classifications.", "warning");
+        Swal.fire("Access Denied", "You do not have permission to delete mentor types.", "warning");
         return;
       }
 
       Swal.fire({
         title: "Are you sure?",
-        text: "This classification will be deleted permanently.",
+        text: "This mentor type will be deleted permanently.",
         icon: "warning",
         showCancelButton: true,
         confirmButtonText: "Yes, delete it!",
         cancelButtonText: "Cancel",
         showLoaderOnConfirm: true,
         preConfirm: async () => {
-          setIsDeleting((prev) => ({ ...prev, [item.mentorclassetrecid]: true }));
+          setIsDeleting((prev) => ({ ...prev, [item.mentortypeid]: true }));
           try {
-            const response = await deleteClassification(item.mentorclassetrecid);
+            const response = await deleteMentorType(item.mentortypeid);
             if (response.statusCode !== 200) {
-              throw new Error(response.message || "Failed to delete classification");
+              throw new Error(response.message || "Failed to delete mentor type");
             }
             return response.data;
           } catch (error) {
             Swal.showValidationMessage(`Request failed: ${error.message}`);
             throw error;
           } finally {
-             setIsDeleting((prev) => ({ ...prev, [item.mentorclassetrecid]: false }));
+             setIsDeleting((prev) => ({ ...prev, [item.mentortypeid]: false }));
           }
         },
         allowOutsideClick: () => !Swal.isLoading(),
       }).then((result) => {
         if (result.isConfirmed) {
-          Swal.fire("Deleted!", "Classification deleted successfully!", "success");
-          fetchClassifications();
+          Swal.fire("Deleted!", "Mentor type deleted successfully!", "success");
+          fetchMentorTypes();
         }
       });
     },
-    [hasWriteAccess, deleteClassification, fetchClassifications]
+    [hasWriteAccess, deleteMentorType, fetchMentorTypes]
   );
 
   // --- DATA GRID CONFIG ---
@@ -388,13 +405,13 @@ export default function MentorClassificationTable() {
   const columns = useMemo(
     () => [
       {
-        field: "mentorclassetname",
+        field: "mentortypename",
         headerName: "Name",
         width: 200,
         sortable: true,
       },
       {
-        field: "mentorclassetdesc",
+        field: "mentortypedescription",
         headerName: "Description",
         width: 300,
         sortable: true,
@@ -406,7 +423,7 @@ export default function MentorClassificationTable() {
         sortable: true,
       },
       {
-        field: "mentorclassetcreationtime",
+        field: "mentortypecreatedtime",
         headerName: "Created Time",
         width: 180,
         sortable: true,
@@ -420,7 +437,7 @@ export default function MentorClassificationTable() {
         sortable: true,
       },
       {
-        field: "mentorclassetmodifiedtime",
+        field: "mentortypemodifiedtime",
         headerName: "Modified Time",
         width: 180,
         sortable: true,
@@ -443,7 +460,7 @@ export default function MentorClassificationTable() {
                       color="edit"
                       onClick={() => openEditModal(params.row)}
                       disabled={
-                        isSaving || isDeleting[params.row.mentorclassetrecid]
+                        isSaving || isDeleting[params.row.mentortypeid]
                       }
                       title="Edit"
                     >
@@ -453,11 +470,11 @@ export default function MentorClassificationTable() {
                       color="delete"
                       onClick={() => handleDelete(params.row)}
                       disabled={
-                        isSaving || isDeleting[params.row.mentorclassetrecid]
+                        isSaving || isDeleting[params.row.mentortypeid]
                       }
                       title="Delete"
                     >
-                      {isDeleting[params.row.mentorclassetrecid] ? (
+                      {isDeleting[params.row.mentortypeid] ? (
                         <CircularProgress size={16} color="inherit" />
                       ) : (
                         <FaTrash />
@@ -475,8 +492,8 @@ export default function MentorClassificationTable() {
 
   const exportConfig = useMemo(
     () => ({
-      filename: "mentor_classifications",
-      sheetName: "Classifications",
+      filename: "mentor_types",
+      sheetName: "Mentor Types",
     }),
     []
   );
@@ -485,13 +502,13 @@ export default function MentorClassificationTable() {
     () => (data) =>
       data.map((item, index) => ({
         "S.No": index + 1,
-        "Classification Name": item.mentorclassetname || "",
-        Description: item.mentorclassetdesc || "",
-        Status: item.mentorclassetadminstate === 1 ? "Active" : "Inactive",
-        "Created By": item.mentorclassetcreatedby || "",
-        "Created Time": formatDate(item.mentorclassetcreationtime),
-        "Modified By": item.mentorclassetmodifiedby || "",
-        "Modified Time": formatDate(item.mentorclassetmodifiedtime),
+        "Mentor Type Name": item.mentortypename || "",
+        Description: item.mentortypedescription || "",
+        Status: item.mentortypeadminstate === 1 ? "Active" : "Inactive",
+        "Created By": item.mentortypecreatedby || "system",
+        "Created Time": formatDate(item.mentortypecreatedtime),
+        "Modified By": item.mentortypemodifiedby || "system",
+        "Modified Time": formatDate(item.mentortypemodifiedtime),
       })),
     []
   );
@@ -499,8 +516,8 @@ export default function MentorClassificationTable() {
   // --- EFFECTS ---
 
   useEffect(() => {
-    fetchClassifications();
-  }, [fetchClassifications]);
+    fetchMentorTypes();
+  }, [fetchMentorTypes]);
 
   return (
     <Box sx={{ p: 2 }}>
@@ -518,7 +535,7 @@ export default function MentorClassificationTable() {
           sx={{ display: "flex", alignItems: "center" }}
         >
           <FaChalkboardTeacher style={{ marginRight: "8px" }} />
-          Mentor Classifications
+          Mentor Types
         </Typography>
         <Button
           variant="contained"
@@ -526,7 +543,7 @@ export default function MentorClassificationTable() {
           onClick={openAddModal}
           disabled={!hasWriteAccess}
         >
-          Add Classification
+          Add Mentor Type
         </Button>
       </Box>
 
@@ -537,14 +554,14 @@ export default function MentorClassificationTable() {
       )}
 
       <ReusableDataGrid
-        data={classifications}
+        data={mentorTypes}
         columns={columns}
         title=""
         enableExport={true}
         enableColumnFilters={true}
-        searchPlaceholder="Search classifications..."
-        searchFields={["mentorclassetname", "mentorclassetdesc"]}
-        uniqueIdField="mentorclassetrecid"
+        searchPlaceholder="Search mentor types..."
+        searchFields={["mentortypename", "mentortypedescription"]}
+        uniqueIdField="mentortypeid"
         onExportData={onExportData}
         exportConfig={exportConfig}
         loading={loading}
@@ -553,7 +570,7 @@ export default function MentorClassificationTable() {
       {/* Add/Edit Dialog */}
       <Dialog open={openDialog} onClose={handleClose} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {dialogType === "add" ? "Add" : "Edit"} Classification
+          {dialogType === "add" ? "Add" : "Edit"} Mentor Type
           <IconButton
             aria-label="close"
             onClick={handleClose}
@@ -575,7 +592,7 @@ export default function MentorClassificationTable() {
                   autoFocus
                   fullWidth
                   name="name"
-                  label="Classification Name"
+                  label="Mentor Type Name"
                   type="text"
                   variant="outlined"
                   value={formData.name}
@@ -644,7 +661,7 @@ export default function MentorClassificationTable() {
         >
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {dialogType === "add" ? "Adding classification..." : "Updating classification..."}
+            {dialogType === "add" ? "Adding mentor type..." : "Updating mentor type..."}
           </Typography>
         </Box>
       </StyledBackdrop>

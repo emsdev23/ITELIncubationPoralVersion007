@@ -17,7 +17,7 @@ import Swal from "sweetalert2";
 import "./UserAssociationTable.css"; // Reusing existing CSS
 import { IPAdress } from "../Datafetching/IPAdrees";
 import api from "../Datafetching/api";
-import { useWriteAccess } from "../Datafetching/UseWriteAccess"; // Import the custom hook
+import { useWriteAccess } from "../Datafetching/useWriteAccess"; // Import the custom hook
 
 // Material-UI imports
 import {

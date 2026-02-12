@@ -6,13 +6,14 @@ import { NavLink } from "react-router-dom";
 import { FolderDown, MoveLeft } from "lucide-react"; // Icon for the button
 import MentorClassificationTable from "./MentorClassificationTable";
 import MentorTable from "./MentorTable";
+import MentorTypeTable from "./MentorTypeTable";
 
 export default function MentorManagementPage() {
   const [activeTab, setActiveTab] = useState("documents"); // State to track active tab
 
   const tabs = [
     { id: "documents", label: "Mentor Management" },
-    { id: "ddiDocuments", label: "Mentor Classification Management" },
+    { id: "ddiDocuments", label: "Mentor Classification & Type Management" },
   ];
 
   return (
@@ -45,6 +46,7 @@ export default function MentorManagementPage() {
           ) : (
             <div className="ddi-documents-container">
               <MentorClassificationTable />
+              <MentorTypeTable />
             </div>
           )}
         </div>

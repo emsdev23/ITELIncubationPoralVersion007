@@ -298,14 +298,16 @@ export default function DocumentTable() {
           });
         }
       } else {
-        throw new Error(data.message || "Failed to fetch document");
+        throw new Error(
+          data.response.data.message || "Failed to fetch document",
+        );
       }
     } catch (error) {
       console.error("Error fetching file:", error);
       Swal.fire({
         icon: "error",
         title: "Error",
-        text: "Unable to load document: " + error.message,
+        text: "Unable to load document: " + error.response.data.message,
       });
     }
   };
@@ -506,13 +508,39 @@ export default function DocumentTable() {
     },
     {
       field: "documenttemplatedocname",
-      headerName: " Document Template",
+      headerName: "Document Template",
       width: 200,
       sortable: true,
       filterable: true,
       renderCell: (params) => {
         if (!params?.row?.documenttemplatedocname) return <span>-</span>;
-        return params.row.documenttemplatedocname;
+        return (
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<VisibilityIcon fontSize="small" />}
+            onClick={() =>
+              handleViewDocument(params.row.documenttemplatedocname)
+            }
+            sx={{
+              padding: "4px 12px",
+              fontSize: "0.75rem",
+              fontWeight: 500,
+              borderRadius: 6,
+              textTransform: "none",
+              backgroundColor: "#e3f2fd",
+              color: "#1976d2",
+              borderColor: "#bbdefb",
+              "&:hover": {
+                backgroundColor: "#bbdefb",
+                color: "#1565c0",
+                borderColor: "#90caf9",
+              },
+            }}
+          >
+            Document Template
+          </Button>
+        );
       },
     },
     {

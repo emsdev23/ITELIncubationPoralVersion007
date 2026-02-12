@@ -1,4 +1,3 @@
-// src/components/NewChatModal.jsx
 import React, { useState, useEffect, useRef } from "react";
 import "./NewChatModal.css";
 import {
@@ -133,14 +132,44 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
     }
   };
 
-  // New function to handle select all/deselect all
+  // =======================================================================
+  // MODIFICATION: Filter users based on Role ID logic
+  // =======================================================================
+  const getVisibleUsers = () => {
+    const currentRoleId = parseInt(currentUser.roleid);
+
+    // If current user is INCUBATEE_ADMIN (Role 4)
+    if (currentRoleId === ROLE_IDS.INCUBATEE_ADMIN) {
+      // Filter users: check 'usersrolesrecid' for SUPERADMIN (1) and ADMIN (2)
+      return users.filter((user) => {
+        const userRoleId = parseInt(user.usersrolesrecid);
+        return userRoleId === ROLE_IDS.SUPERADMIN || userRoleId === ROLE_IDS.ADMIN;
+      });
+    }
+
+    // Default behavior for all other roles
+    return users;
+  };
+  // =======================================================================
+
+  // Updated to use getVisibleUsers
   const handleSelectAll = () => {
-    if (selectedUsers.length === users.length) {
-      // If all users are selected, deselect all
-      setSelectedUsers([]);
+    const visibleUsers = getVisibleUsers();
+    const visibleUserIds = visibleUsers.map((u) => u.usersrecid.toString());
+    
+    // Check if all visible users are currently selected
+    const allVisibleSelected = visibleUserIds.every((id) => selectedUsers.includes(id));
+
+    if (allVisibleSelected) {
+      // If all visible users are selected, deselect only the visible ones
+      setSelectedUsers((prev) => prev.filter((id) => !visibleUserIds.includes(id)));
     } else {
-      // Otherwise, select all users
-      setSelectedUsers(users.map((user) => user.usersrecid.toString()));
+      // Otherwise, select all visible users
+      setSelectedUsers((prev) => {
+        const newSet = new Set(prev);
+        visibleUserIds.forEach((id) => newSet.add(id));
+        return Array.from(newSet);
+      });
     }
   };
 
@@ -267,18 +296,27 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
   const getSelectedUsersDisplay = () => {
     if (selectedUsers.length === 0)
       return isMultiSelect() ? "Select recipients" : "Select recipient";
+      
+    const visibleUsers = getVisibleUsers();
+    const visibleIds = visibleUsers.map(u => u.usersrecid.toString());
+    
     const selectedNames = selectedUsers
       .map(
         (userId) =>
           users.find((u) => u.usersrecid.toString() === userId)?.usersname,
       )
       .filter(Boolean);
+      
     if (selectedNames.length === 0)
       return isMultiSelect() ? "Select recipients" : "Select recipient";
     if (selectedNames.length === 1) return selectedNames[0];
-    // Check if all users are selected
-    if (selectedUsers.length === users.length && users.length > 0) {
-      return `All users selected (${users.length})`;
+    
+    // Check if all visible users are selected
+    if (
+      visibleIds.length > 0 &&
+      visibleIds.every((id) => selectedUsers.includes(id))
+    ) {
+      return `All users selected (${visibleIds.length})`;
     }
     return `${selectedNames.length} users selected`;
   };
@@ -378,24 +416,27 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
                     >
                       <input
                         type="checkbox"
-                        checked={
-                          selectedUsers.length === users.length &&
-                          users.length > 0
-                        }
+                        checked={(() => {
+                          const visibleUsers = getVisibleUsers();
+                          const visibleIds = visibleUsers.map(u => u.usersrecid.toString());
+                          return visibleUsers.length > 0 && visibleIds.every(id => selectedUsers.includes(id));
+                        })()}
                         onChange={(e) => handleSelectAllCheckboxChange(e)}
                         onClick={(e) => e.stopPropagation()}
                       />
                       <div className="user-info">
                         <span className="user-name">
-                          {selectedUsers.length === users.length &&
-                          users.length > 0
-                            ? "Deselect All"
-                            : "Select All"}
+                           {(() => {
+                              const visibleUsers = getVisibleUsers();
+                              const visibleIds = visibleUsers.map(u => u.usersrecid.toString());
+                              return visibleUsers.length > 0 && visibleIds.every(id => selectedUsers.includes(id)) ? "Deselect All" : "Select All";
+                           })()}
                         </span>
                       </div>
                     </div>
                   )}
-                  {users.map((user) => (
+                  {/* CHANGED: Mapped over getVisibleUsers() instead of users */}
+                  {getVisibleUsers().map((user) => (
                     <div
                       key={user.usersrecid}
                       className={`dropdown-item ${selectedUsers.includes(user.usersrecid.toString()) ? "selected" : ""}`}
@@ -421,6 +462,11 @@ const NewChatModal = ({ onClose, onChatCreated, currentUser }) => {
                       </div>
                     </div>
                   ))}
+                  {getVisibleUsers().length === 0 && !usersLoading && (
+                     <div className="dropdown-item" style={{cursor: 'default', color: '#888'}}>
+                       No available users found.
+                     </div>
+                  )}
                 </div>
               )}
             </div>

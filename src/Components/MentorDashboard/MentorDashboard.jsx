@@ -22,7 +22,7 @@ const MentorDashboard = () => {
         const response = await api.post(
           "/resources/generic/getmentordetails",
           {
-            userId: "ALL",
+            userId: userid,
             incUserId: incuserid,
           },
           {
@@ -311,31 +311,6 @@ const MentorDashboard = () => {
   return (
     <div className="dashboard-container">
       {/* Header */}
-      {/* <header className="dashboard-header">
-        <div className="header-content">
-          <div className="header-left">
-            <div>
-              <h1 className="header-title">Mentor Dashboard</h1>
-              <p className="header-subtitle">
-                Immersive Technology and Entrepreneurship Labs
-              </p>
-            </div>
-          </div>
-
-          <div className="header-stats">
-            <div className="stat-card stat-blue">
-              <div className="stat-number">{mentors.length}</div>
-              <div className="stat-label">Total Mentors</div>
-            </div>
-            <div className="stat-card stat-green">
-              <div className="stat-number">
-                {mentors.filter((m) => m.mentordetsadminstate === 1).length}
-              </div>
-              <div className="stat-label">Active</div>
-            </div>
-          </div>
-        </div>
-      </header> */}
 
       {/* Main Content */}
       <div className="main-content">
@@ -708,3 +683,30 @@ export default MentorDashboard;
 //                     </div>
 //                   </div>
 //                 </div>
+
+// header section
+//  <header className="dashboard-header">
+//     <div className="header-content">
+//       <div className="header-left">
+//         <div>
+//           <h1 className="header-title">Mentor Dashboard</h1>
+//           <p className="header-subtitle">
+//             Immersive Technology and Entrepreneurship Labs
+//           </p>
+//         </div>
+//       </div>
+
+//       <div className="header-stats">
+//         <div className="stat-card stat-blue">
+//           <div className="stat-number">{mentors.length}</div>
+//           <div className="stat-label">Total Mentors</div>
+//         </div>
+//         <div className="stat-card stat-green">
+//           <div className="stat-number">
+//             {mentors.filter((m) => m.mentordetsadminstate === 1).length}
+//           </div>
+//           <div className="stat-label">Active</div>
+//         </div>
+//       </div>
+//     </div>
+//   </header>

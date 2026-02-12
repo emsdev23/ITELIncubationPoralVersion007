@@ -392,14 +392,16 @@ export default function DDIDocumentsTable({ userRecID = "ALL" }) {
           });
         }
       } else {
-        throw new Error(data.message || "Failed to fetch document");
+        throw new Error(
+          data.response.data.message || "Failed to fetch document",
+        );
       }
     } catch (error) {
       console.error("Error fetching file:", error);
       Swal.fire({
         icon: "error",
         title: "Error",
-        text: "Unable to load document: " + error.message,
+        text: "Unable to load document: " + error.response.data.message,
       });
     }
   };

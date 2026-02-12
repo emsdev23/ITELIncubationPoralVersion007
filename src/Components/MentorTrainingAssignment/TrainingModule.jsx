@@ -43,7 +43,7 @@ import PersonAddIcon from "@mui/icons-material/PersonAdd";
 // Import your reusable component
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
 import api from "../Datafetching/api";
-import { useWriteAccess } from "../Datafetching/UseWriteAccess";
+import { useWriteAccess } from "../Datafetching/useWriteAccess";
 
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({

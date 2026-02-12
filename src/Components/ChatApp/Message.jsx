@@ -621,7 +621,7 @@ const Message = ({
         <div className="message-sender">
           {message.chatdetailsfrom === currentUser.id
             ? "You"
-            : `User ${message.chatdetailsfrom}`}
+            : `${message.chatdetailsfromusername}`}
         </div>
       )}
 

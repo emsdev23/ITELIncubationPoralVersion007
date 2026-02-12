@@ -230,3 +230,21 @@
 .chat-list-item {
   animation: slideIn 0.3s ease-out;
 }
+
+/* ChatList.css */
+
+/* Style for unread chats */
+.chat-list-item.unread {
+  background-color: #f0f7ff; /* Light blue background */
+  border-left: 4px solid #007bff; /* Blue left border indicator */
+  font-weight: 600; /* Slightly bolder text */
+}
+
+.chat-list-item.unread .chat-partner {
+  font-weight: 700; /* Make the subject/name very bold */
+  color: #0056b3; /* Darker blue text for emphasis */
+}
+
+.chat-list-item.unread .chat-item-subject {
+  font-weight: 500;
+}

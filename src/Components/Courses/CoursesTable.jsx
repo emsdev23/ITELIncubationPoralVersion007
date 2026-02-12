@@ -3,7 +3,7 @@ import { FaEdit, FaTrash, FaLayerGroup, FaPlus } from "react-icons/fa";
 import Swal from "sweetalert2";
 import "./CoursesTable.css";
 import api from "../Datafetching/api";
-import { useWriteAccess } from "../Datafetching/UseWriteAccess";
+import { useWriteAccess } from "../Datafetching/useWriteAccess";
 
 // Material-UI imports
 import {

@@ -32,7 +32,7 @@ import CloseIcon from "@mui/icons-material/Close";
 // Import your reusable component and API instance
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
 import api from "../Datafetching/api"; // Import the controller API instance
-import { useWriteAccess } from "../Datafetching/UseWriteAccess";
+import { useWriteAccess } from "../Datafetching/useWriteAccess";
 
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({

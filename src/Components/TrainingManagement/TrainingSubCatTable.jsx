@@ -37,7 +37,7 @@ import api from "../Datafetching/api";
 
 // Import your reusable component
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
-import { useWriteAccess } from "../Datafetching/UseWriteAccess"; // Adjust path as needed
+import { useWriteAccess } from "../Datafetching/useWriteAccess"; // Adjust path as needed
 
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
