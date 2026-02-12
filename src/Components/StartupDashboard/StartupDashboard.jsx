@@ -1811,6 +1811,8 @@ const StartupDashboard = () => {
 
           {/* Documents Table with ReusableDataGrid */}
           <div className={styles.documentsTableFull} style={{ width: "100%" }}>
+            <h2>📄 Incubatee Documents</h2>
+            <br />
             {/* Date Range Filter Section */}
             <Box
               sx={{
@@ -1877,9 +1879,9 @@ const StartupDashboard = () => {
 
             {/* ReusableDataGrid Component */}
             <ReusableDataGrid
+              title=""
               data={processedDocuments}
               columns={gridColumns}
-              title="Incubatee Documents"
               dropdownFilters={dropdownFilters}
               enableExport={true}
               enableColumnFilters={true}

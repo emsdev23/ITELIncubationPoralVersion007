@@ -22,6 +22,11 @@ import {
   FileUser,
   WifiOff, // Add this icon
   Wifi, // Add this icon
+  ScrollText,
+  SquareM,
+  CopyPlus,
+  UserPlus,
+  BookCopy,
 } from "lucide-react";
 import ITELLogo from "../assets/ITEL_Logo.png";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
@@ -226,7 +231,6 @@ const Navbar = () => {
     menuItemsLoading,
     chatResponseStatus,
     chatList,
-    getChatLists,
   } = useContext(DataContext);
   const { setIsAuthenticated } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -245,7 +249,7 @@ const Navbar = () => {
   const [isChatDropdownOpen, setIsChatDropdownOpen] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
 
-  console.log("Menu items from API:", getChatLists);
+  console.log("Menu items from API:", chatList);
   // --- Refs ---
   const actionsRef = useRef(null);
   const chatDropdownRef = useRef(null);
@@ -303,6 +307,11 @@ const Navbar = () => {
       FolderRoot: <FolderRoot size={20} />,
       FileUser: <FileUser size={20} />,
       FileSliders: <FileSliders size={20} />,
+      ScrollText: <ScrollText size={20} />,
+      SquareM: <SquareM size={20} />,
+      CopyPlus: <CopyPlus size={20} />,
+      UserPlus: <UserPlus size={20} />,
+      BookCopy: <BookCopy size={20} />,
     };
     return iconMap[iconName] || <Home size={20} />;
   };

@@ -5,6 +5,7 @@ import React, {
   useImperativeHandle,
   useMemo,
   useCallback,
+  useContext,
 } from "react";
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
@@ -65,6 +66,7 @@ import UndoIcon from "@mui/icons-material/Undo";
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
 import api from "../Datafetching/api";
 import { useWriteAccess } from "../Datafetching/useWriteAccess";
+import { DataContext } from "../Datafetching/DataProvider";
 
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
@@ -2257,7 +2259,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       <ReusableDataGrid
         data={documents}
         columns={columns}
-        title="Documents"
+        title=""
         enableExport={true}
         enableColumnFilters={true}
         searchPlaceholder="Search documents..."
