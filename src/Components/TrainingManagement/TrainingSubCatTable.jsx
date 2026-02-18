@@ -33,11 +33,15 @@ import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn"; // ON Icon
+import ToggleOffIcon from "@mui/icons-material/ToggleOff"; // OFF Icon
+import CheckCircleIcon from "@mui/icons-material/CheckCircle"; // Status Active
+import CancelIcon from "@mui/icons-material/Cancel"; // Status Inactive
 import api from "../Datafetching/api";
 
 // Import your reusable component
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
-import { useWriteAccess } from "../Datafetching/useWriteAccess"; // Adjust path as needed
+import { useWriteAccess } from "../Datafetching/useWriteAccess";
 
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
@@ -48,11 +52,27 @@ const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
 const ActionButton = styled(IconButton)(({ theme, color }) => ({
   margin: theme.spacing(0.5),
   backgroundColor:
-    color === "edit" ? theme.palette.primary.main : theme.palette.error.main,
+    color === "edit"
+      ? theme.palette.primary.main
+      : color === "on" // ON State -> Green
+      ? theme.palette.success.main
+      : color === "off" // OFF State -> Grey
+      ? theme.palette.grey[500]
+      : color === "delete" // Delete -> Red
+      ? theme.palette.error.main
+      : theme.palette.error.main,
   color: "white",
   "&:hover": {
     backgroundColor:
-      color === "edit" ? theme.palette.primary.dark : theme.palette.error.dark,
+      color === "edit"
+        ? theme.palette.primary.dark
+        : color === "on"
+        ? theme.palette.success.dark
+        : color === "off"
+        ? theme.palette.grey[700]
+        : color === "delete"
+        ? theme.palette.error.dark
+        : theme.palette.error.dark,
   },
 }));
 
@@ -92,7 +112,7 @@ const formatDate = (dateStr) => {
 export default function TrainingSubCatTable() {
   const hasWriteAccess = useWriteAccess(
     "/Incubation/Dashboard/TrainingManagementPage",
-  ); // Adjust this path as needed
+  );
 
   // --- 1. STATE DECLARATIONS ---
   const userId = sessionStorage.getItem("userid");
@@ -114,6 +134,7 @@ export default function TrainingSubCatTable() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isToggling, setIsToggling] = useState({}); // State for Toggle Status
 
   // --- 2. HANDLER FUNCTIONS ---
   const fetchTrainingSubCategories = useCallback(async () => {
@@ -121,12 +142,11 @@ export default function TrainingSubCatTable() {
     setError(null);
 
     try {
-      // Prompt specified a POST request with a JSON body
       const response = await api.post(
         `/resources/generic/gettrainingsubcatlist`,
         {
           userId: parseInt(userId) || 1,
-          userIncId: "ALL", // Based on prompt specification
+          userIncId: "ALL",
         },
         {
           headers: {
@@ -136,7 +156,6 @@ export default function TrainingSubCatTable() {
         },
       );
 
-      // Response is already decrypted by interceptor
       setTrainingSubcats(response.data.data || []);
     } catch (err) {
       console.error("Error fetching training subcategories:", err);
@@ -144,14 +163,13 @@ export default function TrainingSubCatTable() {
     } finally {
       setLoading(false);
     }
-  }, [userId]); // Removed IP dependency if using api instance
+  }, [userId]);
 
   const fetchTrainingCategories = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Assuming a similar pattern exists for fetching parent categories
       const response = await api.post(
         `/resources/generic/gettrainingcatlist`,
         {
@@ -166,7 +184,6 @@ export default function TrainingSubCatTable() {
         },
       );
 
-      // Response is already decrypted by interceptor
       setTrainingCats(response.data.data || []);
     } catch (err) {
       console.error("Error fetching training categories:", err);
@@ -211,6 +228,84 @@ export default function TrainingSubCatTable() {
   const handleChange = useCallback((e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }, []);
+
+  // --- Handle Toggle Status (Enable/Disable) ---
+  const handleToggleStatus = useCallback(
+    (subcat) => {
+      const isCurrentlyEnabled = subcat.trainingsubcatadminstate === 1;
+      const actionText = isCurrentlyEnabled ? "disable" : "enable";
+      const newState = isCurrentlyEnabled ? 0 : 1;
+
+      Swal.fire({
+        title: "Are you sure?",
+        text: `Do you want to ${actionText} this subcategory?`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: isCurrentlyEnabled ? "#d33" : "#3085d6",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: `Yes, ${actionText} it!`,
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setIsToggling((prev) => ({ ...prev, [subcat.trainingsubcatid]: true }));
+
+          const params = new URLSearchParams();
+          // Sending full payload to prevent nulling other fields
+          params.append("trainingsubcatid", subcat.trainingsubcatid);
+          params.append("trainingsubcatname", subcat.trainingsubcatname);
+          params.append(
+            "trainingsubcatdescription",
+            subcat.trainingsubcatdescription,
+          );
+          params.append("trainingsubcatcatid", subcat.trainingsubcatcatid);
+          params.append("trainingsubcatadminstate", newState);
+          params.append("trainingsubcatmodifiedby", userId || "1");
+
+          const url = `${IP}/itelinc/updateTrainingSubCat?${params.toString()}`;
+
+          fetch(url, {
+            method: "POST",
+            mode: "cors",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+              userid: userId || "1",
+              "X-Module": "Training Management",
+              "X-Action": "Update Training SubCategory Status",
+            },
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.statusCode === 200) {
+                Swal.fire(
+                  "Success!",
+                  `Subcategory ${actionText}d successfully!`,
+                  "success",
+                );
+                refreshData();
+              } else {
+                throw new Error(
+                  data.message || `Failed to ${actionText} subcategory`,
+                );
+              }
+            })
+            .catch((err) => {
+              console.error(`Error ${actionText}ing subcategory:`, err);
+              Swal.fire(
+                "Error",
+                `Failed to ${actionText}: ${err.message}`,
+                "error",
+              );
+            })
+            .finally(() => {
+              setIsToggling((prev) => ({ ...prev, [subcat.trainingsubcatid]: false }));
+            });
+        }
+      });
+    },
+    [IP, userId, token, refreshData],
+  );
+  // ----------------------------------------------
 
   const handleDelete = useCallback(
     (subcatId) => {
@@ -379,7 +474,7 @@ export default function TrainingSubCatTable() {
   const columns = useMemo(
     () => [
       {
-        field: "trainingcatname", // Assuming the response joins the category name
+        field: "trainingcatname",
         headerName: "Category",
         width: 180,
         sortable: true,
@@ -399,6 +494,35 @@ export default function TrainingSubCatTable() {
         sortable: true,
       },
       {
+        field: "trainingsubcatadminstate",
+        headerName: "Status",
+        width: 120,
+        sortable: true,
+        renderCell: (params) => {
+          if (!params?.row) return "-";
+          const status = params.row.trainingsubcatadminstate;
+          const isActive = status === 1 || status === undefined;
+
+          return (
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <IconButton
+                size="small"
+                sx={{
+                  mr: 0.5,
+                  color: isActive ? "success.main" : "error.main",
+                  cursor: "default",
+                }}
+              >
+                {isActive ? <CheckCircleIcon fontSize="small" /> : <CancelIcon fontSize="small" />}
+              </IconButton>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                {isActive ? "Active" : "Inactive"}
+              </Typography>
+            </Box>
+          );
+        },
+      },
+      {
         field: "trainingsubcatcreatedby",
         headerName: "Created By",
         width: 150,
@@ -416,6 +540,7 @@ export default function TrainingSubCatTable() {
         width: 180,
         sortable: true,
         type: "date",
+        valueFormatter: (params) => formatDate(params.value),
       },
       {
         field: "trainingsubcatmodifiedby",
@@ -435,19 +560,43 @@ export default function TrainingSubCatTable() {
         width: 180,
         sortable: true,
         type: "date",
+        valueFormatter: (params) => formatDate(params.value),
       },
-      ...(hasWriteAccess // Conditionally add the actions column
+      ...(hasWriteAccess
         ? [
             {
               field: "actions",
               headerName: "Actions",
-              width: 150,
+              width: 200, // Increased width to accommodate 3 buttons
               sortable: false,
               filterable: false,
               renderCell: (params) => {
                 if (!params?.row) return null;
+
+                const isCurrentlyEnabled = params.row.trainingsubcatadminstate === 1;
+
                 return (
                   <Box>
+                    {/* Toggle Status Button */}
+                    <ActionButton
+                      color={isCurrentlyEnabled ? "on" : "off"}
+                      onClick={() => handleToggleStatus(params.row)}
+                      disabled={
+                        isSaving ||
+                        isDeleting[params.row.trainingsubcatid] ||
+                        isToggling[params.row.trainingsubcatid]
+                      }
+                      title={isCurrentlyEnabled ? "Disable" : "Enable"}
+                    >
+                      {isToggling[params.row.trainingsubcatid] ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : isCurrentlyEnabled ? (
+                        <ToggleOnIcon fontSize="small" />
+                      ) : (
+                        <ToggleOffIcon fontSize="small" />
+                      )}
+                    </ActionButton>
+
                     <ActionButton
                       color="edit"
                       onClick={() => openEditModal(params.row)}
@@ -458,20 +607,6 @@ export default function TrainingSubCatTable() {
                     >
                       <EditIcon fontSize="small" />
                     </ActionButton>
-                    <ActionButton
-                      color="delete"
-                      onClick={() => handleDelete(params.row.trainingsubcatid)}
-                      disabled={
-                        isSaving || isDeleting[params.row.trainingsubcatid]
-                      }
-                      title="Delete"
-                    >
-                      {isDeleting[params.row.trainingsubcatid] ? (
-                        <CircularProgress size={18} color="inherit" />
-                      ) : (
-                        <DeleteIcon fontSize="small" />
-                      )}
-                    </ActionButton>
                   </Box>
                 );
               },
@@ -479,7 +614,15 @@ export default function TrainingSubCatTable() {
           ]
         : []),
     ],
-    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete],
+    [
+      hasWriteAccess,
+      isSaving,
+      isDeleting,
+      isToggling,
+      openEditModal,
+      handleDelete,
+      handleToggleStatus,
+    ],
   );
 
   const exportConfig = useMemo(
@@ -497,6 +640,7 @@ export default function TrainingSubCatTable() {
         Category: subcat.trainingcatname || "N/A",
         "Subcategory Name": subcat.trainingsubcatname || "",
         Description: subcat.trainingsubcatdescription || "",
+        Status: subcat.trainingsubcatadminstate === 1 ? "Active" : "Inactive",
         "Created By": isNaN(subcat.trainingsubcatcreatedby)
           ? subcat.trainingsubcatcreatedby
           : "Admin",
@@ -654,7 +798,7 @@ export default function TrainingSubCatTable() {
           </DialogActions>
         </form>
       </Dialog>
-      <StyledBackdrop open={isSaving}>
+      <StyledBackdrop open={isSaving || Object.values(isToggling).some(Boolean)}>
         <Box
           sx={{
             display: "flex",
@@ -664,7 +808,11 @@ export default function TrainingSubCatTable() {
         >
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {editSubCat ? "Updating subcategory..." : "Saving subcategory..."}
+            {Object.values(isToggling).some(Boolean)
+              ? "Updating status..."
+              : editSubCat
+              ? "Updating subcategory..."
+              : "Saving subcategory..."}
           </Typography>
         </Box>
       </StyledBackdrop>

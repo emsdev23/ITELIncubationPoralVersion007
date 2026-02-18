@@ -32,11 +32,16 @@ import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn"; // ON Icon
+import ToggleOffIcon from "@mui/icons-material/ToggleOff"; // OFF Icon
+import CheckCircleIcon from "@mui/icons-material/CheckCircle"; // Status Active
+import CancelIcon from "@mui/icons-material/Cancel"; // Status Inactive
 
 // Import your reusable component
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
-import api from "../Datafetching/api"; // Assuming configured axios instance
+import api from "../Datafetching/api";
 import { useWriteAccess } from "../Datafetching/useWriteAccess";
+
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,
@@ -46,11 +51,27 @@ const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
 const ActionButton = styled(IconButton)(({ theme, color }) => ({
   margin: theme.spacing(0.5),
   backgroundColor:
-    color === "edit" ? theme.palette.primary.main : theme.palette.error.main,
+    color === "edit"
+      ? theme.palette.primary.main
+      : color === "on" // ON State -> Green
+      ? theme.palette.success.main
+      : color === "off" // OFF State -> Grey
+      ? theme.palette.grey[500]
+      : color === "delete" // Delete -> Red
+      ? theme.palette.error.main
+      : theme.palette.error.main,
   color: "white",
   "&:hover": {
     backgroundColor:
-      color === "edit" ? theme.palette.primary.dark : theme.palette.error.dark,
+      color === "edit"
+        ? theme.palette.primary.dark
+        : color === "on"
+        ? theme.palette.success.dark
+        : color === "off"
+        ? theme.palette.grey[700]
+        : color === "delete"
+        ? theme.palette.error.dark
+        : theme.palette.error.dark,
   },
 }));
 
@@ -63,7 +84,7 @@ const TrainingMaterialType = forwardRef(
     const IP = IPAdress;
 
     const hasWriteAccess = useWriteAccess(
-      "/Incubation/Dashboard/TrainingManagementPage",
+      "/Incubation/Dashboard/TrainingManagementPage"
     );
 
     // STATE DECLARATIONS
@@ -73,12 +94,14 @@ const TrainingMaterialType = forwardRef(
     const [editType, setEditType] = useState(null);
 
     const [formData, setFormData] = useState({
-      trainingmattype: "", // This is the name of the material type (e.g., Video, PDF)
+      trainingmattype: "",
     });
 
     const [fieldErrors, setFieldErrors] = useState({});
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState({});
+    const [isToggling, setIsToggling] = useState({}); // State for Toggle Status
+
     const [toast, setToast] = useState({
       open: false,
       message: "",
@@ -106,7 +129,7 @@ const TrainingMaterialType = forwardRef(
               "X-Module": "Training Management",
               "X-Action": "Fetch Material Types",
             },
-          },
+          }
         );
         setMaterialTypes(response.data.data || []);
       } catch (err) {
@@ -140,7 +163,7 @@ const TrainingMaterialType = forwardRef(
         setFieldErrors(errors);
         return !errors[name];
       },
-      [fieldErrors],
+      [fieldErrors]
     );
 
     const handleChange = useCallback(
@@ -149,7 +172,7 @@ const TrainingMaterialType = forwardRef(
         if (fieldErrors[name]) validateField(name, value);
         setFormData((prev) => ({ ...prev, [name]: value }));
       },
-      [fieldErrors, validateField],
+      [fieldErrors, validateField]
     );
 
     const openAddModal = useCallback(() => {
@@ -166,6 +189,84 @@ const TrainingMaterialType = forwardRef(
       setIsModalOpen(true);
     }, []);
 
+    // --- Handle Toggle Status (Enable/Disable) ---
+    const handleToggleStatus = useCallback(
+      (type) => {
+        const isCurrentlyEnabled = type.trainingmattypeadminstate === 1;
+        const actionText = isCurrentlyEnabled ? "disable" : "enable";
+        const newState = isCurrentlyEnabled ? 0 : 1;
+
+        Swal.fire({
+          title: "Are you sure?",
+          text: `Do you want to ${actionText} this material type?`,
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonColor: isCurrentlyEnabled ? "#d33" : "#3085d6",
+          cancelButtonColor: "#6c757d",
+          confirmButtonText: `Yes, ${actionText} it!`,
+          cancelButtonText: "Cancel",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            setIsToggling((prev) => ({
+              ...prev,
+              [type.trainingmattypeid]: true,
+            }));
+
+            const params = new URLSearchParams();
+            // Sending full payload to prevent nulling other fields
+            params.append("trainingmattypeid", type.trainingmattypeid);
+            params.append("trainingmattype", type.trainingmattype);
+            params.append("trainingmattypeadminstate", newState);
+            params.append("trainingmattypemodifiedby", userId || "1");
+
+            const url = `${IP}/itelinc/updateTrainingMatType?${params.toString()}`;
+
+            fetch(url, {
+              method: "POST",
+              mode: "cors",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+                userid: userId || "1",
+                "X-Module": "Training Management",
+                "X-Action": "Update Material Type Status",
+              },
+            })
+              .then((res) => res.json())
+              .then((data) => {
+                if (data.statusCode === 200) {
+                  Swal.fire(
+                    "Success!",
+                    `Material type ${actionText}d successfully!`,
+                    "success"
+                  );
+                  refreshData();
+                } else {
+                  throw new Error(
+                    data.message || `Failed to ${actionText} material type`
+                  );
+                }
+              })
+              .catch((err) => {
+                console.error(`Error ${actionText}ing material type:`, err);
+                Swal.fire(
+                  "Error",
+                  `Failed to ${actionText}: ${err.message}`,
+                  "error"
+                );
+              })
+              .finally(() => {
+                setIsToggling((prev) => ({
+                  ...prev,
+                  [type.trainingmattypeid]: false,
+                }));
+              });
+          }
+        });
+      },
+      [IP, userId, token, refreshData]
+    );
+
     const createMaterialType = useCallback(async () => {
       try {
         const url = `${IP}/itelinc/addTrainingMatType`;
@@ -177,7 +278,7 @@ const TrainingMaterialType = forwardRef(
         });
 
         const response = await fetch(`${url}?${params.toString()}`, {
-          method: "POST", // Note: Your snippet implies POST, but query params are used
+          method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
@@ -201,7 +302,8 @@ const TrainingMaterialType = forwardRef(
         const params = new URLSearchParams({
           trainingmattypeid: editType.trainingmattypeid,
           trainingmattype: formData.trainingmattype,
-          trainingmattypeadminstate: 1, // Default active state
+          // Preserve current admin state when editing details, or default to 1 if undefined
+          trainingmattypeadminstate: editType.trainingmattypeadminstate ?? 1,
           trainingmattypemodifiedby: parseInt(userId) || 1,
         });
 
@@ -251,7 +353,7 @@ const TrainingMaterialType = forwardRef(
           throw error;
         }
       },
-      [IP, token, userId],
+      [IP, token, userId]
     );
 
     const handleSubmit = useCallback(
@@ -281,7 +383,7 @@ const TrainingMaterialType = forwardRef(
               editType
                 ? "Material type updated successfully"
                 : "Material type added successfully",
-              "success",
+              "success"
             );
             refreshData();
           } else {
@@ -304,7 +406,7 @@ const TrainingMaterialType = forwardRef(
         createMaterialType,
         refreshData,
         showToast,
-      ],
+      ]
     );
 
     const handleDelete = useCallback(
@@ -334,7 +436,7 @@ const TrainingMaterialType = forwardRef(
                 Swal.fire(
                   "Deleted!",
                   "Material type has been deleted.",
-                  "success",
+                  "success"
                 );
                 refreshData();
               } else {
@@ -353,7 +455,7 @@ const TrainingMaterialType = forwardRef(
           }
         });
       },
-      [deleteMaterialType, refreshData, showToast],
+      [deleteMaterialType, refreshData, showToast]
     );
 
     // --- DATA GRID CONFIG ---
@@ -368,11 +470,44 @@ const TrainingMaterialType = forwardRef(
           flex: 1,
         },
         {
+          field: "trainingmattypeadminstate",
+          headerName: "Status",
+          width: 120,
+          sortable: true,
+          renderCell: (params) => {
+            if (!params?.row) return "-";
+            const status = params.row.trainingmattypeadminstate;
+            const isActive = status === 1 || status === undefined;
+
+            return (
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <IconButton
+                  size="small"
+                  sx={{
+                    mr: 0.5,
+                    color: isActive ? "success.main" : "error.main",
+                    cursor: "default",
+                  }}
+                >
+                  {isActive ? (
+                    <CheckCircleIcon fontSize="small" />
+                  ) : (
+                    <CancelIcon fontSize="small" />
+                  )}
+                </IconButton>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {isActive ? "Active" : "Inactive"}
+                </Typography>
+              </Box>
+            );
+          },
+        },
+        {
           field: "createdname",
           headerName: "Created By",
-          width: 300,
+          width: 200,
           sortable: true,
-          flex: 1,
+          renderCell: (params) => params?.row?.createdname || "-",
         },
         {
           field: "trainingmattypecreatedtime",
@@ -380,7 +515,6 @@ const TrainingMaterialType = forwardRef(
           width: 180,
           sortable: true,
           renderCell: (params) => {
-            // Basic date formatting, replace with your formatDate utility if available
             const date = params.row.trainingmattypecreatedtime;
             return date ? new Date(date).toLocaleString() : "-";
           },
@@ -388,9 +522,9 @@ const TrainingMaterialType = forwardRef(
         {
           field: "modifiedname",
           headerName: "Modified By",
-          width: 300,
+          width: 200,
           sortable: true,
-          flex: 1,
+          renderCell: (params) => params?.row?.modifiedname || "-",
         },
         {
           field: "trainingmattypemodifiedtime",
@@ -398,47 +532,59 @@ const TrainingMaterialType = forwardRef(
           width: 180,
           sortable: true,
           renderCell: (params) => {
-            // Basic date formatting, replace with your formatDate utility if available
             const date = params.row.trainingmattypemodifiedtime;
             return date ? new Date(date).toLocaleString() : "-";
           },
         },
       ];
 
-      // Actions column - shown only if user has write access AND is admin (roleid 1)
+      // Actions column
       if (hasWriteAccess && Number(roleid) === 1) {
         baseColumns.push({
           field: "actions",
           headerName: "Actions",
-          width: 120,
+          width: 150, // Adjusted width
           sortable: false,
           filterable: false,
           renderCell: (params) => {
             if (!params || !params.row) return null;
+            
+            const isCurrentlyEnabled = params.row.trainingmattypeadminstate === 1;
+
             return (
               <Box>
+                {/* Toggle Status Button */}
+                <ActionButton
+                  color={isCurrentlyEnabled ? "on" : "off"}
+                  onClick={() => handleToggleStatus(params.row)}
+                  disabled={
+                    isSaving ||
+                    isDeleting[params.row.trainingmattypeid] ||
+                    isToggling[params.row.trainingmattypeid]
+                  }
+                  title={isCurrentlyEnabled ? "Disable" : "Enable"}
+                >
+                  {isToggling[params.row.trainingmattypeid] ? (
+                    <CircularProgress size={16} color="inherit" />
+                  ) : isCurrentlyEnabled ? (
+                    <ToggleOnIcon fontSize="small" />
+                  ) : (
+                    <ToggleOffIcon fontSize="small" />
+                  )}
+                </ActionButton>
+
                 <ActionButton
                   color="edit"
                   onClick={() => openEditModal(params.row)}
                   disabled={
-                    isSaving || isDeleting[params.row.trainingmattypeid]
+                    isSaving ||
+                    isDeleting[params.row.trainingmattypeid] ||
+                    isToggling[params.row.trainingmattypeid]
                   }
                 >
                   <EditIcon fontSize="small" />
                 </ActionButton>
-                <ActionButton
-                  color="delete"
-                  onClick={() => handleDelete(params.row)}
-                  disabled={
-                    isSaving || isDeleting[params.row.trainingmattypeid]
-                  }
-                >
-                  {isDeleting[params.row.trainingmattypeid] ? (
-                    <CircularProgress size={18} color="inherit" />
-                  ) : (
-                    <DeleteIcon fontSize="small" />
-                  )}
-                </ActionButton>
+                
               </Box>
             );
           },
@@ -451,8 +597,10 @@ const TrainingMaterialType = forwardRef(
       roleid,
       isSaving,
       isDeleting,
+      isToggling,
       openEditModal,
       handleDelete,
+      handleToggleStatus,
     ]);
 
     const exportConfig = useMemo(
@@ -460,7 +608,7 @@ const TrainingMaterialType = forwardRef(
         filename: "training_material_types",
         sheetName: "Material Types",
       }),
-      [],
+      []
     );
 
     const onExportData = useMemo(
@@ -469,12 +617,18 @@ const TrainingMaterialType = forwardRef(
           "S.No": index + 1,
           ID: item.trainingmattypeid || "",
           "Material Type": item.trainingmattype || "",
+          Status: item.trainingmattypeadminstate === 1 ? "Active" : "Inactive",
+          "Created By": item.createdname || "",
           "Created Time": item.trainingmattypecreatedtime
             ? new Date(item.trainingmattypecreatedtime).toLocaleString()
             : "",
+          "Modified By": item.modifiedname || "",
+          "Modified Time": item.trainingmattypemodifiedtime
+            ? new Date(item.trainingmattypemodifiedtime).toLocaleString()
+            : "",
         }));
       },
-      [],
+      []
     );
 
     // EFFECTS
@@ -606,7 +760,7 @@ const TrainingMaterialType = forwardRef(
         </Snackbar>
 
         {/* Loading overlay */}
-        <StyledBackdrop open={isSaving}>
+        <StyledBackdrop open={isSaving || Object.values(isToggling).some(Boolean)}>
           <Box
             sx={{
               display: "flex",
@@ -616,7 +770,9 @@ const TrainingMaterialType = forwardRef(
           >
             <CircularProgress color="inherit" />
             <Typography sx={{ mt: 2 }}>
-              {editType
+              {Object.values(isToggling).some(Boolean)
+                ? "Updating status..."
+                : editType
                 ? "Updating material type..."
                 : "Creating material type..."}
             </Typography>
@@ -624,7 +780,7 @@ const TrainingMaterialType = forwardRef(
         </StyledBackdrop>
       </Box>
     );
-  },
+  }
 );
 
 TrainingMaterialType.displayName = "TrainingMaterialType";

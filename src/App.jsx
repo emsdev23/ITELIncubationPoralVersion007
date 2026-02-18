@@ -210,7 +210,7 @@ function AppContent() {
             <Route
               path="/startup/Dashboard/Courses"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute allowedRoles={[4]}>
                   <CoursesPage />
                 </ProtectedRoute>
               }

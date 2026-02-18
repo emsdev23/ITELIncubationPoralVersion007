@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Swal from "sweetalert2";
-import { FaTrash, FaEdit, FaPlus, FaSpinner } from "react-icons/fa";
+import { FaEdit, FaPlus, FaSpinner, FaPowerOff, FaFilter, FaTimes } from "react-icons/fa";
 import { Download } from "lucide-react";
-import { FaFilter, FaTimes } from "react-icons/fa"; // Added this import
 import "./UserTable.css";
 import { IPAdress } from "../Datafetching/IPAdrees";
 import * as XLSX from "xlsx";
@@ -16,29 +15,26 @@ import {
   Box,
   Typography,
   TextField,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Select,
   IconButton,
   Chip,
   CircularProgress,
   Backdrop,
-  Tooltip, // Added this import
-  Popover, // Added this import
-  Card, // Added this import
-  CardContent, // Added this import
-  CardActions, // Added this import
+  Tooltip,
+  Popover,
+  Card,
+  CardContent,
+  CardActions,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
 import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
+
+import ToggleOnIcon from "@mui/icons-material/ToggleOn"; // ON Icon (Green Pill)
+import ToggleOffIcon from "@mui/icons-material/ToggleOff"; // OFF Icon (Grey Pill)
 
 // Styled components
 const StyledPaper = styled(Paper)(({ theme }) => ({
-  // height: 600,
   width: "100%",
   marginBottom: theme.spacing(2),
 }));
@@ -51,11 +47,19 @@ const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
 const ActionButton = styled(IconButton)(({ theme, color }) => ({
   margin: theme.spacing(0.5),
   backgroundColor:
-    color === "edit" ? theme.palette.primary.main : theme.palette.error.main,
+    color === "edit"
+      ? theme.palette.primary.main
+      : color === "disable"
+      ? theme.palette.error.main
+      : theme.palette.success.main, // Enable is green
   color: "white",
   "&:hover": {
     backgroundColor:
-      color === "edit" ? theme.palette.primary.dark : theme.palette.error.dark,
+      color === "edit"
+        ? theme.palette.primary.dark
+        : color === "disable"
+        ? theme.palette.error.dark
+        : theme.palette.success.dark,
   },
   "&.disabled": {
     backgroundColor: theme.palette.grey[300],
@@ -91,7 +95,7 @@ export default function UserTable() {
   const [columnFilters, setColumnFilters] = useState({
     usersname: "",
     usersemail: "",
-    usersrolesrecid: "",
+    rolesname: "", 
     userscreatedtime: "",
     usersmodifiedtime: "",
     userscreatedby: "",
@@ -105,7 +109,7 @@ export default function UserTable() {
   // Loading states for operations
   const [isAdding, setIsAdding] = useState(false);
   const [isUpdating, setIsUpdating] = useState(null);
-  const [isDeleting, setIsDeleting] = useState(null);
+  const [isToggling, setIsToggling] = useState(null); // For Enable/Disable action
 
   // Check if XLSX is available
   const isXLSXAvailable = !!XLSX;
@@ -120,30 +124,13 @@ export default function UserTable() {
   // Check if incubatee dropdown should be enabled
   const isIncubateeEnabled = selectedIncubation !== null;
 
-  // Function to map role ID to correct role name
-  const getRoleName = (roleId) => {
-    const roleMap = {
-      1: "Incubator admin",
-      2: "Incubator manager",
-      3: "Incubator operator",
-      4: "Incubatee admin",
-      5: "Incubatee manager",
-      6: "Incubatee operator",
-      7: "DDI admin",
-      8: "DDI manager",
-    };
-    return roleMap[roleId] || "Unknown Role";
-  };
-
   // Function to format date
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
     try {
-      // Handle ISO format dates
       const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return dateStr; // Return original if invalid date
+      if (isNaN(date.getTime())) return dateStr;
 
-      // Format to readable format
       return date
         .toLocaleString("en-US", {
           year: "numeric",
@@ -151,12 +138,12 @@ export default function UserTable() {
           day: "2-digit",
           hour: "2-digit",
           minute: "2-digit",
-          hour12: false, // Use 24-hour format
+          hour12: false,
         })
-        .replace(",", ""); // Remove comma between date and time
+        .replace(",", "");
     } catch (error) {
       console.error("Error formatting date:", error);
-      return dateStr; // Return original if error
+      return dateStr;
     }
   };
 
@@ -164,58 +151,50 @@ export default function UserTable() {
   const filteredData = useMemo(() => {
     let result = users;
 
-    // Apply search query filter
     if (searchQuery.trim() !== "") {
       result = result.filter((user) =>
         user.usersname.toLowerCase().includes(searchQuery.toLowerCase()),
       );
     }
 
-    // Apply column filters
     result = result.filter((user) => {
-      // Name filter
       const matchesName =
         !columnFilters.usersname ||
         (user.usersname || "")
           .toLowerCase()
           .includes(columnFilters.usersname.toLowerCase());
 
-      // Email filter
       const matchesEmail =
         !columnFilters.usersemail ||
         (user.usersemail || "")
           .toLowerCase()
           .includes(columnFilters.usersemail.toLowerCase());
 
-      // Role filter
+      // Use rolesname for filtering
       const matchesRole =
-        !columnFilters.usersrolesrecid ||
-        getRoleName(user.usersrolesrecid)
+        !columnFilters.rolesname ||
+        (user.rolesname || "")
           .toLowerCase()
-          .includes(columnFilters.usersrolesrecid.toLowerCase());
+          .includes(columnFilters.rolesname.toLowerCase());
 
-      // Created time filter
       const matchesCreatedTime =
         !columnFilters.userscreatedtime ||
         formatDate(user.userscreatedtime)
           .toLowerCase()
           .includes(columnFilters.userscreatedtime.toLowerCase());
 
-      // Modified time filter
       const matchesModifiedTime =
         !columnFilters.usersmodifiedtime ||
         formatDate(user.usersmodifiedtime)
           .toLowerCase()
           .includes(columnFilters.usersmodifiedtime.toLowerCase());
 
-      // Created by filter
       const matchesCreatedBy =
         !columnFilters.userscreatedby ||
         (user.userscreatedby || "")
           .toLowerCase()
           .includes(columnFilters.userscreatedby.toLowerCase());
 
-      // Modified by filter
       const matchesModifiedBy =
         !columnFilters.usersmodifiedby ||
         (user.usersmodifiedby || "")
@@ -236,38 +215,34 @@ export default function UserTable() {
     return result;
   }, [users, searchQuery, columnFilters]);
 
-  // Function to clear search
   const clearSearch = () => {
     setSearchQuery("");
   };
 
-  // Function to handle incubation selection
   const handleIncubationSelect = (incubation) => {
     setSelectedIncubation(incubation);
   };
 
   // Export to CSV function
   const exportToCSV = () => {
-    // Create a copy of data for export
     const exportData = filteredData.map((user, index) => ({
       "S.No": index + 1,
       Name: user.usersname || "",
       Email: user.usersemail || "",
-      Role: getRoleName(user.usersrolesrecid),
+      Role: user.rolesname || "",
+      Status: user.usersadminstate === 1 ? "Enabled" : "Disabled",
       "Created Time": formatDate(user.userscreatedtime),
       "Modified Time": formatDate(user.usersmodifiedtime),
       "Created By": user.userscreatedby || "",
       "Modified By": user.usersmodifiedby || "",
     }));
 
-    // Convert to CSV
     const headers = Object.keys(exportData[0] || {});
     const csvContent = [
       headers.join(","),
       ...exportData.map((row) =>
         headers
           .map((header) => {
-            // Handle values that might contain commas
             const value = row[header];
             return typeof value === "string" && value.includes(",")
               ? `"${value}"`
@@ -277,7 +252,6 @@ export default function UserTable() {
       ),
     ].join("\n");
 
-    // Create a blob and download
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -301,26 +275,21 @@ export default function UserTable() {
     }
 
     try {
-      // Create a copy of data for export
       const exportData = filteredData.map((user, index) => ({
         "S.No": index + 1,
         Name: user.usersname || "",
         Email: user.usersemail || "",
-        Role: getRoleName(user.usersrolesrecid),
+        Role: user.rolesname || "",
+        Status: user.usersadminstate === 1 ? "Enabled" : "Disabled",
         "Created Time": formatDate(user.userscreatedtime),
         "Modified Time": formatDate(user.usersmodifiedtime),
         "Created By": user.userscreatedby || "",
         "Modified By": user.usersmodifiedby || "",
       }));
 
-      // Create a workbook
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // Add the worksheet to the workbook
       XLSX.utils.book_append_sheet(wb, ws, "Users");
-
-      // Generate the Excel file and download
       XLSX.writeFile(wb, `users_${new Date().toISOString().slice(0, 10)}.xlsx`);
     } catch (error) {
       console.error("Error exporting to Excel:", error);
@@ -329,7 +298,7 @@ export default function UserTable() {
     }
   };
 
-  // Define columns for DataGrid with filter icons
+  // Define columns for DataGrid
   const columns = useMemo(
     () => [
       {
@@ -373,7 +342,7 @@ export default function UserTable() {
         ),
       },
       {
-        field: "usersrolesrecid",
+        field: "rolesname", // Using rolesname directly
         headerName: "Role Name",
         width: 180,
         sortable: true,
@@ -383,26 +352,42 @@ export default function UserTable() {
             <Tooltip title="Filter">
               <IconButton
                 size="small"
-                onClick={(e) => handleFilterClick(e, "usersrolesrecid")}
-                color={columnFilters.usersrolesrecid ? "primary" : "default"}
+                onClick={(e) => handleFilterClick(e, "rolesname")}
+                color={columnFilters.rolesname ? "primary" : "default"}
               >
                 <FaFilter size={14} />
               </IconButton>
             </Tooltip>
           </Box>
         ),
-        valueGetter: (params) => {
-          if (!params || !params.row) return "Unknown Role";
-          return getRoleName(params.row.usersrolesrecid);
-        },
         renderCell: (params) => {
-          if (!params || !params.row)
-            return <Chip label="Unknown Role" size="small" />;
+          if (!params || !params.row) return <Chip label="Unknown Role" size="small" />;
           return (
             <Chip
-              label={getRoleName(params.row.usersrolesrecid)}
+              label={params.row.rolesname || "Unknown Role"}
               size="small"
               variant="outlined"
+            />
+          );
+        },
+      },
+      {
+        field: "usersadminstate",
+        headerName: "Status",
+        width: 120,
+        sortable: true,
+        renderCell: (params) => {
+          if (!params || !params.row) return "-";
+          const isEnabled = params.row.usersadminstate === 1;
+          return (
+            <Chip
+              label={isEnabled ? "Enabled" : "Disabled"}
+              size="small"
+              color={isEnabled ? "success" : "default"}
+              sx={{
+                color: isEnabled ? "white" : "text.secondary",
+                fontWeight: "bold",
+              }}
             />
           );
         },
@@ -427,19 +412,16 @@ export default function UserTable() {
           </Box>
         ),
         valueGetter: (params) => {
-          // Keep this for sorting purposes
           if (!params || !params.row) return null;
           return params.row.userscreatedtime
             ? new Date(params.row.userscreatedtime)
             : null;
         },
         renderCell: (params) => {
-          // Use this for display
           if (!params || !params.row) return "-";
           return formatDate(params.row.userscreatedtime);
         },
         sortComparator: (v1, v2) => {
-          // Custom sort comparator for dates
           const date1 = v1 || new Date(0);
           const date2 = v2 || new Date(0);
           return date1.getTime() - date2.getTime();
@@ -465,19 +447,16 @@ export default function UserTable() {
           </Box>
         ),
         valueGetter: (params) => {
-          // Keep this for sorting purposes
           if (!params || !params.row) return null;
           return params.row.usersmodifiedtime
             ? new Date(params.row.usersmodifiedtime)
             : null;
         },
         renderCell: (params) => {
-          // Use this for display
           if (!params || !params.row) return "-";
           return formatDate(params.row.usersmodifiedtime);
         },
         sortComparator: (v1, v2) => {
-          // Custom sort comparator for dates
           const date1 = v1 || new Date(0);
           const date2 = v2 || new Date(0);
           return date1.getTime() - date2.getTime();
@@ -531,20 +510,43 @@ export default function UserTable() {
         renderCell: (params) => {
           if (!params || !params.row) return null;
 
-          const shouldDisableDelete =
-            params.row.usersrolesrecid === 4 ||
-            params.row.usersrolesrecid === 1;
+          // If state is 0 (Disabled), Edit should be disabled
+          const isDisabled = params.row.usersadminstate === 0;
+          const isCurrentlyEnabled = params.row.usersadminstate === 1;
 
           return (
             <Box>
+              <ActionButton
+                  color={isCurrentlyEnabled ? "enable" : "disable"}
+                  onClick={() => handleToggleStatus(params.row)}
+                  disabled={
+                    isUpdating === params.row.usersrecid ||
+                    isToggling === params.row.usersrecid
+                  }
+                  title={isCurrentlyEnabled ? "Disable User" : "Enable User"}
+                >
+                  {isToggling === params.row.usersrecid ? (
+                    <ToggleOnIcon fontSize="small" />
+                  ) : (
+                    <ToggleOffIcon fontSize="small" />
+                  )}
+                </ActionButton>
+
+              {/* Edit Button */}
               <ActionButton
                 color="edit"
                 onClick={() => handleEdit(params.row)}
                 disabled={
                   isUpdating === params.row.usersrecid ||
-                  isDeleting === params.row.usersrecid
+                  isToggling === params.row.usersrecid ||
+                  isDisabled // Cannot edit if user is disabled
                 }
-                title="Edit"
+                title={
+                  isDisabled
+                    ? "Cannot edit disabled users"
+                    : "Edit User"
+                }
+                className={isDisabled ? "disabled" : ""}
               >
                 {isUpdating === params.row.usersrecid ? (
                   <FaSpinner className="spinner" size={18} />
@@ -552,33 +554,14 @@ export default function UserTable() {
                   <EditIcon fontSize="small" />
                 )}
               </ActionButton>
-              <ActionButton
-                color="delete"
-                onClick={() => handleDelete(params.row)}
-                disabled={
-                  isDeleting === params.row.usersrecid ||
-                  isUpdating === params.row.usersrecid ||
-                  shouldDisableDelete
-                }
-                className={shouldDisableDelete ? "disabled" : ""}
-                title={
-                  shouldDisableDelete
-                    ? "Cannot delete users with role ID 1 or 4"
-                    : "Delete"
-                }
-              >
-                {isDeleting === params.row.usersrecid ? (
-                  <FaSpinner className="spinner" size={18} />
-                ) : (
-                  <DeleteIcon fontSize="small" />
-                )}
-              </ActionButton>
+
+              
             </Box>
           );
         },
       },
     ],
-    [isUpdating, isDeleting, columnFilters, getRoleName],
+    [isUpdating, isToggling, columnFilters],
   );
 
   // Add unique ID to each row if not present
@@ -605,7 +588,7 @@ export default function UserTable() {
       ...prev,
       [column]: value,
     }));
-    setPaginationModel({ ...paginationModel, page: 0 }); // Reset to first page when filtering
+    setPaginationModel({ ...paginationModel, page: 0 });
   };
 
   const clearFilter = () => {
@@ -619,7 +602,7 @@ export default function UserTable() {
     setColumnFilters({
       usersname: "",
       usersemail: "",
-      usersrolesrecid: "",
+      rolesname: "", 
       userscreatedtime: "",
       usersmodifiedtime: "",
       userscreatedby: "",
@@ -628,7 +611,6 @@ export default function UserTable() {
     setPaginationModel({ ...paginationModel, page: 0 });
   };
 
-  // Check if any column has an active filter
   const hasActiveFilters = Object.values(columnFilters).some(
     (value) => value !== "",
   );
@@ -638,10 +620,6 @@ export default function UserTable() {
     setLoading(true);
     setError(null);
     try {
-      // The api instance handles:
-      // 1. Building the full URL
-      // 2. Adding the correct headers (Authorization, userid, X-Module, X-Action)
-      // 3. Encrypting the request body into a 'payload'
       const response = await api.post("/resources/generic/getusers", {
         userId: userId || null,
         userIncId: selectedIncubation
@@ -649,20 +627,15 @@ export default function UserTable() {
           : incUserid,
       });
 
-      // The response interceptor handles decrypting the payload.
-      // 'response.data' is already the parsed, decrypted JSON object.
       if (response.data.statusCode === 200) {
         const userData = response.data.data || [];
-        console.log("Fetched users:", userData);
         setUsers(userData);
         setFilteredUsers(userData);
       } else {
-        // If the server sends an error message, it will be available here
         throw new Error(response.data.message || "Failed to fetch users");
       }
     } catch (err) {
       console.error("Error fetching users:", err);
-      // The error object from axios is detailed. We can get a specific message if available.
       const errorMessage =
         err.response?.data?.message ||
         err.message ||
@@ -684,13 +657,8 @@ export default function UserTable() {
       });
 
       if (response.data.statusCode === 200) {
-        // Map the roles to ensure correct display names
-        const mappedRoles = (response.data.data || []).map((role) => ({
-          ...role,
-          text: getRoleName(role.value),
-        }));
-        setRoles(mappedRoles);
-        return mappedRoles;
+        setRoles(response.data.data || []);
+        return response.data.data || [];
       } else {
         throw new Error(response.data.message || "Failed to fetch roles");
       }
@@ -706,7 +674,6 @@ export default function UserTable() {
   // Fetch incubatees for dropdown
   const fetchIncubatees = async (incubationId = null) => {
     try {
-      // Use the provided incubationId or selectedIncubation
       const targetIncubationId =
         incubationId ||
         (selectedIncubation ? selectedIncubation.incubationsrecid : incUserid);
@@ -733,18 +700,16 @@ export default function UserTable() {
     }
   };
 
-  // Fetch incubations for dropdown (only if roleId is 0)
+  // Fetch incubations for dropdown
   const fetchIncubations = async () => {
-    // If roleId is not 0, we don't need to fetch incubations.
     if (!canSelectIncubation) {
       return Promise.resolve([]);
     }
 
     try {
-      // Corrected URL path - removed the leading "/resources"
       const response = await api.post("/resources/generic/getincubationlist", {
         userId: userId || null,
-        userIncId: "ALL", // Use "ALL" to get all incubations
+        userIncId: "ALL",
       });
 
       if (response.data.statusCode === 200) {
@@ -767,7 +732,6 @@ export default function UserTable() {
   // Fetch all required data
   useEffect(() => {
     fetchUsers();
-    // Load dropdown data on component mount
     setDropdownsLoading(true);
     Promise.all([fetchRoles(), fetchIncubatees(), fetchIncubations()])
       .then(() => setDropdownsLoading(false))
@@ -776,81 +740,82 @@ export default function UserTable() {
 
   // Refetch data when selectedIncubation changes
   useEffect(() => {
-    // Fetch users and roles when selectedIncubation changes
     fetchUsers();
     fetchRoles();
 
-    // Fetch incubatees only when an incubation is selected
     if (selectedIncubation) {
       setDropdownsLoading(true);
       fetchIncubatees()
         .then(() => setDropdownsLoading(false))
         .catch(() => setDropdownsLoading(false));
     } else {
-      // Clear incubatees when no incubation is selected
       setIncubatees([]);
     }
   }, [selectedIncubation]);
 
-  // Delete user
-  const handleDelete = (user) => {
+  // UPDATED: Handle Enable/Disable with full payload matching Edit structure
+  const handleToggleStatus = (user) => {
+    const isCurrentlyEnabled = user.usersadminstate === 1;
+    const actionText = isCurrentlyEnabled ? "disable" : "enable";
+    const newState = isCurrentlyEnabled ? 0 : 1;
+
     Swal.fire({
       title: "Are you sure?",
-      text: `You are about to delete ${user.usersname}. This action cannot be undone.`,
+      text: `Do you want to ${actionText} ${user.usersname}?`,
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: "Yes, delete it!",
+      confirmButtonColor: isCurrentlyEnabled ? "#d33" : "#3085d6",
+      cancelButtonColor: "#6c757d",
+      confirmButtonText: `Yes, ${actionText} it!`,
       cancelButtonText: "Cancel",
     }).then((result) => {
       if (result.isConfirmed) {
-        setIsDeleting(user.usersrecid);
-        const deleteUrl = `${IP}/itelinc/deleteUser?usersmodifiedby=${
-          userId || "system"
-        }&usersrecid=${user.usersrecid}`;
+        setIsToggling(user.usersrecid);
 
-        fetch(deleteUrl, {
-          method: "POST",
-          mode: "cors",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-            userid: userId || "1",
-            "X-Module": "user Management",
-            "X-Action": "Delete User",
-          },
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.statusCode === 200) {
+        // Construct the full payload including all necessary fields exactly like Edit
+        const bodyPayload = {
+          usersemail: user.usersemail,
+          usersname: user.usersname,
+          usersrolesrecid: user.usersrolesrecid,
+          userspassword: user.userspassword, 
+          usersadminstate: newState.toString(), // The updated status (1 or 0)
+          usersmodifiedby: userId || "system",
+          usersrecid: user.usersrecid,
+          usersincubationsrecid: user.usersincubationsrecid,
+          usersmentorid: user.usersmentorid !== undefined && user.usersmentorid !== null ? user.usersmentorid : null
+        };
+
+        // Use the update endpoint to change status
+        api
+          .post("/updateUser", bodyPayload)
+          .then((res) => {
+            if (res.data.statusCode === 200) {
               Swal.fire(
-                "Deleted!",
-                `${user.usersname} has been deleted successfully.`,
+                "Success!",
+                `${user.usersname} has been ${actionText}d.`,
                 "success",
               );
-              fetchUsers(); // Refresh user list
+              fetchUsers(); // Refresh list
             } else {
-              throw new Error(data.message || "Failed to delete user");
+              throw new Error(res.data.message || `Failed to ${actionText} user`);
             }
           })
           .catch((err) => {
-            console.error("Error deleting user:", err);
+            console.error(`Error ${actionText}ing user:`, err);
             Swal.fire(
               "Error",
-              `Failed to delete ${user.usersname}: ${err.message}`,
+              `Failed to ${actionText} ${user.usersname}: ${err.message}`,
               "error",
             );
           })
           .finally(() => {
-            setIsDeleting(null);
+            setIsToggling(null);
           });
       }
     });
   };
 
   const handleAddUser = async () => {
-    // Check if dropdown data is loaded, if not, wait for it
     if (
       dropdownsLoading ||
       roles.length === 0 ||
@@ -880,7 +845,6 @@ export default function UserTable() {
       }
     }
 
-    // ... (rest of the role/incubation/incubatee HTML generation is fine) ...
     const roleOptions = roles
       .map((role) => `<option value="${role.value}">${role.text}</option>`)
       .join("");
@@ -889,7 +853,7 @@ export default function UserTable() {
           `<option value="" disabled selected>Select incubation</option>`,
           ...incubations.map(
             (incubation) =>
-              `<option value="${incubation.incubationsrecid}">${incubation.incubationshortname}</option>`,
+              `<option value="${incubation.incubationsrecid}">${incubation.incubationsshortname}</option>`,
           ),
         ].join("")
       : "";
@@ -901,12 +865,10 @@ export default function UserTable() {
       ),
     ].join("");
 
-    // --- CHANGE 1: Await the SweetAlert result ---
     const result = await Swal.fire({
       title: "Add New User",
       html: `
       <div class="swal-form-container">
-        <!-- ... (your swal-form HTML is fine) ... -->
         <div class="swal-form-row">
           <input id="swal-name" class="swal2-input" placeholder="Name" required>
         </div>
@@ -944,7 +906,6 @@ export default function UserTable() {
       focusConfirm: false,
       showCancelButton: true,
       preConfirm: () => {
-        // ... (your preConfirm logic is fine) ...
         const name = document.getElementById("swal-name");
         const email = document.getElementById("swal-email");
         const password = document.getElementById("swal-password");
@@ -991,7 +952,6 @@ export default function UserTable() {
         };
       },
       didOpen: () => {
-        // ... (your didOpen CSS styling is fine) ...
         const style = document.createElement("style");
         style.textContent = `
         .swal-form-container { display: flex; flex-direction: column; gap: 12px; }
@@ -1008,12 +968,10 @@ export default function UserTable() {
           ? document.getElementById("swal-incubation")
           : null;
 
-        // --- CHANGE 2: Corrected URL in updateIncubateeOptions ---
         const updateIncubateeOptions = async (incubationId) => {
           incubateeSelect.innerHTML =
             '<option value="" disabled>Loading...</option>';
           try {
-            // Corrected URL path from "/resources/generic/getinclist" to "/generic/getinclist"
             const response = await api.post("/resources/generic/getinclist", {
               userId: userId || null,
               incUserId: incubationId,
@@ -1071,13 +1029,11 @@ export default function UserTable() {
       },
     });
 
-    // --- CHANGE 3: Refactored API call using await and try/catch ---
     if (result.isConfirmed && result.value) {
       const formData = result.value;
       setIsAdding(true);
 
       try {
-        // Create a plain object to be sent in the encrypted request body
         const bodyPayload = {
           usersemail: formData.usersemail,
           userspassword: formData.userspassword,
@@ -1089,17 +1045,15 @@ export default function UserTable() {
           usersincubationsrecid: formData.usersincubationsrecid,
         };
 
-        // Only add incubateesrecid if it's not null or empty
         if (formData.usersincubateesrecid) {
           bodyPayload.usersincubateesrecid = formData.usersincubateesrecid;
         }
 
-        // Use the api instance. It will encrypt the bodyPayload and add all necessary headers.
         const response = await api.post("/addUser", bodyPayload);
 
         if (response.data.statusCode === 200) {
           Swal.fire("✅ Success", "User added successfully", "success");
-          fetchUsers(); // This should also be refactored to use the api instance
+          fetchUsers();
         } else {
           Swal.fire(
             "❌ Error",
@@ -1119,7 +1073,12 @@ export default function UserTable() {
   };
 
   const handleEdit = async (user) => {
-    // Check if dropdown data is loaded, if not, wait for it
+    // Prevent editing if the user is disabled
+    if (user.usersadminstate === 0) {
+       Swal.fire("Restricted", "Cannot edit a disabled user. Please enable the user first.", "warning");
+       return;
+    }
+
     if (
       dropdownsLoading ||
       roles.length === 0 ||
@@ -1150,7 +1109,6 @@ export default function UserTable() {
       }
     }
 
-    // ... (rest of the role/incubation/incubatee HTML generation is fine) ...
     const roleOptions = roles
       .map(
         (role) =>
@@ -1170,7 +1128,7 @@ export default function UserTable() {
                 user.usersincubationsrecid == incubation.incubationsrecid
                   ? "selected"
                   : ""
-              }>${incubation.incubationshortname}</option>`,
+              }>${incubation.incubationsshortname}</option>`,
           ),
         ].join("")
       : "";
@@ -1188,12 +1146,10 @@ export default function UserTable() {
       ),
     ].join("");
 
-    // --- CHANGE 1: Await the SweetAlert result ---
     const result = await Swal.fire({
       title: "Edit User",
       html: `
       <div class="swal-form-container">
-        <!-- ... (your swal-form HTML is fine) ... -->
         <div class="swal-form-row">
           <input id="swal-name" class="swal2-input" placeholder="Name" value="${
             user.usersname || ""
@@ -1240,7 +1196,6 @@ export default function UserTable() {
       focusConfirm: false,
       showCancelButton: true,
       preConfirm: () => {
-        // ... (your preConfirm logic is fine) ...
         const name = document.getElementById("swal-name");
         const email = document.getElementById("swal-email");
         const password = document.getElementById("swal-password");
@@ -1274,7 +1229,6 @@ export default function UserTable() {
         };
       },
       didOpen: () => {
-        // ... (your didOpen CSS styling is fine) ...
         const style = document.createElement("style");
         style.textContent = `
         .swal-form-container { display: flex; flex-direction: column; gap: 12px; }
@@ -1292,7 +1246,6 @@ export default function UserTable() {
           ? document.getElementById("swal-incubation")
           : null;
 
-        // --- CHANGE 2: Corrected URL in updateIncubateeOptions ---
         const updateIncubateeOptions = async (incubationId) => {
           if (!incubationId) {
             incubateeSelect.innerHTML =
@@ -1303,7 +1256,6 @@ export default function UserTable() {
             '<option value="" disabled>Loading incubatees...</option>';
           incubateeSelect.disabled = true;
           try {
-            // Corrected URL path from "/resources/generic/getinclist" to "/generic/getinclist"
             const response = await api.post("/resources/generic/getinclist", {
               userId: userId || null,
               incUserId: incubationId,
@@ -1361,36 +1313,32 @@ export default function UserTable() {
       },
     });
 
-    // --- CHANGE 3: Refactored API call using await and try/catch ---
     if (result.isConfirmed && result.value) {
       const formData = result.value;
       setIsUpdating(user.usersrecid);
 
       try {
-        // Create a plain object to be sent in the encrypted request body
         const bodyPayload = {
           usersemail: formData.usersemail,
           usersname: formData.usersname,
           usersrolesrecid: formData.usersrolesrecid,
-          userspassword: formData.userspassword, // Including password in update
-          usersadminstate: "1",
+          userspassword: formData.userspassword,
+          usersadminstate: "1", // Ensure it stays enabled on edit
           usersmodifiedby: userId,
-          usersrecid: user.usersrecid, // The ID of the user to update
+          usersrecid: user.usersrecid,
           usersincubationsrecid: formData.usersincubationsrecid,
           usersmentorid: formData.usersmentorid || null,
         };
 
-        // Only add incubateesrecid if it's not null or empty
         if (formData.usersincubateesrecid) {
           bodyPayload.usersincubateesrecid = formData.usersincubateesrecid;
         }
 
-        // Use the api instance. It will encrypt the bodyPayload and add all necessary headers.
         const response = await api.post("/updateUser", bodyPayload);
 
         if (response.data.statusCode === 200) {
           Swal.fire("✅ Success", "User updated successfully", "success");
-          fetchUsers(); // This should also be refactored to use the api instance
+          fetchUsers();
         } else {
           Swal.fire(
             "❌ Error",
@@ -1451,7 +1399,6 @@ export default function UserTable() {
           >
             {isAdding ? "Adding..." : "Add User"}
           </Button>
-          {/* Export Buttons */}
           <Button
             variant="outlined"
             startIcon={<Download size={16} />}
@@ -1486,7 +1433,6 @@ export default function UserTable() {
         </Box>
       )}
 
-      {/* Results Info */}
       <Box sx={{ mb: 1, color: "text.secondary" }}>
         Showing {paginationModel.page * paginationModel.pageSize + 1} to{" "}
         {Math.min(
@@ -1496,7 +1442,6 @@ export default function UserTable() {
         of {filteredData.length} entries
       </Box>
 
-      {/* Clear Filters Button */}
       {hasActiveFilters && (
         <Box sx={{ mb: 2 }}>
           <Button
@@ -1509,7 +1454,6 @@ export default function UserTable() {
         </Box>
       )}
 
-      {/* Material UI DataGrid */}
       <StyledPaper>
         <DataGrid
           rows={rowsWithId}
@@ -1533,7 +1477,6 @@ export default function UserTable() {
         </Box>
       )}
 
-      {/* Filter Popover */}
       <Popover
         open={Boolean(filterAnchorEl)}
         anchorEl={filterAnchorEl}
@@ -1552,7 +1495,7 @@ export default function UserTable() {
             <Typography variant="h6" gutterBottom>
               Filter by {filterColumn === "usersname" && "Name"}
               {filterColumn === "usersemail" && "Email"}
-              {filterColumn === "usersrolesrecid" && "Role"}
+              {filterColumn === "rolesname" && "Role"}
               {filterColumn === "userscreatedtime" && "Created Time"}
               {filterColumn === "usersmodifiedtime" && "Modified Time"}
               {filterColumn === "userscreatedby" && "Created By"}
@@ -1563,7 +1506,7 @@ export default function UserTable() {
               size="small"
               placeholder={`Enter ${filterColumn === "usersname" && "name"}${
                 filterColumn === "usersemail" && "email"
-              }${filterColumn === "usersrolesrecid" && "role"}${
+              }${filterColumn === "rolesname" && "role"}${
                 filterColumn === "userscreatedtime" && "created time"
               }${filterColumn === "usersmodifiedtime" && "modified time"}${
                 filterColumn === "userscreatedby" && "created by"
@@ -1585,9 +1528,8 @@ export default function UserTable() {
         </Card>
       </Popover>
 
-      {/* Loading overlay for operations */}
       <StyledBackdrop
-        open={isAdding || isUpdating !== null || isDeleting !== null}
+        open={isAdding || isUpdating !== null || isToggling !== null}
       >
         <Box
           sx={{
@@ -1602,7 +1544,9 @@ export default function UserTable() {
               ? "Adding user..."
               : isUpdating !== null
                 ? "Updating user..."
-                : "Deleting user..."}
+                : isToggling !== null
+                  ? "Updating status..."
+                  : "Processing..."}
           </Typography>
         </Box>
       </StyledBackdrop>

@@ -6,10 +6,8 @@ import React, {
   useContext,
 } from "react";
 import Swal from "sweetalert2";
-// IPAdress is no longer needed here since the API instance handles the base URL
-// import { IPAdress } from "../Datafetching/IPAdrees";
 import { Download } from "lucide-react";
-import { FaTimes } from "react-icons/fa";
+import { FaTimes, FaPowerOff } from "react-icons/fa";
 import { DataContext } from "../Datafetching/DataProvider";
 
 // Material UI imports
@@ -25,17 +23,20 @@ import {
   CircularProgress,
   Backdrop,
   TextField,
+  Chip,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn"; // ON Icon (Green Pill)
+import ToggleOffIcon from "@mui/icons-material/ToggleOff"; // OFF Icon (Grey Pill)
 
 // Import your reusable component and API instance
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
-import api from "../Datafetching/api"; // Import the controller API instance
+import api from "../Datafetching/api";
 
-// Styled components (no changes here)
+// Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,
   color: "#fff",
@@ -44,19 +45,35 @@ const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
 const ActionButton = styled(IconButton)(({ theme, color }) => ({
   margin: theme.spacing(0.5),
   backgroundColor:
-    color === "edit" ? theme.palette.primary.main : theme.palette.error.main,
+    color === "edit"
+      ? theme.palette.primary.main
+      : color === "disable"
+      ? theme.palette.error.main
+      : color === "enable"
+      ? theme.palette.success.main
+      : theme.palette.error.main,
   color: "white",
   "&:hover": {
     backgroundColor:
-      color === "edit" ? theme.palette.primary.dark : theme.palette.error.dark,
+      color === "edit"
+        ? theme.palette.primary.dark
+        : color === "disable"
+        ? theme.palette.error.dark
+        : color === "enable"
+        ? theme.palette.success.dark
+        : theme.palette.error.dark,
+  },
+  "&.disabled": {
+    backgroundColor: theme.palette.grey[300],
+    color: theme.palette.grey[500],
+    cursor: "not-allowed",
   },
 }));
 
-// Common date formatting function (no changes here)
+// Common date formatting function
 const formatDate = (dateStr) => {
   if (!dateStr) return "-";
   try {
-    // Handle timestamp format from API
     if (Array.isArray(dateStr)) {
       dateStr = dateStr.map((num) => num.toString().padStart(2, "0")).join("");
     } else {
@@ -95,7 +112,6 @@ export default function DocCatTable() {
     (item) => item.guiappspath === currentPath
   );
 
-  // The user has write access if the item exists and appswriteaccess is 1
   const hasWriteAccess = menuItem ? menuItem.appswriteaccess === 1 : false;
 
   // --- 1. STATE DECLARATIONS ---
@@ -115,16 +131,15 @@ export default function DocCatTable() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isToggling, setIsToggling] = useState(null); // Tracks which ID is being toggled
 
-  // --- 2. HANDLER FUNCTIONS (Must be defined before useMemo) ---
+  // --- 2. HANDLER FUNCTIONS ---
 
-  // --- REFACTORED: Fetch Categories ---
   const fetchCategories = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Use api.get for GET request with encryption
       const response = await api.get(`/getDoccatAll?incuserid=${incUserid}`, {
         headers: {
           "X-Module": "Document Management",
@@ -132,7 +147,6 @@ export default function DocCatTable() {
         },
       });
 
-      // Response is already decrypted by interceptor
       setCats(response.data.data || []);
     } catch (err) {
       console.error("Error fetching categories:", err);
@@ -149,21 +163,100 @@ export default function DocCatTable() {
     setError(null);
   }, []);
 
-  const openEditModal = useCallback((cat) => {
-    setEditCat(cat);
-    setFormData({
-      doccatname: cat.doccatname || "",
-      doccatdescription: cat.doccatdescription || "",
-    });
-    setIsModalOpen(true);
-    setError(null);
-  }, []);
+  const openEditModal = useCallback(
+    (cat) => {
+      // Prevent editing if the category is disabled
+      if (cat.doccatadminstate === 0) {
+        Swal.fire(
+          "Restricted",
+          "Cannot edit a disabled category. Please enable it first.",
+          "warning"
+        );
+        return;
+      }
+
+      setEditCat(cat);
+      setFormData({
+        doccatname: cat.doccatname || "",
+        doccatdescription: cat.doccatdescription || "",
+      });
+      setIsModalOpen(true);
+      setError(null);
+    },
+    []
+  );
 
   const handleChange = useCallback((e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }, []);
 
-  // --- REFACTORED: Handle Delete ---
+  // --- NEW: Handle Toggle Status (Enable/Disable) ---
+  const handleToggleStatus = useCallback(
+    (cat) => {
+      const isCurrentlyEnabled = cat.doccatadminstate === 1;
+      const actionText = isCurrentlyEnabled ? "disable" : "enable";
+      const newState = isCurrentlyEnabled ? 0 : 1;
+
+      Swal.fire({
+        title: "Are you sure?",
+        text: `Do you want to ${actionText} ${cat.doccatname}?`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: isCurrentlyEnabled ? "#d33" : "#3085d6",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: `Yes, ${actionText} it!`,
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setIsToggling(cat.doccatrecid);
+
+          // Payload structure mirroring the Edit submit logic
+          const bodyPayload = {
+            doccatrecid: cat.doccatrecid,
+            doccatname: cat.doccatname,
+            doccatdescription: cat.doccatdescription,
+            doccatadminstate: newState.toString(), // 1 or 0
+            doccatmodifiedby: userId,
+          };
+
+          api
+            .post("/updateDoccat", bodyPayload, {
+              headers: {
+                "X-Module": "Document Management",
+                "X-Action": "Update Document Category Status",
+              },
+            })
+            .then((response) => {
+              if (response.data.statusCode === 200) {
+                Swal.fire(
+                  "Success!",
+                  `${cat.doccatname} has been ${actionText}d.`,
+                  "success"
+                );
+                fetchCategories();
+              } else {
+                throw new Error(
+                  response.data.message || `Failed to ${actionText} category`
+                );
+              }
+            })
+            .catch((err) => {
+              console.error(`Error ${actionText}ing category:`, err);
+              Swal.fire(
+                "Error",
+                `Failed to ${actionText} ${cat.doccatname}: ${err.message}`,
+                "error"
+              );
+            })
+            .finally(() => {
+              setIsToggling(null);
+            });
+        }
+      });
+    },
+    [userId, fetchCategories]
+  );
+
   const handleDelete = useCallback(
     (catId) => {
       Swal.fire({
@@ -182,11 +275,10 @@ export default function DocCatTable() {
             allowOutsideClick: false,
             didOpen: () => Swal.showLoading(),
           });
-          // Use the controllerApi instance
           api
             .post(
-              "/deletedoccat", // The endpoint path
-              {}, // Empty request body
+              "/deletedoccat",
+              {},
               {
                 params: {
                   doccatrecid: catId,
@@ -200,11 +292,7 @@ export default function DocCatTable() {
             )
             .then((response) => {
               if (response.data.statusCode === 200) {
-                Swal.fire(
-                  "Deleted!",
-                  "Category deleted successfully!",
-                  "success"
-                );
+                Swal.fire("Deleted!", "Category deleted successfully!", "success");
                 fetchCategories();
               } else {
                 throw new Error(
@@ -225,7 +313,6 @@ export default function DocCatTable() {
     [userId, fetchCategories]
   );
 
-  // --- REFACTORED: Handle Submit (Add/Edit) ---
   const handleSubmit = useCallback(
     (e) => {
       e.preventDefault();
@@ -244,12 +331,10 @@ export default function DocCatTable() {
         ? "Edit Document Category"
         : "Add Document Category";
 
-      // Use the controllerApi instance
       api
         .post(
           endpoint,
           {
-            // Request body (will be encrypted)
             doccatname: formData.doccatname.trim(),
             doccatdescription: formData.doccatdescription.trim(),
             ...(isEdit
@@ -307,7 +392,7 @@ export default function DocCatTable() {
     [formData, editCat, userId, fetchCategories]
   );
 
-  // --- 3. MEMOIZED VALUES (no changes here) ---
+  // --- 3. MEMOIZED VALUES ---
   const columns = useMemo(
     () => [
       {
@@ -321,6 +406,28 @@ export default function DocCatTable() {
         headerName: "Description",
         width: 300,
         sortable: true,
+      },
+      {
+        field: "doccatadminstate",
+        headerName: "Status",
+        width: 120,
+        sortable: true,
+        renderCell: (params) => {
+          if (!params || !params.row) return "-";
+          // Assuming 1 is Enabled, 0 is Disabled
+          const isEnabled = params.row.doccatadminstate === 1;
+          return (
+            <Chip
+              label={isEnabled ? "Enabled" : "Disabled"}
+              size="small"
+              color={isEnabled ? "success" : "default"}
+              sx={{
+                color: isEnabled ? "white" : "text.secondary",
+                fontWeight: "bold",
+              }}
+            />
+          );
+        },
       },
       {
         field: "doccatcreatedby",
@@ -340,6 +447,10 @@ export default function DocCatTable() {
         width: 180,
         sortable: true,
         type: "date",
+        valueGetter: (params) => {
+           if (!params || !params.row) return null;
+           return formatDate(params.row.doccatcreatedtime);
+        }
       },
       {
         field: "doccatmodifiedby",
@@ -359,38 +470,58 @@ export default function DocCatTable() {
         width: 180,
         sortable: true,
         type: "date",
+        valueGetter: (params) => {
+            if (!params || !params.row) return null;
+            return formatDate(params.row.doccatmodifiedtime);
+         }
       },
-      ...(hasWriteAccess // Conditionally add the actions column
+      ...(hasWriteAccess
         ? [
             {
               field: "actions",
               headerName: "Actions",
-              width: 150,
+              width: 180, // Increased width to accommodate 3 buttons
               sortable: false,
               filterable: false,
               renderCell: (params) => {
                 if (!params?.row) return null;
+                const isDisabled = params.row.doccatadminstate === 0;
+                const isCurrentlyEnabled = params.row.doccatadminstate === 1;
+
                 return (
                   <Box>
+                    {/* Toggle Status Button */}
+                    <ActionButton
+                      color={isCurrentlyEnabled ? "enable" : "disable"}
+                      onClick={() => handleToggleStatus(params.row)}
+                      disabled={
+                        isSaving ||
+                        isDeleting[params.row.documentsrecid] ||
+                        isToggling === params.row.documentsrecid
+                      }
+                      title={isCurrentlyEnabled ? "Disable" : "Enable"}
+                    >
+                      {isToggling === params.row.documentsrecid ? (
+                        <ToggleOnIcon fontSize="small" />
+                      ) : (
+                        <ToggleOffIcon fontSize="small" />
+                      )}
+                    </ActionButton>
+
+                    {/* Edit Button */}
                     <ActionButton
                       color="edit"
                       onClick={() => openEditModal(params.row)}
-                      disabled={isSaving || isDeleting[params.row.doccatrecid]}
+                      disabled={
+                        isSaving ||
+                        isDeleting[params.row.doccatrecid] ||
+                        isDisabled || // Disabled if state is 0
+                        isToggling === params.row.doccatrecid
+                      }
                       title="Edit"
+                      className={isDisabled ? "disabled" : ""}
                     >
                       <EditIcon fontSize="small" />
-                    </ActionButton>
-                    <ActionButton
-                      color="delete"
-                      onClick={() => handleDelete(params.row.doccatrecid)}
-                      disabled={isSaving || isDeleting[params.row.doccatrecid]}
-                      title="Delete"
-                    >
-                      {isDeleting[params.row.doccatrecid] ? (
-                        <CircularProgress size={18} color="inherit" />
-                      ) : (
-                        <DeleteIcon fontSize="small" />
-                      )}
                     </ActionButton>
                   </Box>
                 );
@@ -399,7 +530,7 @@ export default function DocCatTable() {
           ]
         : []),
     ],
-    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete]
+    [hasWriteAccess, isSaving, isDeleting, isToggling, openEditModal, handleDelete, handleToggleStatus]
   );
 
   const exportConfig = useMemo(
@@ -409,12 +540,14 @@ export default function DocCatTable() {
     }),
     []
   );
+
   const onExportData = useMemo(
     () => (data) =>
       data.map((cat, index) => ({
         "S.No": index + 1,
         "Category Name": cat.doccatname || "",
         Description: cat.doccatdescription || "",
+        Status: cat.doccatadminstate === 1 ? "Enabled" : "Disabled",
         "Created By": isNaN(cat.doccatcreatedby)
           ? cat.doccatcreatedby
           : "Admin",
@@ -432,7 +565,7 @@ export default function DocCatTable() {
     fetchCategories();
   }, [fetchCategories]);
 
-  // --- 5. RENDER (JSX) ---
+  // --- 5. RENDER ---
   return (
     <Box sx={{ p: 2 }}>
       <Box
@@ -444,7 +577,6 @@ export default function DocCatTable() {
         }}
       >
         <Typography variant="h4">📂 Document Categories</Typography>
-        {/* Conditionally render the "Add Category" button based on write access */}
         {hasWriteAccess && (
           <Button
             variant="contained"
@@ -550,7 +682,7 @@ export default function DocCatTable() {
           </DialogActions>
         </form>
       </Dialog>
-      <StyledBackdrop open={isSaving}>
+      <StyledBackdrop open={isSaving || isToggling !== null}>
         <Box
           sx={{
             display: "flex",
@@ -560,7 +692,11 @@ export default function DocCatTable() {
         >
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {editCat ? "Updating category..." : "Saving category..."}
+            {isToggling !== null
+              ? "Updating status..."
+              : editCat
+              ? "Updating category..."
+              : "Saving category..."}
           </Typography>
         </Box>
       </StyledBackdrop>

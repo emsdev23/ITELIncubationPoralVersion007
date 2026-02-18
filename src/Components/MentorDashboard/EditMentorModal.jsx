@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./EditMentorModal.css";
 
-const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
+const EditMentorModal = ({ mentor, onClose, onUpdate, isUpdating }) => {
   const [formData, setFormData] = useState({
     mentordetsid: "",
     mentordetsincubatorid: "",
@@ -66,7 +66,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
       <div className="modal-container">
         <div className="modal-header">
           <h2>Edit Mentor Profile</h2>
-          <button className="close-btn" onClick={onClose}>
+          <button className="close-btn" onClick={onClose} disabled={isUpdating}>
             <i className="fas fa-times"></i>
           </button>
         </div>
@@ -81,6 +81,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetsname"
                 value={formData.mentordetsname}
                 onChange={handleChange}
+                disabled={isUpdating}
                 required
               />
             </div>
@@ -93,6 +94,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetsdesign"
                 value={formData.mentordetsdesign}
                 onChange={handleChange}
+                disabled={isUpdating}
                 required
               />
             </div>
@@ -105,6 +107,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetsphone"
                 value={formData.mentordetsphone}
                 onChange={handleChange}
+                disabled={isUpdating}
                 required
               />
             </div>
@@ -117,6 +120,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetsemail"
                 value={formData.mentordetsemail}
                 onChange={handleChange}
+                disabled={isUpdating}
                 required
               />
             </div>
@@ -129,6 +133,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetsdomain"
                 value={formData.mentordetsdomain}
                 onChange={handleChange}
+                disabled={isUpdating}
                 required
               />
             </div>
@@ -141,6 +146,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetstimecommitment"
                 value={formData.mentordetstimecommitment}
                 onChange={handleChange}
+                disabled={isUpdating}
                 required
               />
             </div>
@@ -153,6 +159,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetsaddress"
                 value={formData.mentordetsaddress}
                 onChange={handleChange}
+                disabled={isUpdating}
               />
             </div>
 
@@ -163,6 +170,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetspastexp"
                 value={formData.mentordetspastexp}
                 onChange={handleChange}
+                disabled={isUpdating}
                 rows="3"
               ></textarea>
             </div>
@@ -175,6 +183,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetslinkedin"
                 value={formData.mentordetslinkedin}
                 onChange={handleChange}
+                disabled={isUpdating}
               />
             </div>
 
@@ -186,6 +195,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetswebsite"
                 value={formData.mentordetswebsite}
                 onChange={handleChange}
+                disabled={isUpdating}
               />
             </div>
 
@@ -197,6 +207,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetsblog"
                 value={formData.mentordetsblog}
                 onChange={handleChange}
+                disabled={isUpdating}
               />
             </div>
 
@@ -207,6 +218,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetscomment"
                 value={formData.mentordetscomment}
                 onChange={handleChange}
+                disabled={isUpdating}
                 rows="3"
               ></textarea>
             </div>
@@ -220,6 +232,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetsprevstupmentor"
                 value={formData.mentordetsprevstupmentor}
                 onChange={handleChange}
+                disabled={isUpdating}
               >
                 <option value="Yes">Yes</option>
                 <option value="No">No</option>
@@ -233,6 +246,7 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
                 name="mentordetsadminstate"
                 value={formData.mentordetsadminstate}
                 onChange={handleChange}
+                disabled={isUpdating}
               >
                 <option value="1">Active</option>
                 <option value="0">Inactive</option>
@@ -241,11 +255,23 @@ const EditMentorModal = ({ mentor, onClose, onUpdate }) => {
           </div>
 
           <div className="form-actions">
-            <button type="button" className="btn-cancel" onClick={onClose}>
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={onClose}
+              disabled={isUpdating}
+            >
               Cancel
             </button>
-            <button type="submit" className="btn-save">
-              Save Changes
+            <button type="submit" className="btn-save" disabled={isUpdating}>
+              {isUpdating ? (
+                <>
+                  <span className="spinner"></span>
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
             </button>
           </div>
         </form>

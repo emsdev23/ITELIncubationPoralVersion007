@@ -28,10 +28,12 @@ import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn"; // ON Icon (Green Pill)
+import ToggleOffIcon from "@mui/icons-material/ToggleOff"; // OFF Icon (Grey Pill)
 
 // Import your reusable component and API instance
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
-import api from "../Datafetching/api"; // Import the controller API instance
+import api from "../Datafetching/api";
 import { useWriteAccess } from "../Datafetching/useWriteAccess";
 
 // Styled components
@@ -43,11 +45,27 @@ const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
 const ActionButton = styled(IconButton)(({ theme, color }) => ({
   margin: theme.spacing(0.5),
   backgroundColor:
-    color === "edit" ? theme.palette.primary.main : theme.palette.error.main,
+    color === "edit"
+      ? theme.palette.primary.main
+      : color === "on" || color === "enable" // ON State -> Green
+      ? theme.palette.success.main
+      : color === "off" || color === "disable" // OFF State -> Grey
+      ? theme.palette.grey[500]
+      : color === "delete" // Delete -> Red
+      ? theme.palette.error.main
+      : theme.palette.error.main,
   color: "white",
   "&:hover": {
     backgroundColor:
-      color === "edit" ? theme.palette.primary.dark : theme.palette.error.dark,
+      color === "edit"
+        ? theme.palette.primary.dark
+        : color === "on" || color === "enable"
+        ? theme.palette.success.dark
+        : color === "off" || color === "disable"
+        ? theme.palette.grey[700]
+        : color === "delete"
+        ? theme.palette.error.dark
+        : theme.palette.error.dark,
   },
 }));
 
@@ -108,6 +126,7 @@ export default function TrainingCatTable() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isToggling, setIsToggling] = useState({}); // State for Toggle Status
 
   // --- 2. HANDLER FUNCTIONS ---
 
@@ -172,6 +191,77 @@ export default function TrainingCatTable() {
       [name]: type === "checkbox" ? (checked ? 1 : 0) : value,
     }));
   }, []);
+
+  // --- Handle Toggle Status (Enable/Disable) ---
+  const handleToggleStatus = useCallback(
+    (cat) => {
+      const isCurrentlyEnabled = cat.trainingcatadminstate === 1;
+      const actionText = isCurrentlyEnabled ? "disable" : "enable";
+      const newState = isCurrentlyEnabled ? 0 : 1;
+
+      Swal.fire({
+        title: "Are you sure?",
+        text: `Do you want to ${actionText} this training category?`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: isCurrentlyEnabled ? "#d33" : "#3085d6",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: `Yes, ${actionText} it!`,
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setIsToggling((prev) => ({ ...prev, [cat.trainingcatid]: true }));
+          
+          // API call to update status
+          // Note: We send the full object to prevent other fields from being nullified
+          api
+            .post(
+              "/updateTrainingCat", 
+              {
+                trainingcatid: cat.trainingcatid,
+                trainingcatname: cat.trainingcatname,
+                trainingcatdescription: cat.trainingcatdescription,
+                trainingcatadminstate: newState,
+                trainingcatmodifiedby: userId,
+              },
+              {
+                headers: {
+                  "X-Module": "Training Management",
+                  "X-Action": "Update Training Category Status",
+                },
+              },
+            )
+            .then((response) => {
+              if (response.data.statusCode === 200) {
+                Swal.fire(
+                  "Success!",
+                  `Training category ${actionText}d successfully!`,
+                  "success",
+                );
+                fetchCategories();
+              } else {
+                throw new Error(
+                  response.data.message || `Failed to ${actionText} training category`,
+                );
+              }
+            })
+            .catch((err) => {
+              console.error(`Error ${actionText}ing training category:`, err);
+              Swal.fire(
+                "Error",
+                `Failed to ${actionText}: ${err.message}`,
+                "error",
+              );
+            })
+            .finally(() => {
+              setIsToggling((prev) => ({ ...prev, [cat.trainingcatid]: false }));
+            });
+        }
+      });
+    },
+    [userId, fetchCategories],
+  );
+  // ----------------------------------------------
 
   // Handle Delete
   const handleDelete = useCallback(
@@ -392,13 +482,36 @@ export default function TrainingCatTable() {
             {
               field: "actions",
               headerName: "Actions",
-              width: 150,
+              width: 200, // Increased width to accommodate 3 buttons
               sortable: false,
               filterable: false,
               renderCell: (params) => {
                 if (!params?.row) return null;
+                
+                const isCurrentlyEnabled = params.row.trainingcatadminstate === 1;
+                
                 return (
                   <Box>
+                    {/* Toggle Status Button (ON/OFF Icon) */}
+                    <ActionButton
+                      color={isCurrentlyEnabled ? "on" : "off"}
+                      onClick={() => handleToggleStatus(params.row)}
+                      disabled={
+                        isSaving ||
+                        isDeleting[params.row.trainingcatid] ||
+                        isToggling[params.row.trainingcatid]
+                      }
+                      title={isCurrentlyEnabled ? "Disable" : "Enable"}
+                    >
+                      {isToggling[params.row.trainingcatid] ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : isCurrentlyEnabled ? (
+                        <ToggleOnIcon fontSize="small" />
+                      ) : (
+                        <ToggleOffIcon fontSize="small" />
+                      )}
+                    </ActionButton>
+
                     <ActionButton
                       color="edit"
                       onClick={() => openEditModal(params.row)}
@@ -409,20 +522,6 @@ export default function TrainingCatTable() {
                     >
                       <EditIcon fontSize="small" />
                     </ActionButton>
-                    <ActionButton
-                      color="delete"
-                      onClick={() => handleDelete(params.row.trainingcatid)}
-                      disabled={
-                        isSaving || isDeleting[params.row.trainingcatid]
-                      }
-                      title="Delete"
-                    >
-                      {isDeleting[params.row.trainingcatid] ? (
-                        <CircularProgress size={18} color="inherit" />
-                      ) : (
-                        <DeleteIcon fontSize="small" />
-                      )}
-                    </ActionButton>
                   </Box>
                 );
               },
@@ -430,7 +529,15 @@ export default function TrainingCatTable() {
           ]
         : []),
     ],
-    [hasWriteAccess, isSaving, isDeleting, openEditModal, handleDelete],
+    [
+      hasWriteAccess,
+      isSaving,
+      isDeleting,
+      isToggling,
+      openEditModal,
+      handleDelete,
+      handleToggleStatus,
+    ],
   );
 
   const exportConfig = useMemo(
@@ -583,7 +690,7 @@ export default function TrainingCatTable() {
           </DialogActions>
         </form>
       </Dialog>
-      <StyledBackdrop open={isSaving}>
+      <StyledBackdrop open={isSaving || Object.values(isToggling).some(Boolean)}>
         <Box
           sx={{
             display: "flex",
@@ -593,7 +700,9 @@ export default function TrainingCatTable() {
         >
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {editCat
+            {Object.values(isToggling).some(Boolean)
+              ? "Updating status..."
+              : editCat
               ? "Updating training category..."
               : "Saving training category..."}
           </Typography>

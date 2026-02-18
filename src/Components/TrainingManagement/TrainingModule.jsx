@@ -5,12 +5,11 @@ import React, {
   useImperativeHandle,
   useMemo,
   useCallback,
-  use,
 } from "react";
 import Swal from "sweetalert2";
 import { IPAdress } from "../Datafetching/IPAdrees";
-import { Download } from "lucide-react";
-import { FaTimes } from "react-icons/fa";
+import { Download } from "lucide-react"; // Retained if used elsewhere, otherwise optional
+import { FaTimes } from "react-icons/fa"; // Retained if used elsewhere
 
 // Material UI imports
 import {
@@ -38,13 +37,17 @@ import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
-import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn"; // ON Icon
+import ToggleOffIcon from "@mui/icons-material/ToggleOff"; // OFF Icon
+import CheckCircleIcon from "@mui/icons-material/CheckCircle"; // Status Active
+import CancelIcon from "@mui/icons-material/Cancel"; // Status Inactive
 import ArticleIcon from "@mui/icons-material/Article";
 
 // Import your reusable component
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
 import api from "../Datafetching/api";
 import { useWriteAccess } from "../Datafetching/useWriteAccess";
+
 // Styled components
 const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
   zIndex: theme.zIndex.drawer + 1,
@@ -54,37 +57,57 @@ const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
 const ActionButton = styled(IconButton)(({ theme, color }) => ({
   margin: theme.spacing(0.5),
   backgroundColor:
-    color === "edit" ? theme.palette.primary.main : theme.palette.error.main,
+    color === "edit"
+      ? theme.palette.primary.main
+      : color === "on" // ON State -> Green
+      ? theme.palette.success.main
+      : color === "off" // OFF State -> Grey
+      ? theme.palette.grey[500]
+      : color === "delete" // Delete -> Red
+      ? theme.palette.error.main
+      : theme.palette.error.main,
   color: "white",
   "&:hover": {
     backgroundColor:
-      color === "edit" ? theme.palette.primary.dark : theme.palette.error.dark,
+      color === "edit"
+        ? theme.palette.primary.dark
+        : color === "on"
+        ? theme.palette.success.dark
+        : color === "off"
+        ? theme.palette.grey[700]
+        : color === "delete"
+        ? theme.palette.error.dark
+        : theme.palette.error.dark,
   },
 }));
 
-const FileUploadButton = styled(Button)(({ theme }) => ({
-  position: "relative",
-  overflow: "hidden",
-  "& input[type=file]": {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    minWidth: "100%",
-    minHeight: "100%",
-    fontSize: "100px",
-    textAlign: "right",
-    cursor: "pointer",
-    opacity: 0,
-    outline: "none",
-    background: "white",
-    display: "block",
-  },
-}));
+// Common date formatting function (from reference)
+const formatDate = (dateStr) => {
+  if (!dateStr) return "-";
+  try {
+    // Handle standard ISO string first
+    if (typeof dateStr === 'string' && dateStr.includes('T')) {
+        return new Date(dateStr).toLocaleString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        });
+    }
+    // Fallback to array/handling logic if needed, but ISO is standard in the new response
+    return dateStr; 
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return dateStr;
+  }
+};
 
 // Using forwardRef to allow parent components to access methods
 const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
   const hasWriteAccess = useWriteAccess(
-    "/Incubation/Dashboard/TrainingManagementPage",
+    "/Incubation/Dashboard/TrainingManagementPage"
   );
   const userId = sessionStorage.getItem("userid");
   const token = sessionStorage.getItem("token");
@@ -115,6 +138,8 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
   const [fieldErrors, setFieldErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState({});
+  const [isToggling, setIsToggling] = useState({}); // State for Toggle Status
+  
   const [toast, setToast] = useState({
     open: false,
     message: "",
@@ -144,7 +169,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             "X-Module": "Training Management",
             "X-Action": "Fetch Training List",
           },
-        },
+        }
       );
       setTrainings(response.data.data || []);
     } catch (err) {
@@ -168,7 +193,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             "X-Module": "Training Management",
             "X-Action": "Fetch Categories",
           },
-        },
+        }
       );
       setCategories(response.data.data || []);
     } catch (err) {
@@ -189,7 +214,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             "X-Module": "Training Management",
             "X-Action": "Fetch Sub Categories",
           },
-        },
+        }
       );
       setSubCategories(response.data.data || []);
     } catch (err) {
@@ -210,9 +235,8 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             "X-Module": "Training Management",
             "X-Action": "Fetch Material Types",
           },
-        },
+        }
       );
-      console.log("Material Types Response:", response.data);
       setMaterialTypes(response.data.data || []);
     } catch (err) {
       console.error("Error fetching material types:", err);
@@ -274,7 +298,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
       setFieldErrors(errors);
       return !errors[name];
     },
-    [fieldErrors],
+    [fieldErrors]
   );
 
   const validateForm = useCallback(() => {
@@ -304,14 +328,14 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         setFormData((prev) => ({ ...prev, [name]: value }));
       }
     },
-    [fieldErrors, validateField],
+    [fieldErrors, validateField]
   );
 
   const getFilteredSubCategories = useCallback(() => {
     if (!formData.trainingcatid) return [];
     return subCategories.filter(
       (sub) =>
-        String(sub.trainingsubcatcatid) === String(formData.trainingcatid),
+        String(sub.trainingsubcatcatid) === String(formData.trainingcatid)
     );
   }, [formData.trainingcatid, subCategories]);
 
@@ -355,7 +379,89 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
       setFieldErrors({});
       setIsModalOpen(true);
     },
-    [fetchCategories, fetchSubCategories, fetchMaterialTypes],
+    [fetchCategories, fetchSubCategories, fetchMaterialTypes]
+  );
+
+  // --- Handle Toggle Status (Enable/Disable) ---
+  const handleToggleStatus = useCallback(
+    (training) => {
+      const isCurrentlyEnabled = training.trainingadminstate === 1;
+      const actionText = isCurrentlyEnabled ? "disable" : "enable";
+      const newState = isCurrentlyEnabled ? 0 : 1;
+
+      Swal.fire({
+        title: "Are you sure?",
+        text: `Do you want to ${actionText} this training module?`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: isCurrentlyEnabled ? "#d33" : "#3085d6",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: `Yes, ${actionText} it!`,
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setIsToggling((prev) => ({
+            ...prev,
+            [training.trainingid]: true,
+          }));
+
+          const params = new URLSearchParams();
+          // Sending full payload to prevent nulling other fields
+          params.append("trainingid", training.trainingid);
+          params.append("trainingcatid", training.trainingcatid);
+          params.append("trainingsubcatid", training.trainingsubcatid);
+          params.append("trainingmattypeid", training.trainingmattypeid);
+          params.append("trainingmodulename", training.trainingmodulename);
+          params.append(
+            "trainingdescription",
+            training.trainingdescription
+          );
+          params.append("trainingmateriallink", training.trainingmateriallink);
+          params.append("trainingadminstate", newState);
+          params.append("trainingmodifiedby", userId || "1");
+
+          const url = `${IP}/itelinc/updateTraining?${params.toString()}`;
+
+          fetch(url, {
+            method: "POST",
+            mode: "cors",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+              userid: userId || "1",
+              "X-Module": "Training Management",
+              "X-Action": "Update Training Status",
+            },
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.statusCode === 200) {
+                Swal.fire(
+                  "Success!",
+                  `Training module ${actionText}d successfully!`,
+                  "success"
+                );
+                refreshData();
+              } else {
+                throw new Error(
+                  data.message || `Failed to ${actionText} training module`
+                );
+              }
+            })
+            .catch((err) => {
+              console.error(`Error ${actionText}ing training:`, err);
+              Swal.fire("Error", `Failed to ${actionText}: ${err.message}`, "error");
+            })
+            .finally(() => {
+              setIsToggling((prev) => ({
+                ...prev,
+                [training.trainingid]: false,
+              }));
+            });
+        }
+      });
+    },
+    [IP, userId, token, refreshData]
   );
 
   const createTraining = useCallback(async () => {
@@ -368,7 +474,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         trainingmodulename: formData.trainingmodulename,
         trainingdescription: formData.trainingdescription,
         trainingmateriallink: formData.trainingmateriallink,
-        trainingadminstate: 1,
+        trainingadminstate: 1, // Default to active on create
         trainingcreatedby: parseInt(userId) || 1,
         trainingmodifiedby: parseInt(userId) || 1,
       });
@@ -403,7 +509,8 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         trainingmodulename: formData.trainingmodulename,
         trainingdescription: formData.trainingdescription,
         trainingmateriallink: formData.trainingmateriallink,
-        trainingadminstate: 1,
+        // Preserve current admin state when editing details, or default to 1 if undefined
+        trainingadminstate: editTraining.trainingadminstate ?? 1,
         trainingmodifiedby: parseInt(userId) || 1,
       });
 
@@ -453,7 +560,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         throw error;
       }
     },
-    [IP, token, userId],
+    [IP, token, userId]
   );
 
   const handleSubmit = useCallback(
@@ -481,7 +588,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             editTraining
               ? "Training module updated successfully"
               : "Training module added successfully",
-            "success",
+            "success"
           );
           refreshData();
         } else {
@@ -503,7 +610,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
       updateTraining,
       createTraining,
       refreshData,
-    ],
+    ]
   );
 
   const handleDelete = useCallback(
@@ -518,7 +625,10 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         confirmButtonText: "Yes, delete it!",
       }).then(async (result) => {
         if (result.isConfirmed) {
-          setIsDeleting((prev) => ({ ...prev, [training.trainingid]: true }));
+          setIsDeleting((prev) => ({
+            ...prev,
+            [training.trainingid]: true,
+          }));
 
           try {
             const response = await deleteTraining(training.trainingid);
@@ -527,7 +637,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
               Swal.fire(
                 "Deleted!",
                 "Training module has been deleted.",
-                "success",
+                "success"
               );
               refreshData();
             } else {
@@ -546,7 +656,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         }
       });
     },
-    [deleteTraining, refreshData, showToast],
+    [deleteTraining, refreshData, showToast]
   );
 
   // --- DATA GRID CONFIG ---
@@ -583,7 +693,6 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         width: 250,
         sortable: true,
         renderCell: (params) => {
-          // SAFETY CHECK: Ensure params.row exists and the field is defined
           const desc = params?.row?.trainingdescription || "";
           if (!desc) return "-";
 
@@ -602,7 +711,6 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         width: 150,
         sortable: true,
         renderCell: (params) => {
-          // SAFETY CHECK
           const link = params?.row?.trainingmateriallink;
           if (!link) return "-";
 
@@ -620,9 +728,65 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
           );
         },
       },
+      {
+        field: "trainingadminstate",
+        headerName: "Status",
+        width: 120,
+        sortable: true,
+        renderCell: (params) => {
+          if (!params?.row) return "-";
+          const status = params.row.trainingadminstate;
+          const isActive = status === 1 || status === undefined;
+
+          return (
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <IconButton
+                size="small"
+                sx={{
+                  mr: 0.5,
+                  color: isActive ? "success.main" : "error.main",
+                  cursor: "default",
+                }}
+              >
+                {isActive ? <CheckCircleIcon fontSize="small" /> : <CancelIcon fontSize="small" />}
+              </IconButton>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                {isActive ? "Active" : "Inactive"}
+              </Typography>
+            </Box>
+          );
+        },
+      },
+      {
+        field: "createdname",
+        headerName: "Created By",
+        width: 150,
+        sortable: true,
+        renderCell: (params) => params?.row?.createdname || "-",
+      },
+      {
+        field: "trainingcreatedtime",
+        headerName: "Created Time",
+        width: 180,
+        sortable: true,
+        renderCell: (params) => formatDate(params.value),
+      },
+      {
+        field: "modifiedname",
+        headerName: "Modified By",
+        width: 150,
+        sortable: true,
+        renderCell: (params) => params?.row?.modifiedname || "-",
+      },
+      {
+        field: "trainingmodifiedtime",
+        headerName: "Modified Time",
+        width: 180,
+        sortable: true,
+        renderCell: (params) => formatDate(params.value),
+      },
     ];
 
-    // OPTION 1: Return combined array with spread operator
     return [
       ...baseColumns,
       ...(hasWriteAccess && Number(roleid) === 1
@@ -630,36 +794,47 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
             {
               field: "actions",
               headerName: "Actions",
-              width: 150,
+              width: 180, // Increased width
               sortable: false,
               filterable: false,
               renderCell: (params) => {
                 if (!params?.row) return null;
+                
+                const isCurrentlyEnabled = params.row.trainingadminstate === 1;
+
                 return (
                   <Box>
+                    {/* Toggle Status Button */}
+                    <ActionButton
+                      color={isCurrentlyEnabled ? "on" : "off"}
+                      onClick={() => handleToggleStatus(params.row)}
+                      disabled={
+                        isSaving ||
+                        isDeleting[params.row.trainingid] ||
+                        isToggling[params.row.trainingid]
+                      }
+                      title={isCurrentlyEnabled ? "Disable" : "Enable"}
+                    >
+                      {isToggling[params.row.trainingid] ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : isCurrentlyEnabled ? (
+                        <ToggleOnIcon fontSize="small" />
+                      ) : (
+                        <ToggleOffIcon fontSize="small" />
+                      )}
+                    </ActionButton>
+
                     <ActionButton
                       color="edit"
                       onClick={() => openEditModal(params.row)}
                       disabled={
-                        isSaving || isDeleting[params.row.trainingsubcatid]
+                        isSaving ||
+                        isDeleting[params.row.trainingid] ||
+                        isToggling[params.row.trainingid]
                       }
                       title="Edit"
                     >
                       <EditIcon fontSize="small" />
-                    </ActionButton>
-                    <ActionButton
-                      color="delete"
-                      onClick={() => handleDelete(params.row.trainingsubcatid)}
-                      disabled={
-                        isSaving || isDeleting[params.row.trainingsubcatid]
-                      }
-                      title="Delete"
-                    >
-                      {isDeleting[params.row.trainingsubcatid] ? (
-                        <CircularProgress size={18} color="inherit" />
-                      ) : (
-                        <DeleteIcon fontSize="small" />
-                      )}
                     </ActionButton>
                   </Box>
                 );
@@ -673,8 +848,10 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
     roleid,
     isSaving,
     isDeleting,
+    isToggling,
     openEditModal,
     handleDelete,
+    handleToggleStatus,
   ]);
 
   const exportConfig = useMemo(
@@ -682,7 +859,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
       filename: "training_modules",
       sheetName: "Training",
     }),
-    [],
+    []
   );
 
   const onExportData = useMemo(
@@ -695,9 +872,14 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         "Module Name": item.trainingmodulename || "",
         Description: item.trainingdescription || "",
         "Material Link": item.trainingmateriallink || "",
+        Status: item.trainingadminstate === 1 ? "Active" : "Inactive",
+        "Created By": item.createdname || "",
+        "Created Time": formatDate(item.trainingcreatedtime),
+        "Modified By": item.modifiedname || "",
+        "Modified Time": formatDate(item.trainingmodifiedtime),
       }));
     },
-    [],
+    []
   );
 
   // EFFECTS
@@ -973,7 +1155,7 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
       </Snackbar>
 
       {/* Loading overlay */}
-      <StyledBackdrop open={isSaving}>
+      <StyledBackdrop open={isSaving || Object.values(isToggling).some(Boolean)}>
         <Box
           sx={{
             display: "flex",
@@ -983,7 +1165,11 @@ const TrainingModule = forwardRef(({ title = "🎓 Training Module" }, ref) => {
         >
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {editTraining ? "Updating training..." : "Creating training..."}
+            {Object.values(isToggling).some(Boolean)
+              ? "Updating status..."
+              : editTraining
+              ? "Updating training..."
+              : "Creating training..."}
           </Typography>
         </Box>
       </StyledBackdrop>

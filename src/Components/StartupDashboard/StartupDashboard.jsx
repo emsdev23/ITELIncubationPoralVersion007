@@ -4,6 +4,7 @@ import React, {
   useEffect,
   useMemo,
   useCallback,
+  useRef,
 } from "react";
 import styles from "./StartupDashboard.module.css";
 import companyLogo from "../../Images/company6.png";
@@ -36,6 +37,7 @@ import {
   Mail,
   MessageSquare,
   Plus,
+  Camera,
 } from "lucide-react";
 import ITELLogo from "../../assets/ITEL_Logo.png";
 import * as XLSX from "xlsx";
@@ -250,6 +252,11 @@ const StartupDashboard = () => {
     page: 0,
     pageSize: 10,
   });
+
+  //profile upload states
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef(null);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState(null);
 
   // ALL HOOKS MUST BE DECLARED BEFORE ANY CONDITIONALS
   const location = useLocation();
@@ -656,6 +663,43 @@ const StartupDashboard = () => {
     }
   };
 
+  // Fetch logo URL when component loads
+  useEffect(() => {
+    const fetchLogoUrl = async () => {
+      if (
+        incubateeslogopath &&
+        incubateeslogopath !== "" &&
+        incubateeslogopath !== "null"
+      ) {
+        try {
+          const response = await api.post(
+            "/resources/generic/getfileurl",
+            {
+              userid: userid,
+              incUserid: incuserid,
+              url: incubateeslogopath, // This is "23/0/0/incubatee_23_..."
+            },
+            {
+              headers: {
+                "X-Module": "Startup Profile",
+                "X-Action": "Company Logo View",
+              },
+            },
+          );
+
+          if (response.data.statusCode === 200 && response.data.data) {
+            setCompanyLogoUrl(response.data.data); // This is the full URL
+          }
+        } catch (error) {
+          console.error("Error fetching logo URL:", error);
+        }
+      }
+    };
+
+    if (incubateesrecid) {
+      fetchLogoUrl();
+    }
+  }, [incubateeslogopath, userid, incuserid, incubateesrecid]);
   // Manual refresh function to fetch company documents
   const fetchCompanyDocuments = async () => {
     try {
@@ -881,99 +925,149 @@ const StartupDashboard = () => {
     }
   };
 
-  const handleLogout = async () => {
-    const confirmResult = await Swal.fire({
-      title: "Are you sure?",
-      text: "You will be logged out of your account.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#3085d6",
-      cancelButtonColor: "#d33",
-      confirmButtonText: "Yes, logout",
-      cancelButtonText: "Cancel",
+  console.log(incubateeslogopath, "Company Logo URL");
+  //profile photo upload functions
+  // Convert file to base64
+  const convertLogoToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64String = reader.result.split(",")[1];
+        resolve(base64String);
+      };
+      reader.onerror = (error) => reject(error);
     });
+  };
 
-    if (!confirmResult.isConfirmed) return;
+  // Handle logo upload
+  const handleLogoClick = () => {
+    logoInputRef.current?.click();
+  };
+
+  // UPDATED handleLogoChange function with URL fetching and state update
+
+  const handleLogoChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ["image/png", "image/jpeg", "image/jpg"];
+    if (!validTypes.includes(file.type)) {
+      Swal.fire({
+        icon: "error",
+        title: "Invalid File Type",
+        text: "Please upload a PNG or JPEG image",
+        confirmButtonColor: "#4f46e5",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      Swal.fire({
+        icon: "error",
+        title: "File Too Large",
+        text: "Image size should be less than 5MB",
+        confirmButtonColor: "#4f46e5",
+      });
+      return;
+    }
 
     try {
+      setUploadingLogo(true);
+
+      // Show loading alert
       Swal.fire({
-        title: "Logging out...",
-        text: "Please wait while we log you out",
+        title: "Uploading...",
+        text: "Please wait while we upload the company logo",
         allowOutsideClick: false,
+        allowEscapeKey: false,
         didOpen: () => {
           Swal.showLoading();
         },
       });
 
-      const userid = String(JSON.parse(sessionStorage.getItem("userid")));
-      const incUserId = String(JSON.parse(sessionStorage.getItem("incUserid")));
-      const token = sessionStorage.getItem("token");
+      // Convert to base64
+      const base64String = await convertLogoToBase64(file);
+      const fileType = file.type.split("/")[1];
 
-      if (!userid || !token) {
-        Swal.close();
-        Swal.fire({
-          icon: "warning",
-          title: "Not Logged In",
-          text: "User session missing or expired",
-        });
-        return;
-      }
-
-      const currentTime = new Date().toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
-      });
-
-      const response = await fetch(
-        `${IPAdress}/itelinc/resources/auth/logout`,
+      // Call API to upload
+      const response = await api.post(
+        "/resources/generic/incubateeaddprofilepicture",
         {
-          method: "POST",
+          incubateeId: incubateesrecid,
+          userId: userid,
+          fileBase64: base64String,
+          fileType: fileType,
+        },
+        {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            userid: userid || "1",
-            "X-Module": "log_out",
-            "X-Action": "user Logout attempt",
+            userId: userid,
           },
-          body: JSON.stringify({
-            userid,
-            reason: `Manual Logout at ${currentTime}`,
-          }),
         },
       );
 
-      const data = await response.json();
-      console.log("Logout response:", data);
+      if (response.data.statusCode === 200) {
+        // Get the file path from response
+        const filePath = response.data.data;
 
-      Swal.close();
+        // Fetch the actual URL for the uploaded image
+        const urlResponse = await api.post(
+          "/resources/generic/getfileurl",
+          {
+            userid: userid,
+            incUserid: incuserid,
+            url: filePath,
+          },
+          {
+            headers: {
+              "X-Module": "Startup Profile",
+              "X-Action": "Company Logo View",
+            },
+          },
+        );
 
-      if (response.ok) {
-        clearAllData();
-        sessionStorage.removeItem("userid");
-        sessionStorage.removeItem("token");
-        sessionStorage.removeItem("roleid");
-        sessionStorage.removeItem("incuserid");
+        if (urlResponse.data.statusCode === 200 && urlResponse.data.data) {
+          const imageUrl = urlResponse.data.data;
+          setCompanyLogoUrl(imageUrl);
 
-        navigate("/", { replace: true });
+          // Update the incubatee logo in the UI immediately
+          // You might need to update your context or state here depending on your setup
+          // For now, we'll just refresh to show the new logo
+
+          // Show success message
+          Swal.fire({
+            icon: "success",
+            title: "Success!",
+            text: "Company logo updated successfully",
+            confirmButtonColor: "#4f46e5",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        } else {
+          throw new Error("Failed to fetch logo URL");
+        }
       } else {
         Swal.fire({
           icon: "error",
-          title: "Logout Failed",
-          text: data.message || "Something went wrong",
+          title: "Upload Failed",
+          text: response.data.message || "Failed to upload logo",
+          confirmButtonColor: "#4f46e5",
         });
       }
-    } catch (error) {
-      console.error("Logout error:", error);
-      Swal.close();
+    } catch (err) {
+      console.error(err);
       Swal.fire({
         icon: "error",
-        title: "Logout Failed",
-        text: "Something went wrong while logging out.",
+        title: "Upload Error",
+        text: err.response?.data?.message || "Error uploading logo",
+        confirmButtonColor: "#4f46e5",
       });
+    } finally {
+      setUploadingLogo(false);
+      event.target.value = "";
     }
-  };
-
-  const handleBackToAdmin = () => {
-    navigate("/Incubation/Dashboard");
   };
 
   const handleAbolishDocument = async (filepath) => {
@@ -1625,13 +1719,13 @@ const StartupDashboard = () => {
                 >
                   <div className={styles.avatarWrapper}>
                     <img
-                      src={
-                        incubateeslogopath ? incubateeslogopath : companyLogo
-                      }
+                      src={companyLogoUrl || incubateeslogopath || companyLogo}
                       alt="Company Logo"
                       className={styles.avatarImage}
                     />
-                    {incubateeswebsite !== null ? (
+
+                    {/* Website Link Icon */}
+                    {incubateeswebsite !== null && (
                       <div className={styles.avatarStatus}>
                         <Link
                           to={incubateeswebsite}
@@ -1647,9 +1741,32 @@ const StartupDashboard = () => {
                           />
                         </Link>
                       </div>
-                    ) : (
-                      ""
                     )}
+
+                    {/* Camera Icon for Logo Upload - Only show for roleid 4 */}
+                    {Number(roleid) === 4 && (
+                      <button
+                        className={styles.cameraButton}
+                        onClick={handleLogoClick}
+                        disabled={uploadingLogo}
+                        title="Change company logo"
+                      >
+                        {uploadingLogo ? (
+                          <span className={styles.cameraLoading}>⏳</span>
+                        ) : (
+                          <Camera className={styles.cameraIcon} />
+                        )}
+                      </button>
+                    )}
+
+                    {/* Hidden File Input */}
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png, image/jpeg, image/jpg"
+                      onChange={handleLogoChange}
+                      style={{ display: "none" }}
+                    />
                   </div>
                   <div>
                     <h1 className="text-4xl font-bold mb-2">

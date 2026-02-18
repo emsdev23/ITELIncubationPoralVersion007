@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import "./MentorDashboard.css";
 import EditMentorModal from "./EditMentorModal";
 import api from "../Datafetching/api";
 import { DataContext } from "../Datafetching/DataProvider";
-import { CircleFadingPlus } from "lucide-react";
+import { CircleFadingPlus, Camera } from "lucide-react";
+import Swal from "sweetalert2";
 
 const MentorDashboard = () => {
   const [mentors, setMentors] = useState([]);
@@ -12,7 +13,11 @@ const MentorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [updatingMentor, setUpdatingMentor] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState(null);
   const { roleid, userid, incuserid } = useContext(DataContext);
+  const fileInputRef = useRef(null);
 
   // Fetch mentors from API using your API format
   useEffect(() => {
@@ -49,10 +54,53 @@ const MentorDashboard = () => {
     };
 
     fetchMentors();
-  }, [userid]);
+  }, [userid, incuserid]);
+
+  // Fetch profile image URL when selected mentor changes
+  useEffect(() => {
+    const fetchProfileImageUrl = async () => {
+      if (
+        selectedMentor &&
+        selectedMentor.mentordetsimagepath &&
+        selectedMentor.mentordetsimagepath !== "" &&
+        selectedMentor.mentordetsimagepath !== "null"
+      ) {
+        try {
+          const response = await api.post(
+            "/resources/generic/getfileurl",
+            {
+              userid: userid,
+              incUserid: incuserid,
+              url: selectedMentor.mentordetsimagepath,
+            },
+            {
+              headers: {
+                "X-Module": "Mentor Profile",
+                "X-Action": "Profile Picture View",
+              },
+            },
+          );
+
+          if (response.data.statusCode === 200 && response.data.data) {
+            setProfileImageUrl(response.data.data);
+          } else {
+            setProfileImageUrl(null);
+          }
+        } catch (error) {
+          console.error("Error fetching profile image URL:", error);
+          setProfileImageUrl(null);
+        }
+      } else {
+        setProfileImageUrl(null);
+      }
+    };
+
+    fetchProfileImageUrl();
+  }, [selectedMentor, userid, incuserid]);
 
   // Get initials from name
   const getInitials = (name) => {
+    if (!name) return "?";
     return name
       .split(" ")
       .map((word) => word[0])
@@ -95,8 +143,161 @@ const MentorDashboard = () => {
     setIsEditModalOpen(true);
   };
 
+  // Convert file to base64
+  const convertToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        // Remove the data:image/png;base64, or data:image/jpeg;base64, prefix
+        const base64String = reader.result.split(",")[1];
+        resolve(base64String);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  // Handle profile picture upload
+  const handleProfilePictureClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ["image/png", "image/jpeg", "image/jpg"];
+    if (!validTypes.includes(file.type)) {
+      Swal.fire({
+        icon: "error",
+        title: "Invalid File Type",
+        text: "Please upload a PNG or JPEG image",
+        confirmButtonColor: "#2563eb",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      Swal.fire({
+        icon: "error",
+        title: "File Too Large",
+        text: "Image size should be less than 5MB",
+        confirmButtonColor: "#2563eb",
+      });
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      setError(null);
+
+      // Show loading alert
+      Swal.fire({
+        title: "Uploading...",
+        text: "Please wait while we upload your profile picture",
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      // Convert to base64
+      const base64String = await convertToBase64(file);
+      const fileType = file.type.split("/")[1]; // 'png' or 'jpeg'
+
+      // Call API
+      const response = await api.post(
+        "/resources/generic/mentoraddprofilepicture",
+        {
+          mentorId: selectedMentor.mentordetsid,
+          userId: userid,
+          fileBase64: base64String,
+          fileType: fileType,
+        },
+        {
+          headers: {
+            userid: userid,
+          },
+        },
+      );
+
+      if (response.data.statusCode === 200) {
+        // Get the file path from response
+        const filePath = response.data.data;
+
+        // Update the mentor's image path in local state
+        setMentors((prevMentors) =>
+          prevMentors.map((mentor) =>
+            mentor.mentordetsid === selectedMentor.mentordetsid
+              ? { ...mentor, mentordetsimagepath: filePath }
+              : mentor,
+          ),
+        );
+
+        setSelectedMentor((prev) => ({
+          ...prev,
+          mentordetsimagepath: filePath,
+        }));
+
+        // Fetch the actual URL for the uploaded image
+        const urlResponse = await api.post(
+          "/resources/generic/getfileurl",
+          {
+            userid: userid,
+            incUserid: incuserid,
+            url: filePath,
+          },
+          {
+            headers: {
+              "X-Module": "Mentor Profile",
+              "X-Action": "Profile Picture View",
+            },
+          },
+        );
+
+        if (urlResponse.data.statusCode === 200 && urlResponse.data.data) {
+          setProfileImageUrl(urlResponse.data.data);
+        }
+
+        // Show success message
+        Swal.fire({
+          icon: "success",
+          title: "Success!",
+          text: "Profile picture updated successfully",
+          confirmButtonColor: "#2563eb",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "Upload Failed",
+          text: response.data.message || "Failed to upload profile picture",
+          confirmButtonColor: "#2563eb",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: "error",
+        title: "Upload Error",
+        text: err.response?.data?.message || "Error uploading profile picture",
+        confirmButtonColor: "#2563eb",
+      });
+    } finally {
+      setUploadingImage(false);
+      // Reset file input
+      event.target.value = "";
+    }
+  };
+
   const handleUpdateMentor = async (updatedMentor) => {
     try {
+      setUpdatingMentor(true);
+
       const response = await api.post(
         "/updateMentor",
         {
@@ -143,12 +344,34 @@ const MentorDashboard = () => {
         }
 
         setIsEditModalOpen(false);
+
+        // Show success message
+        Swal.fire({
+          icon: "success",
+          title: "Success!",
+          text: "Mentor details updated successfully",
+          confirmButtonColor: "#2563eb",
+          timer: 2000,
+          showConfirmButton: false,
+        });
       } else {
-        setError("Failed to update mentor");
+        Swal.fire({
+          icon: "error",
+          title: "Update Failed",
+          text: response.data.message || "Failed to update mentor",
+          confirmButtonColor: "#2563eb",
+        });
       }
     } catch (err) {
-      setError("Error updating mentor");
       console.error(err);
+      Swal.fire({
+        icon: "error",
+        title: "Update Error",
+        text: err.response?.data?.message || "Error updating mentor",
+        confirmButtonColor: "#2563eb",
+      });
+    } finally {
+      setUpdatingMentor(false);
     }
   };
 
@@ -333,12 +556,55 @@ const MentorDashboard = () => {
 
                   <div className="profile-content">
                     <div className="profile-main">
-                      <div
-                        className={`profile-avatar ${getGradientColor(
-                          selectedMentor.mentordetsid,
-                        )}`}
-                      >
-                        {getInitials(selectedMentor.mentordetsname)}
+                      <div className="profile-avatar-wrapper">
+                        {profileImageUrl ? (
+                          <img
+                            src={profileImageUrl}
+                            alt={selectedMentor.mentordetsname}
+                            className="profile-avatar-image"
+                            onError={(e) => {
+                              // If image fails to load, hide img and show initials
+                              e.target.style.display = "none";
+                              const initialsDiv = e.target.nextElementSibling;
+                              if (initialsDiv) {
+                                initialsDiv.style.display = "flex";
+                              }
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className={`profile-avatar ${getGradientColor(
+                            selectedMentor.mentordetsid,
+                          )}`}
+                          style={{
+                            display: profileImageUrl ? "none" : "flex",
+                          }}
+                        >
+                          {getInitials(selectedMentor.mentordetsname)}
+                        </div>
+
+                        {/* Camera Icon for Upload */}
+                        <button
+                          className="profile-camera-btn"
+                          onClick={handleProfilePictureClick}
+                          disabled={uploadingImage}
+                          title="Change profile picture"
+                        >
+                          {uploadingImage ? (
+                            <span className="camera-loading">⏳</span>
+                          ) : (
+                            <Camera className="w-5 h-5" />
+                          )}
+                        </button>
+
+                        {/* Hidden File Input */}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/png, image/jpeg, image/jpg"
+                          onChange={handleFileChange}
+                          style={{ display: "none" }}
+                        />
                       </div>
 
                       <div className="profile-text">
@@ -591,6 +857,7 @@ const MentorDashboard = () => {
           mentor={selectedMentor}
           onClose={() => setIsEditModalOpen(false)}
           onUpdate={handleUpdateMentor}
+          isUpdating={updatingMentor}
         />
       )}
     </div>
@@ -598,115 +865,3 @@ const MentorDashboard = () => {
 };
 
 export default MentorDashboard;
-
-//  <div className="sidebar">
-//             <div className="search-container">
-//               <input
-//                 type="text"
-//                 className="search-input"
-//                 placeholder="Search mentors..."
-//                 value={searchTerm}
-//                 onChange={(e) => setSearchTerm(e.target.value)}
-//               />
-//               <span className="search-icon">🔍</span>
-//             </div>
-
-//             <div className="mentor-list">
-//               {filteredMentors.map((mentor) => (
-//                 <div
-//                   key={mentor.mentordetsid}
-//                   className={`mentor-card ${
-//                     selectedMentor?.mentordetsid === mentor.mentordetsid
-//                       ? "active"
-//                       : ""
-//                   }`}
-//                   onClick={() => setSelectedMentor(mentor)}
-//                 >
-//                   <div className="mentor-card-content">
-//                     <div
-//                       className={`mentor-avatar ${getGradientColor(
-//                         mentor.mentordetsid,
-//                       )}`}
-//                     >
-//                       {getInitials(mentor.mentordetsname)}
-//                     </div>
-//                     <div className="mentor-info">
-//                       <h3 className="mentor-name">{mentor.mentordetsname}</h3>
-//                       <p className="mentor-designation">
-//                         {mentor.mentordetsdesign}
-//                       </p>
-//                       <div className="mentor-tags">
-//                         {mentor.mentorclasssetname && (
-//                           <span className="tag tag-blue">
-//                             {mentor.mentorclasssetname}
-//                           </span>
-//                         )}
-//                         {mentor.mentortypename && (
-//                           <span className="tag tag-purple">
-//                             {mentor.mentortypename}
-//                           </span>
-//                         )}
-//                       </div>
-//                     </div>
-//                   </div>
-//                 </div>
-//               ))}
-//             </div>
-//           </div>
-
-// record information section
-//  <div className="record-section">
-//                   <h3 className="section-title">
-//                     <span className="icon">📅</span>
-//                     Record Information
-//                   </h3>
-
-//                   <div className="record-grid">
-//                     <div className="record-box">
-//                       <p className="record-label">Created By</p>
-//                       <p className="record-name">
-//                         {selectedMentor.createdname}
-//                       </p>
-//                       <p className="record-date">
-//                         {formatDate(selectedMentor.mentordetscreatedtime)}
-//                       </p>
-//                     </div>
-
-//                     <div className="record-box">
-//                       <p className="record-label">Last Modified By</p>
-//                       <p className="record-name">
-//                         {selectedMentor.modifiedname}
-//                       </p>
-//                       <p className="record-date">
-//                         {formatDate(selectedMentor.mentordetsmodifiedtime)}
-//                       </p>
-//                     </div>
-//                   </div>
-//                 </div>
-
-// header section
-//  <header className="dashboard-header">
-//     <div className="header-content">
-//       <div className="header-left">
-//         <div>
-//           <h1 className="header-title">Mentor Dashboard</h1>
-//           <p className="header-subtitle">
-//             Immersive Technology and Entrepreneurship Labs
-//           </p>
-//         </div>
-//       </div>
-
-//       <div className="header-stats">
-//         <div className="stat-card stat-blue">
-//           <div className="stat-number">{mentors.length}</div>
-//           <div className="stat-label">Total Mentors</div>
-//         </div>
-//         <div className="stat-card stat-green">
-//           <div className="stat-number">
-//             {mentors.filter((m) => m.mentordetsadminstate === 1).length}
-//           </div>
-//           <div className="stat-label">Active</div>
-//         </div>
-//       </div>
-//     </div>
-//   </header>

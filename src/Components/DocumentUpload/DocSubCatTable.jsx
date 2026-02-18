@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import Swal from "sweetalert2";
 import { IPAdress } from "../Datafetching/IPAdrees";
 import { Download } from "lucide-react";
-import { FaTimes } from "react-icons/fa";
+import { FaPowerOff } from "react-icons/fa"; // Imported for the toggle button
 
 // Material UI imports
 import {
@@ -21,12 +21,15 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Chip,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
 import api from "../Datafetching/api";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn"; // ON Icon (Green Pill)
+import ToggleOffIcon from "@mui/icons-material/ToggleOff"; // OFF Icon (Grey Pill)
 
 // Import your reusable component
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid"; // Adjust path as needed
@@ -40,11 +43,28 @@ const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
 const ActionButton = styled(IconButton)(({ theme, color }) => ({
   margin: theme.spacing(0.5),
   backgroundColor:
-    color === "edit" ? theme.palette.primary.main : theme.palette.error.main,
+    color === "edit"
+      ? theme.palette.primary.main
+      : color === "disable"
+      ? theme.palette.error.main
+      : color === "enable"
+      ? theme.palette.success.main
+      : theme.palette.error.main,
   color: "white",
   "&:hover": {
     backgroundColor:
-      color === "edit" ? theme.palette.primary.dark : theme.palette.error.dark,
+      color === "edit"
+        ? theme.palette.primary.dark
+        : color === "disable"
+        ? theme.palette.error.dark
+        : color === "enable"
+        ? theme.palette.success.dark
+        : theme.palette.error.dark,
+  },
+  "&.disabled": {
+    backgroundColor: theme.palette.grey[300],
+    color: theme.palette.grey[500],
+    cursor: "not-allowed",
   },
 }));
 
@@ -102,6 +122,7 @@ export default function DocSubCatTable() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isToggling, setIsToggling] = useState(null); // Tracks which ID is being toggled
 
   // --- 2. HANDLER FUNCTIONS (Must be defined before useMemo) ---
   const fetchSubCategories = useCallback(async () => {
@@ -172,6 +193,16 @@ export default function DocSubCatTable() {
 
   const openEditModal = useCallback(
     (subcat) => {
+      // Prevent editing if the subcategory is disabled
+      if (subcat.docsubcatadminstate === 0) {
+        Swal.fire(
+          "Restricted",
+          "Cannot edit a disabled subcategory. Please enable it first.",
+          "warning"
+        );
+        return;
+      }
+
       setEditSubCat(subcat);
       setFormData({
         docsubcatname: subcat.docsubcatname || "",
@@ -188,6 +219,77 @@ export default function DocSubCatTable() {
   const handleChange = useCallback((e) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   }, []); // Use functional update
+
+  // --- NEW: Handle Toggle Status (Enable/Disable) ---
+  const handleToggleStatus = useCallback(
+    (subcat) => {
+      const isCurrentlyEnabled = subcat.docsubcatadminstate === 1;
+      const actionText = isCurrentlyEnabled ? "disable" : "enable";
+      const newState = isCurrentlyEnabled ? 0 : 1;
+
+      Swal.fire({
+        title: "Are you sure?",
+        text: `Do you want to ${actionText} ${subcat.docsubcatname}?`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: isCurrentlyEnabled ? "#d33" : "#3085d6",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: `Yes, ${actionText} it!`,
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setIsToggling(subcat.docsubcatrecid);
+
+          // Note: Assuming your backend expects similar body params as updateDocsubcat
+          // Adjust payload keys if your backend specifically requires different keys for status updates
+          const bodyPayload = {
+            docsubcatrecid: subcat.docsubcatrecid,
+            docsubcatname: subcat.docsubcatname,
+            docsubcatdescription: subcat.docsubcatdescription,
+            docsubcatscatrecid: subcat.docsubcatscatrecid, // Included to maintain integrity
+            docsubcatadminState: newState.toString(), // 1 or 0
+            docsubcatmodifiedby: userId,
+          };
+
+          // Using api.post matching the pattern of DocCatTable
+          // Change endpoint if you have a specific status toggle endpoint, otherwise reuse update
+          api
+            .post("/updateDocsubcat", bodyPayload, {
+              headers: {
+                "X-Module": "Document Management",
+                "X-Action": "Update Document SubCategory Status",
+              },
+            })
+            .then((response) => {
+              if (response.data.statusCode === 200) {
+                Swal.fire(
+                  "Success!",
+                  `${subcat.docsubcatname} has been ${actionText}d.`,
+                  "success"
+                );
+                refreshData();
+              } else {
+                throw new Error(
+                  response.data.message || `Failed to ${actionText} subcategory`
+                );
+              }
+            })
+            .catch((err) => {
+              console.error(`Error ${actionText}ing subcategory:`, err);
+              Swal.fire(
+                "Error",
+                `Failed to ${actionText} ${subcat.docsubcatname}: ${err.message}`,
+                "error"
+              );
+            })
+            .finally(() => {
+              setIsToggling(null);
+            });
+        }
+      });
+    },
+    [userId, refreshData]
+  );
 
   const handleDelete = useCallback(
     (subcatId) => {
@@ -369,6 +471,27 @@ export default function DocSubCatTable() {
         sortable: true,
       },
       {
+        field: "docsubcatadminstate",
+        headerName: "Status",
+        width: 120,
+        sortable: true,
+        renderCell: (params) => {
+          if (!params || !params.row) return "-";
+          const isEnabled = params.row.docsubcatadminstate === 1;
+          return (
+            <Chip
+              label={isEnabled ? "Enabled" : "Disabled"}
+              size="small"
+              color={isEnabled ? "success" : "default"}
+              sx={{
+                color: isEnabled ? "white" : "text.secondary",
+                fontWeight: "bold",
+              }}
+            />
+          );
+        },
+      },
+      {
         field: "docsubcatcreatedby",
         headerName: "Created By",
         width: 150,
@@ -409,40 +532,56 @@ export default function DocSubCatTable() {
       {
         field: "actions",
         headerName: "Actions",
-        width: 150,
+        width: 180, // Increased width to accommodate 3 buttons
         sortable: false,
         filterable: false,
         renderCell: (params) => {
           if (!params?.row) return null;
+          const isDisabled = params.row.docsubcatadminstate === 0;
+          const isCurrentlyEnabled = params.row.docsubcatadminstate === 1;
+
           return (
             <Box>
+              {/* Toggle Status Button */}
+              <ActionButton
+                color={isCurrentlyEnabled ? "enable" : "disable"}
+                onClick={() => handleToggleStatus(params.row)}
+                disabled={
+                  isSaving ||
+                  isDeleting[params.row.documentsrecid] ||
+                  isToggling === params.row.documentsrecid
+                }
+                title={isCurrentlyEnabled ? "Disable" : "Enable"}
+              >
+                {isToggling === params.row.documentsrecid ? (
+                  <ToggleOnIcon fontSize="small" />
+                ) : (
+                  <ToggleOffIcon fontSize="small" />
+                )}
+              </ActionButton>
+
+              {/* Edit Button */}
               <ActionButton
                 color="edit"
                 onClick={() => openEditModal(params.row)}
-                disabled={isSaving || isDeleting[params.row.docsubcatrecid]}
+                disabled={
+                  isSaving ||
+                  isDeleting[params.row.docsubcatrecid] ||
+                  isDisabled || // Disabled if state is 0
+                  isToggling === params.row.docsubcatrecid
+                }
                 title="Edit"
+                className={isDisabled ? "disabled" : ""}
               >
                 <EditIcon fontSize="small" />
-              </ActionButton>
-              <ActionButton
-                color="delete"
-                onClick={() => handleDelete(params.row.docsubcatrecid)}
-                disabled={isSaving || isDeleting[params.row.docsubcatrecid]}
-                title="Delete"
-              >
-                {isDeleting[params.row.docsubcatrecid] ? (
-                  <CircularProgress size={18} color="inherit" />
-                ) : (
-                  <DeleteIcon fontSize="small" />
-                )}
               </ActionButton>
             </Box>
           );
         },
       },
     ],
-    [isSaving, isDeleting, openEditModal, handleDelete]
-  ); // Dependencies are now available
+    [isSaving, isDeleting, isToggling, openEditModal, handleDelete, handleToggleStatus]
+  );
 
   const exportConfig = useMemo(
     () => ({
@@ -458,6 +597,7 @@ export default function DocSubCatTable() {
         Category: subcat.doccatname || "N/A",
         "Subcategory Name": subcat.docsubcatname || "",
         Description: subcat.docsubcatdescription || "",
+        Status: subcat.docsubcatadminstate === 1 ? "Enabled" : "Disabled",
         "Created By": isNaN(subcat.docsubcatcreatedby)
           ? subcat.docsubcatcreatedby
           : "Admin",
@@ -605,7 +745,7 @@ export default function DocSubCatTable() {
           </DialogActions>
         </form>
       </Dialog>
-      <StyledBackdrop open={isSaving}>
+      <StyledBackdrop open={isSaving || isToggling !== null}>
         <Box
           sx={{
             display: "flex",
@@ -615,7 +755,11 @@ export default function DocSubCatTable() {
         >
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {editSubCat ? "Updating subcategory..." : "Saving subcategory..."}
+            {isToggling !== null
+              ? "Updating status..."
+              : editSubCat
+              ? "Updating subcategory..."
+              : "Saving subcategory..."}
           </Typography>
         </Box>
       </StyledBackdrop>

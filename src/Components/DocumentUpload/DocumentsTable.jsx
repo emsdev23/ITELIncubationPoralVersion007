@@ -11,6 +11,7 @@ import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
 import { Download } from "lucide-react";
 import { FaTimes } from "react-icons/fa";
+import { FaPowerOff } from "react-icons/fa";
 
 // Material UI imports
 import {
@@ -61,6 +62,8 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HowToRegIcon from "@mui/icons-material/HowToReg";
 import UndoIcon from "@mui/icons-material/Undo";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn"; // ON Icon (Green Pill)
+import ToggleOffIcon from "@mui/icons-material/ToggleOff"; // OFF Icon (Grey Pill)
 
 // Import your reusable component and API instance
 import ReusableDataGrid from "../Datafetching/ReusableDataGrid";
@@ -77,11 +80,28 @@ const StyledBackdrop = styled(Backdrop)(({ theme }) => ({
 const ActionButton = styled(IconButton)(({ theme, color }) => ({
   margin: theme.spacing(0.5),
   backgroundColor:
-    color === "edit" ? theme.palette.primary.main : theme.palette.error.main,
+    color === "edit"
+      ? theme.palette.primary.main
+      : color === "disable"
+      ? theme.palette.error.main
+      : color === "enable"
+      ? theme.palette.success.main
+      : theme.palette.error.main,
   color: "white",
   "&:hover": {
     backgroundColor:
-      color === "edit" ? theme.palette.primary.dark : theme.palette.error.dark,
+      color === "edit"
+        ? theme.palette.primary.dark
+        : color === "disable"
+        ? theme.palette.error.dark
+        : color === "enable"
+        ? theme.palette.success.dark
+        : theme.palette.error.dark,
+  },
+  "&.disabled": {
+    backgroundColor: theme.palette.grey[300],
+    color: theme.palette.grey[500],
+    cursor: "not-allowed",
   },
 }));
 
@@ -214,7 +234,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
   const roleid = sessionStorage.getItem("roleid");
   const incUserid = sessionStorage.getItem("incuserid");
   const incubateeId = sessionStorage.getItem("incubateeId");
-  // IP is retained for context but removed from API calls in favor of the api instance
 
   // STATE DECLARATIONS
   const [documents, setDocuments] = useState([]);
@@ -258,6 +277,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isApplying, setIsApplying] = useState({});
   const [isUnmarking, setIsUnmarking] = useState({});
+  const [isToggling, setIsToggling] = useState(null);
   const [appliedDocuments, setAppliedDocuments] = useState(new Set());
   const [appliedDocumentDetails, setAppliedDocumentDetails] = useState({});
   const [toast, setToast] = useState({
@@ -345,7 +365,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     }
   }, [incUserid]);
 
-  // UPDATED: fetchApplicabilityDetails
   const fetchApplicabilityDetails = useCallback(() => {
     if (Number(roleid) !== 4) return;
 
@@ -390,7 +409,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       });
   }, [userId, roleid]);
 
-  // UPDATED: fetchLinkedDocuments
   const fetchLinkedDocuments = useCallback(async (documentId) => {
     try {
       const response = await api.post(
@@ -446,9 +464,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     return null;
   }, []);
 
-  // NOTE: We keep native fetch for actual file downloads (blobs) from S3/Cloud URLs
-  // because those requests go to external storage providers, not our API.
-  // The request to GET the secure URL is encrypted via api.post above.
   const getFileBase64 = useCallback(
     async (filePath) => {
       if (!filePath) return null;
@@ -748,7 +763,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       } catch (error) {
         console.error("Error downloading document:", error);
         showToast(
-          `Failed to download: ${error.response.data.message}`,
+          `Failed to download: ${error.response?.data?.message || error.message}`,
           "error",
         );
       } finally {
@@ -853,10 +868,10 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         setPreviewContent(content);
       } catch (error) {
         console.error("Error previewing document:", error);
-        showToast(`Failed to preview: ${error.response.data.message}`, "error");
+        showToast(`Failed to preview: ${error.response?.data?.message || error.message}`, "error");
         setPreviewContent({
           type: "error",
-          message: `Failed to load preview: ${error.response.data.message}`,
+          message: `Failed to load preview: ${error.response?.data?.message || error.message}`,
         });
       } finally {
         setPreviewLoading(false);
@@ -894,6 +909,15 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
 
   const openEditModal = useCallback(
     async (doc) => {
+      if (doc.documentadminstate === 0) {
+        Swal.fire(
+          "Restricted",
+          "Cannot edit a disabled document. Please enable it first.",
+          "warning"
+        );
+        return;
+      }
+
       await refreshDropdownData();
 
       setEditDoc(doc);
@@ -1092,7 +1116,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     }));
   }, []);
 
-  // UPDATED: addLinkedDocument to use api.post
   const addLinkedDocument = useCallback(
     async (documentId, subcategoryId) => {
       try {
@@ -1122,7 +1145,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     [userId],
   );
 
-  // UPDATED: createDocument to use api.post
   const createDocument = useCallback(async (documentData) => {
     try {
       const response = await api.post(
@@ -1143,7 +1165,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     }
   }, []);
 
-  // UPDATED: updateDocument to use api.post
   const updateDocument = useCallback(async (documentData) => {
     try {
       const response = await api.post(
@@ -1207,7 +1228,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     [documents],
   );
 
-  // UPDATED: applyForDocument to use api.post
   const applyForDocument = useCallback(
     async (documentId, reason) => {
       setIsApplying((prev) => ({ ...prev, [documentId]: true }));
@@ -1241,12 +1261,12 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           fetchDocuments();
         } else {
           throw new Error(
-            data.response.data.message || "Failed to apply for document",
+            data.response?.data?.message || data.message || "Failed to apply for document",
           );
         }
       } catch (error) {
         console.error("Error applying for document:", error);
-        showToast(`Failed to apply: ${error.response.data.message}`, "error");
+        showToast(`Failed to apply: ${error.response?.data?.message || error.message}`, "error");
       } finally {
         setIsApplying((prev) => ({ ...prev, [documentId]: false }));
       }
@@ -1281,7 +1301,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     [applyForDocument],
   );
 
-  // UPDATED: unmarkDocument to use api.post
   const unmarkDocument = useCallback(
     async (documentId) => {
       setIsUnmarking((prev) => ({ ...prev, [documentId]: true }));
@@ -1327,12 +1346,12 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
           fetchDocuments();
         } else {
           throw new Error(
-            data.response.data.message || "Failed to unmark document",
+            data.response?.data?.message || data.message || "Failed to unmark document",
           );
         }
       } catch (error) {
         console.error("Error unmarking document:", error);
-        showToast(`Failed to unmark: ${error.response.data.message}`, "error");
+        showToast(`Failed to unmark: ${error.response?.data?.message || error.message}`, "error");
       } finally {
         setIsUnmarking((prev) => ({ ...prev, [documentId]: false }));
       }
@@ -1366,8 +1385,98 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
   );
 
   // =======================================================================
-  // START: UPDATED handleDelete FUNCTION FOR MULTIPLE DELETION
+  // START: Handle Toggle Status - JSON STRUCTURE UPDATE
   // =======================================================================
+  const handleToggleStatus = useCallback(
+    (doc) => {
+      const isCurrentlyEnabled = doc.documentadminstate === 1;
+      const actionText = isCurrentlyEnabled ? "disable" : "enable";
+      const newState = isCurrentlyEnabled ? 0 : 1;
+
+      Swal.fire({
+        title: "Are you sure?",
+        text: `Do you want to ${actionText} ${doc.documentname}?`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: isCurrentlyEnabled ? "#d33" : "#3085d6",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: `Yes, ${actionText} it!`,
+        cancelButtonText: "Cancel",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setIsToggling(doc.documentsrecid);
+
+          // Constructing the payload to match the requested structure exactly
+          const bodyPayload = {
+            userid: parseInt(userId) || 39,
+            documentsrecid: doc.documentsrecid,
+            
+            // IDs - Mapped from doc object
+            doccatid: doc.documentcatrecid, 
+            docsubcatid: doc.documentsubcatrecid,
+            
+            // Core Document Details
+            documentperiodicityrecid: doc.documentperiodicityrecid,
+            documentname: doc.documentname,
+            documentdescription: doc.documentdescription,
+            documentremarks: doc.documentremarks || "",
+            documentapplystatus: doc.documentapplystatus,
+            documentreferencelink: doc.documentreferencelink || "",
+            documentreferencevideo: doc.documentreferencevideo || "",
+            documentapplicability: doc.documentapplicability || "",
+            
+            // File Names
+            sampleDocName: doc.documentsampledocname || "",
+            templateDocName: doc.documenttemplatedocname || "",
+            
+            // The field being updated (String "1" or "0" as per example)
+            documentadminstate: newState.toString(), 
+            
+            // Modifier
+            documentmodifiedby: parseInt(userId) || 39,
+          };
+
+          api
+            .post("/api/documents/updateDocumentDetails", bodyPayload, {
+              headers: {
+                "X-Module": "Document Management",
+                "X-Action": "Update Document Status",
+              },
+            })
+            .then((response) => {
+              if (response.data.statusCode === 200) {
+                Swal.fire(
+                  "Success!",
+                  `${doc.documentname} has been ${actionText}d.`,
+                  "success"
+                );
+                refreshData();
+              } else {
+                throw new Error(
+                  response.data.message || `Failed to ${actionText} document`
+                );
+              }
+            })
+            .catch((err) => {
+              console.error(`Error ${actionText}ing document:`, err);
+              Swal.fire(
+                "Error",
+                `Failed to ${actionText} ${doc.documentname}: ${err.message}`,
+                "error"
+              );
+            })
+            .finally(() => {
+              setIsToggling(null);
+            });
+        }
+      });
+    },
+    [userId, refreshData]
+  );
+  // =======================================================================
+  // END: Handle Toggle Status
+  // =======================================================================
+
   const handleDelete = useCallback(
     (doc) => {
       const documentIdsToDelete = doc.all_documentsrecids
@@ -1407,7 +1516,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             },
           });
 
-          // UPDATED: Use api.post for deletion
           const deletePromises = documentIdsToDelete.map((documentId) => {
             const requestBody = {
               documentsrecid: documentId,
@@ -1475,9 +1583,6 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     },
     [userId, refreshData, showToast],
   );
-  // =======================================================================
-  // END: UPDATED handleDelete FUNCTION
-  // =======================================================================
 
   const handleSubmit = useCallback(
     async (e) => {
@@ -1523,6 +1628,9 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         }
 
         if (editDoc) {
+          // =================================================================
+          // UPDATE PAYLOAD - MATCHING REQUESTED STRUCTURE
+          // =================================================================
           const updateDocumentData = {
             userid: parseInt(userId) || 39,
             documentsrecid: editDoc.documentsrecid,
@@ -1534,24 +1642,28 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             documentname: formData.documentname.trim(),
             documentdescription: formData.documentdescription.trim(),
             documentremarks: formData.documentremarks || "",
+            
+            // File Names - ensure empty strings if null, to match example
             sampleDocName: subcatId
-              ? formData.sampleDocName || originalFileNames.sample
-              : null,
+              ? (formData.sampleDocName || originalFileNames.sample || "")
+              : "",
             templateDocName: subcatId
-              ? formData.templateDocName || originalFileNames.template
-              : null,
-            documentcreatedby:
-              typeof editDoc.documentcreatedby === "string"
-                ? 0
-                : editDoc.documentcreatedby,
-            documentmodifiedby: parseInt(userId) || 39,
+              ? (formData.templateDocName || originalFileNames.template || "")
+              : "",
+            
             documentapplystatus: parseInt(formData.documentapplystatus),
-            documentreferencelink: formData.documentreferencelink,
-            documentreferencevideo: formData.documentreferencevideo,
-            documentapplicability: formData.documentapplicability,
+            documentreferencelink: formData.documentreferencelink || "",
+            documentreferencevideo: formData.documentreferencevideo || "",
+            documentapplicability: formData.documentapplicability || "",
+            
+            // Included to ensure state is preserved/updated
+            documentadminstate: String(editDoc.documentadminstate),
+            
+            documentmodifiedby: parseInt(userId) || 39,
           };
 
           try {
+            // Only fetch/add base64 if new files are provided
             if (
               subcatId &&
               !formData.sampleDocBase64 &&
@@ -1597,6 +1709,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
             throw new Error(response.message || "Operation failed");
           }
         } else {
+          // Create logic remains mostly the same...
           const baseDocumentData = {
             userid: parseInt(userId) || 39,
             doccatid: parseInt(formData.documentcatrecid),
@@ -1838,6 +1951,27 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         sortable: true,
       },
       {
+        field: "documentadminstate",
+        headerName: "Status",
+        width: 120,
+        sortable: true,
+        renderCell: (params) => {
+          if (!params || !params.row) return "-";
+          const isEnabled = params.row.documentadminstate === 1;
+          return (
+            <Chip
+              label={isEnabled ? "Enabled" : "Disabled"}
+              size="small"
+              color={isEnabled ? "success" : "default"}
+              sx={{
+                color: isEnabled ? "white" : "text.secondary",
+                fontWeight: "bold",
+              }}
+            />
+          );
+        },
+      },
+      {
         field: "documentapplystatus",
         headerName: "Applicability",
         width: 120,
@@ -2060,33 +2194,46 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       baseColumns.push({
         field: "actions",
         headerName: "Actions",
-        width: 150,
+        width: 180,
         sortable: false,
         filterable: false,
         renderCell: (params) => {
           if (!params || !params.row) return null;
+          const isDisabled = params.row.documentadminstate === 0;
+          const isCurrentlyEnabled = params.row.documentadminstate === 1;
 
           return (
             <Box>
               <ActionButton
+                color={isCurrentlyEnabled ? "enable" : "disable"}
+                onClick={() => handleToggleStatus(params.row)}
+                disabled={
+                  isSaving ||
+                  isDeleting[params.row.documentsrecid] ||
+                  isToggling === params.row.documentsrecid
+                }
+                title={isCurrentlyEnabled ? "Disable" : "Enable"}
+              >
+                {isToggling === params.row.documentsrecid ? (
+                  <ToggleOnIcon fontSize="small" />
+                ) : (
+                  <ToggleOffIcon fontSize="small" />
+                )}
+              </ActionButton>
+
+              <ActionButton
                 color="edit"
                 onClick={() => openEditModal(params.row)}
-                disabled={isSaving || isDeleting[params.row.documentsrecid]}
+                disabled={
+                  isSaving ||
+                  isDeleting[params.row.documentsrecid] ||
+                  isDisabled || 
+                  isToggling === params.row.documentsrecid
+                }
                 title="Edit"
+                className={isDisabled ? "disabled" : ""}
               >
                 <EditIcon fontSize="small" />
-              </ActionButton>
-              <ActionButton
-                color="delete"
-                onClick={() => handleDelete(params.row)}
-                disabled={isSaving || isDeleting[params.row.documentsrecid]}
-                title="Delete"
-              >
-                {isDeleting[params.row.documentsrecid] ? (
-                  <CircularProgress size={18} color="inherit" />
-                ) : (
-                  <DeleteIcon fontSize="small" />
-                )}
               </ActionButton>
             </Box>
           );
@@ -2177,6 +2324,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     hasWriteAccess,
     isSaving,
     isDeleting,
+    isToggling,
     isApplying,
     isUnmarking,
     appliedDocuments,
@@ -2185,6 +2333,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
     handleDelete,
     handleApplyForDocument,
     handleUnmarkDocument,
+    handleToggleStatus,
   ]);
 
   const exportConfig = useMemo(
@@ -2204,6 +2353,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         "Document Name": doc.documentname || "",
         Description: doc.documentdescription || "",
         Periodicity: doc.docperiodicityname || "",
+        Status: doc.documentadminstate === 1 ? "Enabled" : "Disabled",
         Applicability:
           doc.documentapplystatus === 1
             ? "Mandatory"
@@ -2941,7 +3091,7 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
       </Snackbar>
 
       {/* Loading overlay for operations */}
-      <StyledBackdrop open={isSaving}>
+      <StyledBackdrop open={isSaving || isToggling !== null}>
         <Box
           sx={{
             display: "flex",
@@ -2951,7 +3101,11 @@ const DocumentsTable = forwardRef(({ title = "📄 Documents" }, ref) => {
         >
           <CircularProgress color="inherit" />
           <Typography sx={{ mt: 2 }}>
-            {editDoc ? "Updating document..." : "Creating documents..."}
+            {isToggling !== null
+              ? "Updating status..."
+              : editDoc
+              ? "Updating document..."
+              : "Creating documents..."}
           </Typography>
         </Box>
       </StyledBackdrop>
